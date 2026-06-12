@@ -1,0 +1,1617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vinyl & Vino — Listening Clubs</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{font-size:16px;-webkit-text-size-adjust:100%;}
+body{font-family:'DM Sans',sans-serif;min-height:100vh;transition:background .3s,color .3s;}
+input,button,textarea,select{font-family:inherit;}
+a{text-decoration:none;}button{cursor:pointer;}textarea{resize:vertical;}
+
+:root{
+  --bg:#080808;--surface:#101010;--card:#181818;--card2:#1f1f1f;
+  --border:#252525;--border2:#303030;
+  --text1:#F2F1EE;--text2:#8A8A86;--text3:#484846;
+  --teal:#5DCAA5;--teal-bg:rgba(93,202,165,.13);--teal-dark:#04342C;
+  --purple:#7F77DD;--purple-bg:rgba(127,119,221,.13);
+  --coral:#D85A30;--coral-bg:rgba(216,90,48,.13);
+  --amber:#EF9F27;--amber-bg:rgba(239,159,39,.13);
+  --blue:#378ADD;--blue-bg:rgba(55,138,221,.13);
+  --spotify:#1DB954;--apple:#FC3C44;
+  --hero-grad:linear-gradient(150deg,#1e0d40 0%,#0d1e10 60%,#0a1428 100%);
+  --shadow:0 32px 80px rgba(0,0,0,.75);
+  --r-sm:6px;--r-md:10px;--r-lg:14px;--r-xl:20px;
+}
+.light{
+  --bg:#EEECE6;--surface:#F8F7F3;--card:#FFFFFF;--card2:#F2F0EA;
+  --border:#DDD9D0;--border2:#C8C4BB;
+  --text1:#181816;--text2:#66635C;--text3:#AAAA9C;
+  --teal:#0F6E56;--teal-bg:rgba(15,110,86,.1);--teal-dark:#E1F5EE;
+  --purple:#534AB7;--purple-bg:rgba(83,74,183,.1);
+  --coral:#993C1D;--coral-bg:rgba(153,60,29,.1);
+  --amber:#854F0B;--amber-bg:rgba(133,79,11,.1);
+  --blue:#185FA5;--blue-bg:rgba(24,95,165,.1);
+  --hero-grad:linear-gradient(150deg,#EEEDFE 0%,#E1F5EE 60%,#E6F1FB 100%);
+  --shadow:0 20px 60px rgba(0,0,0,.12);
+}
+
+body{background:var(--bg);color:var(--text1);}
+.mono{font-family:'DM Mono',monospace;}
+.label{font-family:'DM Mono',monospace;font-size:10px;font-weight:600;letter-spacing:2.5px;text-transform:uppercase;color:var(--teal);margin-bottom:10px;display:block;}
+input[type=text],input[type=tel],textarea{width:100%;background:var(--card2);border:0.5px solid var(--border);border-radius:var(--r-md);padding:9px 13px;font-size:13px;color:var(--text1);outline:none;transition:border-color .15s;}
+input[type=text]:focus,input[type=tel]:focus,textarea:focus{border-color:var(--teal);}
+input::placeholder,textarea::placeholder{color:var(--text3);}
+textarea{padding:10px 13px;line-height:1.5;}
+.btn{border:none;border-radius:var(--r-md);padding:9px 16px;font-size:13px;font-weight:600;transition:opacity .15s,transform .1s;display:inline-flex;align-items:center;gap:6px;}
+.btn:active{transform:scale(.97);}
+.btn-primary{background:var(--teal);color:var(--teal-dark);}
+.btn-primary:hover{opacity:.88;}
+.btn-danger{background:var(--coral-bg);color:var(--coral);border:0.5px solid var(--coral);}
+.btn-ghost{background:transparent;border:0.5px solid var(--border);color:var(--text2);}
+.btn-sm{padding:6px 12px;font-size:11px;}
+.btn-xs{padding:4px 9px;font-size:10px;border-radius:var(--r-sm);}
+.btn-full{width:100%;justify-content:center;}
+.btn-icon{width:36px;height:36px;border-radius:50%;border:0.5px solid var(--border);background:var(--card);display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--text2);transition:border-color .15s,color .15s;position:relative;}
+.card{background:var(--card);border:0.5px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;transition:background .3s,border-color .3s;}
+.card-section{margin-bottom:12px;}
+.badge{display:inline-block;font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;letter-spacing:.3px;white-space:nowrap;font-family:'DM Mono',monospace;}
+.badge-teal{background:var(--teal-bg);color:var(--teal);}
+.badge-purple{background:var(--purple-bg);color:var(--purple);}
+.badge-amber{background:var(--amber-bg);color:var(--amber);}
+.badge-coral{background:var(--coral-bg);color:var(--coral);}
+.badge-blue{background:var(--blue-bg);color:var(--blue);}
+.av{border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;font-family:'DM Mono',monospace;}
+.toast{display:none;font-size:12px;color:var(--teal);background:var(--teal-bg);border-radius:var(--r-sm);padding:7px 11px;margin-top:8px;font-weight:500;}
+
+/* ─── LOBBY ─────────────────────────────── */
+#lobbyScreen{display:none;min-height:100vh;padding:32px 16px 60px;}
+.lobby-wrap{max-width:460px;margin:0 auto;}
+.lobby-topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;}
+.lobby-wordmark{font-size:22px;font-weight:700;color:var(--text1);}
+.lobby-wordmark span{font-size:10px;font-family:'DM Mono',monospace;letter-spacing:2px;text-transform:uppercase;color:var(--text3);display:block;margin-bottom:2px;}
+.club-tile{background:var(--card);border:0.5px solid var(--border);border-radius:var(--r-xl);padding:18px 20px;margin-bottom:12px;cursor:pointer;transition:border-color .2s,transform .15s;display:flex;align-items:center;gap:16px;}
+.club-tile:hover{border-color:var(--border2);transform:translateY(-1px);}
+.club-tile-emoji{width:52px;height:52px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;}
+.club-tile-info{flex:1;min-width:0;}
+.club-tile-name{font-size:16px;font-weight:700;color:var(--text1);margin-bottom:3px;}
+.club-tile-meta{font-size:12px;color:var(--text2);}
+.club-tile-album{font-size:11px;color:var(--teal);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.club-tile-arrow{font-size:20px;color:var(--text3);flex-shrink:0;}
+.new-club-btn{width:100%;padding:16px;background:transparent;border:0.5px dashed var(--border2);border-radius:var(--r-xl);color:var(--text3);font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;transition:border-color .2s,color .2s;}
+.new-club-btn:hover{border-color:var(--teal);color:var(--teal);}
+.lobby-empty{text-align:center;padding:40px 20px;}
+.lobby-empty-icon{font-size:48px;margin-bottom:16px;}
+.lobby-empty-title{font-size:20px;font-weight:700;color:var(--text1);margin-bottom:8px;}
+.lobby-empty-sub{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px;}
+
+/* ─── SETUP ─────────────────────────────── */
+#setupScreen{display:none;min-height:100vh;overflow-y:auto;padding:40px 16px 60px;}
+.setup-wrap{max-width:420px;margin:0 auto;}
+.setup-back{background:none;border:none;color:var(--text2);font-size:13px;font-family:'DM Mono',monospace;margin-bottom:20px;display:flex;align-items:center;gap:6px;}
+.setup-back:hover{color:var(--teal);}
+.setup-logo{font-size:42px;margin-bottom:14px;text-align:center;}
+.setup-title{font-size:24px;font-weight:700;color:var(--text1);margin-bottom:6px;text-align:center;}
+.setup-sub{font-size:14px;color:var(--text2);text-align:center;margin-bottom:28px;line-height:1.6;}
+.setup-dots{display:flex;justify-content:center;gap:6px;margin-bottom:22px;}
+.setup-dot{width:8px;height:8px;border-radius:50%;background:var(--border);transition:background .2s;}
+.setup-dot.active{background:var(--teal);}
+.setup-step{display:none;}
+.setup-step.active{display:block;}
+.setup-field{margin-bottom:14px;}
+.setup-field label{display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px;font-family:'DM Mono',monospace;}
+.emoji-picker{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;}
+.emoji-opt{width:44px;height:44px;border-radius:10px;border:0.5px solid var(--border);background:var(--card2);font-size:22px;display:flex;align-items:center;justify-content:center;transition:all .15s;}
+.emoji-opt.selected{border-color:var(--teal);background:var(--teal-bg);}
+.member-chip{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--card2);border:0.5px solid var(--border);border-radius:var(--r-md);margin-bottom:6px;}
+.chip-name{flex:1;font-size:13px;color:var(--text1);}
+.chip-remove{background:none;border:none;color:var(--text3);font-size:18px;line-height:1;padding:0 2px;}
+.chip-remove:hover{color:var(--coral);}
+.setup-add-row{display:flex;gap:8px;margin-bottom:8px;}
+.setup-nav{display:flex;gap:8px;margin-top:20px;}
+
+/* ─── APP SHELL ─────────────────────────── */
+#mainApp{display:none;}
+.page{max-width:460px;margin:0 auto;padding:20px 14px 60px;}
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding:0 2px;}
+.topbar-left{display:flex;align-items:center;gap:10px;}
+.back-btn{width:34px;height:34px;border-radius:50%;border:0.5px solid var(--border);background:var(--card);display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--text2);flex-shrink:0;}
+.back-btn:hover{border-color:var(--teal);color:var(--teal);}
+.club-eyebrow{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:3px;text-transform:uppercase;color:var(--text3);margin-bottom:2px;}
+.club-title{font-size:19px;font-weight:700;color:var(--text1);line-height:1.15;}
+.topbar-right{display:flex;align-items:center;gap:8px;}
+.notif-dot{position:absolute;top:7px;right:7px;width:7px;height:7px;border-radius:50%;background:var(--amber);border:1.5px solid var(--bg);}
+.notif-panel{background:var(--card);border:0.5px solid var(--border);border-radius:var(--r-lg);margin-bottom:14px;overflow:hidden;max-height:0;transition:max-height .3s ease;}
+.notif-panel.open{max-height:600px;}
+.notif-panel-inner{padding:14px 16px;}
+.notif-item{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:0.5px solid var(--border);}
+.notif-item:last-child{border-bottom:none;padding-bottom:0;}
+.notif-icon{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
+.notif-text{font-size:12px;color:var(--text1);line-height:1.5;flex:1;}
+.notif-text b{font-weight:600;}
+.notif-time{font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;}
+.notif-unread-dot{width:5px;height:5px;border-radius:50%;background:var(--amber);flex-shrink:0;margin-top:6px;}
+.av-stack{display:flex;}
+.av-stack .av{border:2px solid var(--bg);margin-left:-10px;}
+.av-stack .av:first-child{margin-left:0;}
+.app-shell{background:var(--surface);border-radius:var(--r-xl);border:0.5px solid var(--border);overflow:hidden;box-shadow:var(--shadow);transition:background .3s,border-color .3s;}
+.hero{background:var(--hero-grad);padding:18px 18px 0;transition:background .3s;}
+.hero-inner{display:flex;gap:14px;align-items:center;margin-bottom:14px;}
+.album-art{width:72px;height:72px;border-radius:12px;flex-shrink:0;background:linear-gradient(135deg,#7F77DD,#5DCAA5);display:flex;align-items:center;justify-content:center;font-size:32px;}
+.album-pick-label{font-family:'DM Mono',monospace;font-size:9px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:var(--teal);margin-bottom:3px;}
+.album-name{font-size:18px;font-weight:700;color:var(--text1);margin-bottom:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.album-meta{font-size:12px;color:var(--text2);margin-bottom:10px;}
+.stream-row{display:flex;gap:8px;}
+.stream-btn{font-size:11px;font-weight:700;padding:5px 12px;border-radius:20px;border:none;display:inline-flex;align-items:center;gap:5px;transition:opacity .15s;}
+.stream-btn:hover{opacity:.85;}
+.stream-sp{background:#1DB954;color:#000;}
+.stream-ap{background:#FC3C44;color:#fff;}
+.hero-rsvp{padding:0 0 14px;}
+.hero-rsvp .label{margin-bottom:6px;}
+.rsvp-quick{display:flex;gap:6px;}
+.rsvp-q-btn{flex:1;padding:8px 4px;border-radius:var(--r-md);border:0.5px solid var(--border);background:var(--card);font-size:11px;font-weight:700;color:var(--text3);text-align:center;transition:all .15s;font-family:'DM Mono',monospace;}
+.rsvp-q-btn.active-yes{background:var(--teal-bg);border-color:var(--teal);color:var(--teal);}
+.rsvp-q-btn.active-maybe{background:var(--amber-bg);border-color:var(--amber);color:var(--amber);}
+.rsvp-q-btn.active-no{background:var(--coral-bg);border-color:var(--coral);color:var(--coral);}
+.nav{display:flex;background:var(--card);border-bottom:0.5px solid var(--border);overflow-x:auto;scrollbar-width:none;}
+.nav::-webkit-scrollbar{display:none;}
+.nav-btn{flex:none;min-width:56px;padding:10px 8px 8px;border:none;background:none;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:9px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;font-family:'DM Mono',monospace;color:var(--text3);border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap;}
+.nav-btn .ni{font-size:16px;}
+.nav-btn.active{color:var(--teal);border-bottom-color:var(--teal);}
+.tab-body{background:var(--surface);min-height:460px;transition:background .3s;}
+.tab-pane{display:none;padding:16px 16px 0;}
+.tab-pane.active{display:block;}
+.tab-footer{height:20px;}
+.meeting-date{font-size:24px;font-weight:700;color:var(--text1);}
+.meeting-sub{font-size:13px;color:var(--text2);margin-top:2px;margin-bottom:10px;}
+.schedule-toggle{background:none;border:0.5px solid var(--border);border-radius:var(--r-sm);padding:5px 12px;font-size:11px;color:var(--text2);font-family:'DM Mono',monospace;}
+.schedule-body{display:none;margin-top:10px;border-top:0.5px solid var(--border);padding-top:10px;font-size:12px;color:var(--text2);line-height:2.2;}
+.rotation-strip{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none;}
+.rotation-strip::-webkit-scrollbar{display:none;}
+.rotation-chip{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 10px;border-radius:var(--r-md);flex-shrink:0;border:0.5px solid var(--border);}
+.past-row{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:0.5px solid var(--border);}
+.past-row:last-child{border-bottom:none;}
+.past-art{width:36px;height:36px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
+.invite-row{display:flex;gap:8px;margin-bottom:8px;}
+.invite-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;}
+.invite-tag{font-size:11px;padding:3px 10px;background:rgba(29,185,84,.15);color:#1DB954;border-radius:20px;font-family:'DM Mono',monospace;}
+.rsvp-stats{display:flex;justify-content:space-between;margin-bottom:8px;font-size:12px;color:var(--text2);}
+.rsvp-stats b{font-weight:700;}
+.rsvp-bar-seg{display:flex;gap:3px;height:8px;border-radius:4px;overflow:hidden;margin-bottom:6px;}
+.rsvp-bar-yes{background:var(--teal);border-radius:3px 0 0 3px;transition:width .4s;}
+.rsvp-bar-maybe{background:var(--amber);transition:width .4s;}
+.rsvp-bar-no{background:var(--coral);border-radius:0 3px 3px 0;transition:width .4s;}
+.rsvp-member-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:0.5px solid var(--border);}
+.rsvp-member-row:last-child{border-bottom:none;}
+.rsvp-edit-btn{background:none;border:0.5px solid var(--border);border-radius:var(--r-sm);padding:3px 8px;font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;}
+.guest-rsvp-row{display:flex;gap:6px;margin-top:8px;}
+.guest-rsvp-btn{flex:1;padding:6px 4px;border-radius:var(--r-md);border:0.5px solid var(--border);background:var(--card);font-size:10px;font-weight:700;color:var(--text3);font-family:'DM Mono',monospace;transition:all .15s;}
+.guest-rsvp-btn.active-yes{background:var(--teal-bg);border-color:var(--teal);color:var(--teal);}
+.guest-rsvp-btn.active-maybe{background:var(--amber-bg);border-color:var(--amber);color:var(--amber);}
+.guest-rsvp-btn.active-no{background:var(--coral-bg);border-color:var(--coral);color:var(--coral);}
+.review-album-card{margin-bottom:12px;cursor:pointer;transition:border-color .15s;}
+.review-album-card:hover{border-color:var(--border2);}
+.review-album-card.active-review{border-color:var(--purple)!important;}
+.rac-header{display:flex;align-items:center;gap:12px;margin-bottom:8px;}
+.rac-art{width:50px;height:50px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;}
+.rac-title{font-size:14px;font-weight:700;color:var(--text1);}
+.rac-artist{font-size:12px;color:var(--text2);margin-top:1px;}
+.rac-stats{display:flex;align-items:center;gap:8px;margin-top:5px;}
+.star{font-size:12px;color:var(--border2);}
+.star.on{color:var(--amber);}
+.rac-expand-btn{margin-left:auto;background:none;border:0.5px solid var(--border);border-radius:var(--r-sm);padding:4px 10px;font-size:10px;color:var(--text2);font-family:'DM Mono',monospace;}
+.rac-expand-btn:hover{border-color:var(--purple);color:var(--purple);}
+.review-thread{border-top:0.5px solid var(--border);padding-top:12px;margin-top:4px;}
+.review-comment{display:flex;gap:10px;margin-bottom:12px;}
+.review-comment:last-child{margin-bottom:0;}
+.rc-body{flex:1;min-width:0;}
+.rc-header{display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap;}
+.rc-name{font-size:12px;font-weight:700;color:var(--text1);}
+.rc-time{font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;}
+.rc-stars{display:flex;gap:1px;margin-left:auto;}
+.rc-text{font-size:13px;color:var(--text1);line-height:1.55;}
+.write-review-form{border-top:0.5px solid var(--border);padding-top:12px;margin-top:8px;}
+.star-picker{display:flex;gap:4px;margin-bottom:10px;}
+.star-pick-btn{font-size:22px;background:none;border:none;padding:0;transition:transform .1s;line-height:1;}
+.star-pick-btn:hover{transform:scale(1.2);}
+.review-submit-row{display:flex;gap:8px;margin-top:8px;}
+.member-card{margin-bottom:8px;}
+.member-inner{display:flex;align-items:center;gap:10px;}
+.member-info{flex:1;min-width:0;}
+.member-name-row{display:flex;align-items:center;gap:8px;margin-bottom:4px;}
+.member-name{font-size:13px;font-weight:700;color:var(--text1);}
+.listening-view{display:flex;align-items:center;gap:6px;}
+.listening-pill{font-size:11px;color:var(--purple);background:var(--purple-bg);padding:3px 8px;border-radius:var(--r-sm);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.edit-pen{background:none;border:none;color:var(--text3);font-size:13px;padding:2px;}
+.listening-edit{display:none;flex-direction:column;gap:6px;}
+.remove-btn{background:none;border:none;color:var(--text3);font-size:18px;padding:2px 4px;flex-shrink:0;}
+.remove-btn:hover{color:var(--coral);}
+.add-member-dashed{width:100%;padding:12px;background:transparent;border:0.5px dashed var(--border);border-radius:var(--r-lg);color:var(--text3);font-size:13px;display:flex;align-items:center;justify-content:center;gap:6px;}
+.member-phone{font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;display:flex;align-items:center;gap:4px;margin-top:2px;}
+.member-phone a{color:var(--teal);text-decoration:none;}
+.member-phone a:hover{text-decoration:underline;}
+.phone-edit-btn{background:none;border:none;color:var(--text3);font-size:11px;padding:1px 3px;font-family:'DM Mono',monospace;}
+.phone-edit-btn:hover{color:var(--teal);}
+.text-all-bar{background:var(--purple-bg);border:0.5px solid rgba(127,119,221,.25);border-radius:var(--r-lg);padding:14px 16px;margin-bottom:14px;}
+.text-all-title{font-size:13px;font-weight:700;color:var(--text1);margin-bottom:4px;}
+.text-all-sub{font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.5;}
+.text-all-msg{width:100%;background:var(--card2);border:0.5px solid var(--border);border-radius:var(--r-md);padding:9px 13px;font-size:13px;color:var(--text1);outline:none;resize:vertical;line-height:1.5;margin-bottom:10px;}
+.text-all-msg:focus{border-color:var(--purple);}
+.text-all-msg::placeholder{color:var(--text3);}
+.member-sms-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:0.5px solid var(--border);}
+.member-sms-row:last-child{border-bottom:none;}
+.sms-check{width:18px;height:18px;border-radius:4px;border:0.5px solid var(--border);background:var(--card2);appearance:none;-webkit-appearance:none;cursor:pointer;flex-shrink:0;position:relative;}
+.sms-check:checked{background:var(--teal);border-color:var(--teal);}
+.sms-check:checked::after{content:'✓';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--teal-dark);}
+.sms-no-phone{font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;margin-left:auto;}
+.chip-phone{font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;}
+.food-header{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.food-icon{font-size:16px;}
+.food-label{font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);}
+.food-count{font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;margin-left:auto;}
+.food-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:0.5px solid var(--border);}
+.food-row:last-child{border-bottom:none;}
+.food-name{flex:1;font-size:13px;color:var(--text1);}
+.claim-btn{font-size:10px;font-weight:700;color:var(--coral);background:var(--coral-bg);border:0.5px solid rgba(216,90,48,.3);border-radius:12px;padding:3px 10px;white-space:nowrap;}
+.drink-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.food-add-row{display:flex;gap:6px;margin-top:8px;}
+.food-add-row input{flex:1;padding:6px 10px;font-size:12px;}
+.platform-toggle{display:flex;gap:6px;margin-bottom:10px;}
+.platform-btn{flex:1;padding:7px;border-radius:20px;border:none;font-size:11px;font-weight:700;transition:all .15s;}
+.pl-sp-on{background:rgba(29,185,84,.2);color:#1DB954;}
+.pl-sp-off{background:var(--card2);color:var(--text3);}
+.pl-ap-on{background:rgba(252,60,68,.2);color:#FC3C44;}
+.pl-ap-off{background:var(--card2);color:var(--text3);}
+.music-form{display:flex;flex-direction:column;gap:8px;}
+.link-card{display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:8px;background:var(--card);border:0.5px solid var(--border);border-radius:var(--r-md);}
+.link-platform{font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px;flex-shrink:0;font-family:'DM Mono',monospace;}
+.link-sp{background:rgba(29,185,84,.18);color:#1DB954;}
+.link-ap{background:rgba(252,60,68,.18);color:#FC3C44;}
+.link-info{flex:1;min-width:0;}
+.link-title-text{font-size:13px;color:var(--text1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;}
+.link-by{font-size:11px;color:var(--text3);}
+.page-footer{text-align:center;margin-top:16px;font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;}
+/* ─── NOW LISTENING ─── */
+.now-listening-feed{display:flex;flex-direction:column;gap:10px;margin-bottom:14px;}
+.nl-card{background:var(--card);border:0.5px solid var(--border);border-radius:var(--r-lg);padding:13px 14px;transition:border-color .15s;}
+.nl-card:hover{border-color:var(--border2);}
+.nl-card-header{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+.nl-av-wrap{position:relative;flex-shrink:0;}
+.nl-playing-dot{position:absolute;bottom:0;right:0;width:10px;height:10px;border-radius:50%;background:var(--spotify);border:2px solid var(--card);animation:pulse-dot 1.4s ease-in-out infinite;}
+@keyframes pulse-dot{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(1.3);opacity:.7;}}
+.nl-member-name{font-size:13px;font-weight:700;color:var(--text1);}
+.nl-member-time{font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;}
+.nl-track-row{display:flex;align-items:center;gap:10px;}
+.nl-track-art{width:44px;height:44px;border-radius:6px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px;}
+.nl-track-title{font-size:13px;font-weight:600;color:var(--text1);margin-bottom:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.nl-track-artist{font-size:11px;color:var(--text2);}
+.nl-links{display:flex;gap:6px;margin-top:8px;}
+.nl-link-pill{font-size:10px;font-weight:700;padding:3px 10px;border-radius:12px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;}
+.nl-sp{background:rgba(29,185,84,.18);color:#1DB954;}
+.nl-ap{background:rgba(252,60,68,.18);color:#FC3C44;}
+.nl-note{font-size:12px;color:var(--text2);font-style:italic;margin-top:6px;line-height:1.5;border-top:0.5px solid var(--border);padding-top:6px;}
+.nl-remove-btn{background:none;border:none;color:var(--text3);font-size:16px;padding:2px;margin-left:auto;flex-shrink:0;}
+.nl-remove-btn:hover{color:var(--coral);}
+.nl-add-form{background:var(--card);border:0.5px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;}
+.nl-add-form-fields{display:flex;flex-direction:column;gap:8px;}
+.nl-platform-row{display:flex;gap:6px;}
+.nl-plat-btn{flex:1;padding:6px;border-radius:20px;border:none;font-size:11px;font-weight:700;transition:all .15s;cursor:pointer;}
+
+/* ─── NL REACTIONS & COMMENTS ─── */
+.nl-footer{display:flex;align-items:center;gap:0;border-top:0.5px solid var(--border);margin-top:10px;padding-top:10px;}
+.nl-react-btn{display:flex;align-items:center;gap:4px;padding:5px 10px;border:none;background:none;border-radius:var(--r-md);font-size:13px;color:var(--text2);cursor:pointer;transition:all .15s;font-weight:600;font-family:'DM Mono',monospace;font-size:11px;}
+.nl-react-btn:hover{background:var(--card2);}
+.nl-react-btn.up-active{background:var(--teal-bg);color:var(--teal);}
+.nl-react-btn.down-active{background:var(--coral-bg);color:var(--coral);}
+.nl-react-count{font-size:11px;font-weight:700;}
+.nl-comment-toggle{display:flex;align-items:center;gap:5px;padding:5px 10px;border:none;background:none;border-radius:var(--r-md);font-size:11px;color:var(--text3);cursor:pointer;transition:all .15s;font-family:'DM Mono',monospace;font-weight:600;margin-left:auto;}
+.nl-comment-toggle:hover{background:var(--card2);color:var(--text2);}
+.nl-comment-section{margin-top:10px;border-top:0.5px solid var(--border);padding-top:10px;}
+.nl-comment-item{display:flex;gap:8px;margin-bottom:8px;}
+.nl-comment-item:last-of-type{margin-bottom:0;}
+.nl-comment-body{flex:1;min-width:0;}
+.nl-comment-meta{display:flex;align-items:center;gap:6px;margin-bottom:2px;}
+.nl-comment-author{font-size:11px;font-weight:700;color:var(--text1);}
+.nl-comment-time{font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;}
+.nl-comment-text{font-size:12px;color:var(--text1);line-height:1.5;}
+.nl-comment-reaction{font-size:12px;margin-top:2px;}
+.nl-comment-delete{background:none;border:none;color:var(--text3);font-size:12px;padding:1px 3px;cursor:pointer;opacity:0;transition:opacity .15s;flex-shrink:0;margin-top:1px;}
+.nl-comment-item:hover .nl-comment-delete{opacity:1;}
+.nl-comment-delete:hover{color:var(--coral);}
+.nl-comment-form{display:flex;gap:8px;margin-top:10px;padding-top:10px;border-top:0.5px solid var(--border);}
+.nl-comment-input{flex:1;background:var(--card2);border:0.5px solid var(--border);border-radius:var(--r-md);padding:7px 11px;font-size:12px;color:var(--text1);outline:none;transition:border-color .15s;}
+.nl-comment-input:focus{border-color:var(--teal);}
+.nl-comment-input::placeholder{color:var(--text3);}
+.nl-reaction-picker{display:flex;gap:4px;margin-right:2px;}
+.nl-rxn-btn{font-size:16px;padding:4px 6px;border:0.5px solid var(--border);border-radius:var(--r-sm);background:var(--card2);cursor:pointer;transition:all .15s;line-height:1;}
+.nl-rxn-btn:hover{transform:scale(1.15);}
+.nl-rxn-btn.selected{border-color:var(--teal);background:var(--teal-bg);}
+.nl-post-btn{background:var(--teal);color:var(--teal-dark);border:none;border-radius:var(--r-md);padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;transition:opacity .15s;}
+.nl-post-btn:hover{opacity:.88;}
+
+/* ─── CONCERTS ─── */
+.concert-card{background:var(--card);border:0.5px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;margin-bottom:10px;transition:border-color .15s;}
+.concert-card:hover{border-color:var(--border2);}
+.concert-header{display:flex;align-items:flex-start;gap:12px;margin-bottom:10px;}
+.concert-date-badge{
+  min-width:48px;padding:6px 8px;border-radius:var(--r-md);
+  background:var(--purple-bg);border:0.5px solid rgba(127,119,221,.25);
+  text-align:center;flex-shrink:0;
+}
+.concert-date-month{font-size:9px;font-weight:700;font-family:'DM Mono',monospace;color:var(--purple);text-transform:uppercase;letter-spacing:1px;}
+.concert-date-day{font-size:20px;font-weight:700;color:var(--text1);line-height:1.1;}
+.concert-info{flex:1;min-width:0;}
+.concert-artist-name{font-size:15px;font-weight:700;color:var(--text1);margin-bottom:2px;}
+.concert-venue{font-size:12px;color:var(--text2);margin-bottom:4px;}
+.concert-price{font-size:11px;color:var(--amber);font-family:'DM Mono',monospace;margin-bottom:6px;}
+.concert-interest-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.concert-interest-faces{display:flex;}
+.concert-interest-faces .av{border:2px solid var(--card);margin-left:-8px;}
+.concert-interest-faces .av:first-child{margin-left:0;}
+.concert-interest-count{font-size:12px;color:var(--text2);}
+.im-in-btn{
+  font-size:11px;font-weight:700;padding:5px 12px;border-radius:20px;
+  border:0.5px solid var(--border);background:var(--card2);
+  color:var(--text3);cursor:pointer;transition:all .15s;
+  font-family:'DM Mono',monospace;
+}
+.im-in-btn.interested{background:var(--teal-bg);border-color:var(--teal);color:var(--teal);}
+.concert-footer{display:flex;align-items:center;gap:8px;padding-top:8px;border-top:0.5px solid var(--border);}
+.concert-ticket-link{font-size:11px;font-weight:700;padding:5px 12px;border-radius:20px;background:var(--amber-bg);border:0.5px solid rgba(239,159,39,.3);color:var(--amber);text-decoration:none;font-family:'DM Mono',monospace;}
+.concert-added-by{font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;margin-left:auto;}
+.concert-remove-btn{background:none;border:none;color:var(--text3);font-size:14px;padding:2px 4px;}
+.concert-remove-btn:hover{color:var(--coral);}
+.add-concert-form{background:var(--card);border:0.5px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;}
+.add-concert-fields{display:flex;flex-direction:column;gap:8px;}
+.concert-2col{display:flex;gap:8px;}
+.concert-2col input{flex:1;}
+
+.settings-section{border-top:0.5px solid var(--border);padding-top:14px;margin-top:6px;}
+@media(max-width:400px){.page{padding:14px 10px 60px;}.nav-btn{min-width:48px;font-size:8px;}}
+</style>
+</head>
+<body>
+
+<!-- ════ LOBBY ════ -->
+<div id="lobbyScreen">
+  <div class="lobby-wrap">
+    <div class="lobby-topbar">
+      <div>
+        <div class="lobby-wordmark"><span>your clubs</span>Vinyl &amp; Vino</div>
+      </div>
+      <button class="btn-icon" id="lobbyThemeBtn" onclick="toggleTheme()" title="Toggle theme">🌙</button>
+    </div>
+    <div id="clubTileList"></div>
+    <button class="new-club-btn" onclick="showSetup()">+ Create a new club</button>
+  </div>
+</div>
+
+<!-- ════ SETUP ════ -->
+<div id="setupScreen">
+  <div class="setup-wrap">
+    <button class="setup-back" onclick="cancelSetup()">← back to clubs</button>
+    <div class="setup-logo" id="setupEmojiPreview">🎵</div>
+    <div class="setup-title" id="setupTitleText">New club</div>
+    <div class="setup-sub">Set up your listening club in two quick steps.</div>
+    <div class="setup-dots">
+      <div class="setup-dot active" id="dot0"></div>
+      <div class="setup-dot" id="dot1"></div>
+    </div>
+
+    <!-- Step 1 -->
+    <div class="setup-step active" id="setupStep0">
+      <div class="setup-field">
+        <label>Club emoji</label>
+        <div class="emoji-picker" id="emojiPicker"></div>
+      </div>
+      <div class="setup-field">
+        <label>Club name</label>
+        <input type="text" id="sClubName" placeholder="e.g. Vinyl &amp; Vino, The Record Room…">
+      </div>
+      <div class="setup-field">
+        <label>Next meeting date</label>
+        <input type="text" id="sMeetingDate" placeholder="e.g. July 12, 2026">
+      </div>
+      <div class="setup-field">
+        <label>Time &amp; location</label>
+        <input type="text" id="sMeetingTime" placeholder="e.g. 7:00 PM · Mia's place">
+      </div>
+      <div class="setup-field">
+        <label>This month's album</label>
+        <input type="text" id="sAlbum" placeholder="e.g. Rumours">
+      </div>
+      <div class="setup-field">
+        <label>Artist</label>
+        <input type="text" id="sArtist" placeholder="e.g. Fleetwood Mac · 1977">
+      </div>
+      <div class="setup-nav">
+        <button class="btn btn-primary btn-full" onclick="setupNext()">Next → Add Members</button>
+      </div>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="setup-step" id="setupStep1">
+      <div class="setup-field">
+        <label>Club members</label>
+        <div id="setupMemberChips"></div>
+        <div class="setup-add-row">
+          <input type="text" id="sNewMember" placeholder="Name" style="flex:1.2;" onkeydown="if(event.key==='Enter')document.getElementById('sNewPhone').focus()">
+          <input type="tel" id="sNewPhone" placeholder="Phone (optional)" style="flex:1;" onkeydown="if(event.key==='Enter')setupAddMember()">
+          <button class="btn btn-primary btn-sm" onclick="setupAddMember()" style="flex-shrink:0;">Add</button>
+        </div>
+        <div style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;">Phone numbers let you text members directly from the app.</div>
+      </div>
+      <div class="setup-nav">
+        <button class="btn btn-ghost btn-sm" onclick="setupBack()">← Back</button>
+        <button class="btn btn-primary" onclick="setupFinish()" style="flex:1;justify-content:center;">Launch club 🎉</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ MAIN APP ════ -->
+<div id="mainApp">
+  <div class="page">
+
+    <div class="topbar">
+      <div class="topbar-left">
+        <button class="back-btn" onclick="goToLobby()" title="All clubs">←</button>
+        <div>
+          <div class="club-eyebrow mono" id="clubEyebrow">Listening Club</div>
+          <div class="club-title" id="clubTitleEl">Vinyl &amp; Vino</div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <button class="btn-icon" id="themeBtn" onclick="toggleTheme()">🌙</button>
+        <button class="btn-icon" id="notifBtn" onclick="toggleNotifs()">
+          🔔<div class="notif-dot" id="notifDot"></div>
+        </button>
+        <div class="av-stack" id="avStack"></div>
+      </div>
+    </div>
+
+    <div class="notif-panel" id="notifPanel">
+      <div class="notif-panel-inner">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <span class="label" style="margin-bottom:0;">Notifications</span>
+          <button onclick="markAllRead()" style="background:none;border:none;font-size:11px;color:var(--teal);font-family:'DM Mono',monospace;font-weight:600;">mark all read</button>
+        </div>
+        <div id="notifList"></div>
+      </div>
+    </div>
+
+    <div class="app-shell">
+      <div class="hero" id="heroEl">
+        <div class="hero-inner">
+          <div class="album-art">🎵</div>
+          <div style="flex:1;min-width:0;">
+            <div class="album-pick-label">this month's pick</div>
+            <div class="album-name" id="heroAlbum">—</div>
+            <div class="album-meta" id="heroMeta"></div>
+            <div class="stream-row">
+              <a href="https://open.spotify.com" target="_blank" class="stream-btn stream-sp">▶ Spotify</a>
+              <a href="https://music.apple.com" target="_blank" class="stream-btn stream-ap">▶ Apple</a>
+            </div>
+          </div>
+        </div>
+        <div class="hero-rsvp">
+          <div class="label" id="heroRsvpLabel">Your RSVP</div>
+          <div class="rsvp-quick" id="heroRsvpBtns">
+            <button class="rsvp-q-btn active-yes" onclick="setMyRsvp('yes')">✓ Going</button>
+            <button class="rsvp-q-btn" onclick="setMyRsvp('maybe')">? Maybe</button>
+            <button class="rsvp-q-btn" onclick="setMyRsvp('no')">✕ Can't go</button>
+          </div>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <button class="nav-btn active" onclick="switchTab('home',this)"><span class="ni">🏠</span>Home</button>
+        <button class="nav-btn" onclick="switchTab('rsvp',this)"><span class="ni">📋</span>RSVP</button>
+        <button class="nav-btn" onclick="switchTab('reviews',this)"><span class="ni">🎙️</span>Reviews</button>
+        <button class="nav-btn" onclick="switchTab('nowlistening',this)"><span class="ni">🎶</span>Listening</button>
+        <button class="nav-btn" onclick="switchTab('concerts',this)"><span class="ni">🎤</span>Concerts</button>
+        <button class="nav-btn" onclick="switchTab('members',this)"><span class="ni">👥</span>Members</button>
+        <button class="nav-btn" onclick="switchTab('food',this)"><span class="ni">🍽️</span>Eats</button>
+        <button class="nav-btn" onclick="switchTab('music',this)"><span class="ni">🎧</span>Links</button>
+      </nav>
+
+      <div class="tab-body">
+
+        <!-- HOME -->
+        <div class="tab-pane active" id="tab-home">
+          <div class="card card-section">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px;">
+              <div>
+                <div class="meeting-date" id="meetingDateEl">—</div>
+                <div class="meeting-sub" id="meetingSubEl"></div>
+              </div>
+              <span class="badge badge-teal" id="attendBadge">— going</span>
+            </div>
+            <button class="schedule-toggle" onclick="toggleSchedule(this)">▼ full schedule</button>
+            <div class="schedule-body" id="schedBody">
+              🕖 7:00 PM — Arrive, drinks &amp; intros<br>
+              🎵 7:30 PM — Album listening (no talking!)<br>
+              💬 8:30 PM — Discussion &amp; reactions<br>
+              🍽️ 9:00 PM — Dinner &amp; free chat<br>
+              👑 9:30 PM — Next month's pick revealed
+            </div>
+          </div>
+          <span class="label">Invite members</span>
+          <div class="card card-section">
+            <div style="background:var(--purple-bg);border:0.5px solid rgba(127,119,221,.22);border-radius:var(--r-md);padding:12px 14px;margin-bottom:10px;">
+              <div style="font-size:12px;font-weight:700;color:var(--text1);margin-bottom:4px;">🔗 Share your welcome page</div>
+              <div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:10px;">New members get a personalised page with the album, meeting details, RSVP, and how-it-works guide.</div>
+              <div style="display:flex;gap:8px;">
+                <button class="btn btn-primary btn-sm" id="copyInviteBtn" onclick="copyInviteLink()" style="flex:1;justify-content:center;">📋 Copy invite link</button>
+                <button class="btn btn-ghost btn-sm" onclick="openWelcomePage()" style="flex-shrink:0;">Preview ↗</button>
+              </div>
+            </div>
+            <div style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;margin-bottom:10px;">Or text a phone number directly:</div>
+            <div class="invite-row">
+              <input type="tel" id="invInput" placeholder="Phone number or name" onkeydown="if(event.key==='Enter')sendInvite()">
+              <button class="btn btn-primary btn-sm" onclick="sendInvite()" style="flex-shrink:0;">Send</button>
+            </div>
+            <div class="toast" id="invToast">✓ Invite sent!</div>
+            <div class="invite-tags" id="invTags"></div>
+          </div>
+          <span class="label">Picker rotation</span>
+          <div class="card card-section" style="background:var(--purple-bg);border-color:rgba(127,119,221,.22);">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+              <div style="font-size:26px;">👑</div>
+              <div>
+                <div style="font-size:14px;font-weight:700;color:var(--text1);" id="pickerThisMonth">—</div>
+                <div style="font-size:11px;color:var(--purple);" id="pickerAlbumLine"></div>
+              </div>
+            </div>
+            <div class="rotation-strip" id="rotationStrip"></div>
+          </div>
+          <span class="label">Past albums</span>
+          <div class="card card-section" id="pastList"></div>
+          <div class="tab-footer"></div>
+        </div>
+
+        <!-- RSVP -->
+        <div class="tab-pane" id="tab-rsvp">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <span class="label" style="margin-bottom:0;">RSVP tracker</span>
+            <span class="badge badge-teal" id="rsvpSummaryBadge">—</span>
+          </div>
+          <div class="card card-section">
+            <div class="rsvp-stats">
+              <span>Going <b id="goingCnt" style="color:var(--teal);">—</b></span>
+              <span>Maybe <b id="maybeCnt" style="color:var(--amber);">—</b></span>
+              <span>Can't go <b id="cantCnt" style="color:var(--coral);">—</b></span>
+            </div>
+            <div class="rsvp-bar-seg">
+              <div class="rsvp-bar-yes" id="barYes" style="width:0%"></div>
+              <div class="rsvp-bar-maybe" id="barMaybe" style="width:0%"></div>
+              <div class="rsvp-bar-no" id="barNo" style="width:0%"></div>
+            </div>
+            <div style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;" id="rsvpPct"></div>
+          </div>
+          <span class="label">Member responses</span>
+          <div class="card card-section" id="rsvpMemberList"></div>
+          <span class="label">Add a guest</span>
+          <div class="card card-section">
+            <div style="display:flex;gap:8px;">
+              <input type="text" id="guestName" placeholder="Guest name" onkeydown="if(event.key==='Enter')addGuest()">
+              <button class="btn btn-primary btn-sm" onclick="addGuest()" style="flex-shrink:0;">+ Add</button>
+            </div>
+            <div class="guest-rsvp-row">
+              <button class="guest-rsvp-btn active-yes" id="gyes" onclick="setGuestRsvp('yes')">✓ Going</button>
+              <button class="guest-rsvp-btn" id="gmaybe" onclick="setGuestRsvp('maybe')">? Maybe</button>
+              <button class="guest-rsvp-btn" id="gno" onclick="setGuestRsvp('no')">✕ No</button>
+            </div>
+            <div class="toast" id="guestToast">✓ Guest added!</div>
+          </div>
+          <div class="tab-footer"></div>
+        </div>
+
+        <!-- REVIEWS -->
+        <div class="tab-pane" id="tab-reviews">
+          <div style="font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.6;">Rate and review the albums your club has listened to.</div>
+          <div id="reviewAlbumList"></div>
+          <span class="label" style="margin-top:4px;">Add an album</span>
+          <div class="card card-section">
+            <div style="display:flex;gap:8px;margin-bottom:8px;">
+              <input type="text" id="newRevAlbum" placeholder="Album name" style="flex:1;" onkeydown="if(event.key==='Enter')document.getElementById('newRevArtist').focus()">
+              <input type="text" id="newRevArtist" placeholder="Artist" style="flex:1;" onkeydown="if(event.key==='Enter')addReviewAlbum()">
+            </div>
+            <button class="btn btn-primary btn-full" onclick="addReviewAlbum()">Add album</button>
+            <div class="toast" id="revAlbumToast">✓ Album added!</div>
+          </div>
+          <div class="tab-footer"></div>
+        </div>
+
+        <!-- MEMBERS -->
+        <div class="tab-pane" id="tab-members">
+          <span class="label">Club members</span>
+          <div id="membersList" style="margin-bottom:12px;"></div>
+          <div id="addMemberArea">
+            <button class="add-member-dashed" onclick="showAddMember()">+ add a member</button>
+          </div>
+          <div id="addMemberForm" style="display:none;" class="card">
+            <span class="label" style="margin-bottom:8px;">New member</span>
+            <div style="display:flex;gap:8px;margin-bottom:8px;">
+              <input type="text" id="newMemberName" placeholder="Full name" onkeydown="if(event.key==='Enter')document.getElementById('newMemberPhone').focus()">
+            </div>
+            <div style="display:flex;gap:8px;margin-bottom:8px;">
+              <input type="tel" id="newMemberPhone" placeholder="Phone number (optional)" onkeydown="if(event.key==='Enter')addMember()">
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-primary btn-sm" onclick="addMember()" style="flex:1;justify-content:center;">Add member</button>
+              <button onclick="hideAddMember()" class="btn btn-ghost btn-sm">cancel</button>
+            </div>
+          </div>
+          <div class="settings-section">
+            <div class="text-all-bar">
+              <div class="text-all-title">📱 Text members</div>
+              <div class="text-all-sub">Send a text to club members who have a phone number saved. Opens your default messaging app with the message pre-filled.</div>
+              <div id="smsMemberList" style="margin-bottom:10px;"></div>
+              <textarea class="text-all-msg" id="smsMessageInput" rows="3" placeholder="Type your message… e.g. 'Hey! This month we're listening to Rumours by Fleetwood Mac. Meeting July 12 at 7pm. Can't wait! 🎵'"></textarea>
+              <button class="btn btn-primary btn-full" onclick="textSelected()" id="textSelectedBtn">💬 Open in Messages</button>
+              <div class="toast" id="smsToast">✓ Opening Messages app…</div>
+            </div>
+          </div>
+          <div class="settings-section">
+            <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Edit club details like the meeting date, album, or location.</div>
+            <button class="btn btn-ghost btn-sm btn-full" onclick="editClub()" style="margin-bottom:8px;">✏️ Edit club details</button>
+            <button class="btn btn-danger btn-sm btn-full" onclick="confirmDeleteClub()">🗑 Delete this club</button>
+          </div>
+          <div class="tab-footer"></div>
+        </div>
+
+        <!-- FOOD -->
+        <div class="tab-pane" id="tab-food">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <span class="label" style="margin-bottom:0;">Food &amp; drinks</span>
+            <span class="mono" style="font-size:11px;color:var(--text3);" id="foodProgress"></span>
+          </div>
+          <div class="card food-section" id="foodBites"></div>
+          <div class="card food-section" id="foodSweets"></div>
+          <div class="card food-section" id="foodDrinks"></div>
+          <div class="tab-footer"></div>
+        </div>
+
+        <!-- MUSIC -->
+        <div class="tab-pane" id="tab-music">
+          <span class="label">Share music</span>
+          <div class="card card-section">
+            <div class="platform-toggle">
+              <button class="platform-btn pl-sp-on" id="pillSp" onclick="setPlatform('spotify')">🟢 Spotify</button>
+              <button class="platform-btn pl-ap-off" id="pillAp" onclick="setPlatform('apple')">🔴 Apple Music</button>
+            </div>
+            <div class="music-form">
+              <input type="text" id="linkTitle" placeholder="Title (e.g. Rumours full album)">
+              <input type="text" id="linkUrl" placeholder="Paste Spotify or Apple link…">
+              <button class="btn btn-primary btn-full" onclick="shareLink()">Share with the club</button>
+            </div>
+            <div class="toast" id="linkToast">✓ Link shared!</div>
+          </div>
+          <span class="label">Shared links</span>
+          <div id="linksList"></div>
+          <div class="tab-footer"></div>
+        </div>
+
+
+        <!-- NOW LISTENING -->
+        <div class="tab-pane" id="tab-nowlistening">
+          <div style="font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.6;">What are club members listening to right now? Share a track, album or playlist with a link.</div>
+          <div class="now-listening-feed" id="nlFeed"></div>
+          <span class="label">Share what you're hearing</span>
+          <div class="nl-add-form card-section">
+            <div class="nl-add-form-fields">
+              <div class="nl-platform-row">
+                <button class="nl-plat-btn" id="nlPillSp" onclick="setNlPlatform('spotify')">🟢 Spotify</button>
+                <button class="nl-plat-btn" id="nlPillAp" onclick="setNlPlatform('apple')">🔴 Apple Music</button>
+                <button class="nl-plat-btn" id="nlPillOther" onclick="setNlPlatform('other')">🔗 Other</button>
+              </div>
+              <input type="text" id="nlTrackTitle" placeholder="Track, album or playlist name">
+              <input type="text" id="nlTrackArtist" placeholder="Artist (optional)">
+              <input type="text" id="nlTrackUrl" placeholder="Paste link…">
+              <textarea id="nlNote" rows="2" placeholder="Add a note — why you love it, how it's making you feel… (optional)"></textarea>
+              <button class="btn btn-primary btn-full" onclick="addNlPost()">Share with the club</button>
+            </div>
+            <div class="toast" id="nlToast">✓ Shared!</div>
+          </div>
+          <div class="tab-footer"></div>
+        </div>
+
+        <!-- CONCERTS -->
+        <div class="tab-pane" id="tab-concerts">
+          <div style="font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.6;">Upcoming shows worth going to. Add a concert and see who else is interested in going.</div>
+          <div id="concertList"></div>
+          <span class="label">Add a concert</span>
+          <div class="add-concert-form card-section">
+            <div class="add-concert-fields">
+              <input type="text" id="cArtist" placeholder="Artist / band name">
+              <div class="concert-2col">
+                <input type="text" id="cDate" placeholder="Date (e.g. Aug 3, 2026)">
+                <input type="text" id="cVenue" placeholder="Venue & city">
+              </div>
+              <div class="concert-2col">
+                <input type="text" id="cPrice" placeholder="Ticket price (optional)">
+                <input type="text" id="cTicketUrl" placeholder="Ticket link (optional)">
+              </div>
+              <input type="text" id="cNote" placeholder="Any notes — support acts, seating tips… (optional)">
+              <button class="btn btn-primary btn-full" onclick="addConcert()">Add concert</button>
+            </div>
+            <div class="toast" id="concertToast">✓ Concert added!</div>
+          </div>
+          <div class="tab-footer"></div>
+        </div>
+
+      </div><!-- /tab-body -->
+    </div><!-- /app-shell -->
+    <div class="page-footer" id="pageFooter"></div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════
+   CONSTANTS
+═══════════════════════════════════════════════ */
+const AVC=[{bg:'#5DCAA5',fg:'#04342C'},{bg:'#7F77DD',fg:'#26215C'},{bg:'#D85A30',fg:'#4A1B0C'},{bg:'#D4537E',fg:'#4B1528'},{bg:'#378ADD',fg:'#042C53'},{bg:'#EF9F27',fg:'#412402'},{bg:'#639922',fg:'#173404'}];
+const EMOJIS=['🎵','🎸','🎹','🎺','🥁','🎷','🎻','🎤','🎧','📻','💿','🍷','🎶','🌙','🦋','🌿','🔥','✨'];
+const STORAGE_KEY='vv_app_v4';
+
+/* ═══════════════════════════════════════════════
+   GLOBAL STATE
+═══════════════════════════════════════════════ */
+let appData={isDark:true,clubs:[],activeClubId:null};
+let setupMembers=[];
+let setupSelectedEmoji='🎵';
+let expandedReviewId=null;
+let pendingStars=0;
+let editingClubId=null;
+
+function getClub(){return appData.clubs.find(c=>c.id===appData.activeClubId)||null;}
+function save(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(appData));}catch(e){}}
+function load(){try{const s=localStorage.getItem(STORAGE_KEY);if(s)appData=JSON.parse(s);}catch(e){}}
+
+function newClubTemplate(id){
+  return{id,clubName:'New Club',emoji:'🎵',meetingDate:'',meetingTimeLoc:'',currentAlbum:'TBA',currentArtist:'',isDark:true,members:[],reviewAlbums:[],food:{bites:[{id:1,name:'Snacks',claimedBy:null},{id:2,name:'Dips & crackers',claimedBy:null}],sweets:[{id:3,name:'Chocolate',claimedBy:null}],drinks:[{id:4,name:'Wine',claimedBy:null,ci:1},{id:5,name:'Beer',claimedBy:null,ci:2},{id:6,name:'Water',claimedBy:null,ci:3}]},links:[],notifications:[],myRsvp:'yes',guestRsvpChoice:'yes',currentPlatform:'spotify',nowListening:[],concerts:[],nlPlatform:'spotify'};
+}
+
+/* ═══════════════════════════════════════════════
+   HELPERS
+═══════════════════════════════════════════════ */
+function avHTML(initials,ci,size=36){const c=AVC[ci%AVC.length];return `<div class="av" style="width:${size}px;height:${size}px;background:${c.bg};color:${c.fg};font-size:${Math.floor(size*.3)}px;">${initials}</div>`;}
+function toast(id,ms=3000){const el=document.getElementById(id);if(!el)return;el.style.display='block';setTimeout(()=>el.style.display='none',ms);}
+function push(icon,bg,text){const cl=getClub();if(!cl)return;cl.notifications.unshift({id:Date.now(),icon,bg,text,time:'just now',read:false});document.getElementById('notifDot').style.display='block';save();}
+function starsHTML(r,size=12){return Array.from({length:5},(_,i)=>`<span class="star${i<Math.round(r)?' on':''}" style="font-size:${size}px;">★</span>`).join('');}
+function avgRating(comments){if(!comments||!comments.length)return 0;const r=comments.filter(c=>c.rating>0);return r.length?r.reduce((s,c)=>s+c.rating,0)/r.length:0;}
+
+/* ═══════════════════════════════════════════════
+   THEME
+═══════════════════════════════════════════════ */
+function applyTheme(){
+  document.documentElement.classList.toggle('light',!appData.isDark);
+  const icon=appData.isDark?'🌙':'☀️';
+  ['themeBtn','lobbyThemeBtn'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=icon;});
+}
+function toggleTheme(){appData.isDark=!appData.isDark;applyTheme();save();}
+
+/* ═══════════════════════════════════════════════
+   SCREEN SWITCHING
+═══════════════════════════════════════════════ */
+function showScreen(id){['lobbyScreen','setupScreen','mainApp'].forEach(s=>document.getElementById(s).style.display='none');document.getElementById(id).style.display=id==='lobbyScreen'?'block':id==='setupScreen'?'block':'block';}
+
+function goToLobby(){
+  appData.activeClubId=null;
+  save();
+  expandedReviewId=null;
+  pendingStars=0;
+  showScreen('lobbyScreen');
+  renderLobby();
+  // reset nav
+  document.querySelectorAll('.nav-btn').forEach((b,i)=>{b.classList.toggle('active',i===0);});
+  document.querySelectorAll('.tab-pane').forEach((p,i)=>{p.classList.toggle('active',i===0);});
+}
+
+/* ═══════════════════════════════════════════════
+   LOBBY
+═══════════════════════════════════════════════ */
+function renderLobby(){
+  const list=document.getElementById('clubTileList');
+  if(!appData.clubs.length){
+    list.innerHTML=`<div class="lobby-empty"><div class="lobby-empty-icon">🎵</div><div class="lobby-empty-title">No clubs yet</div><div class="lobby-empty-sub">Create your first listening club to get started. Invite friends, track RSVPs, share albums, and post reviews together.</div></div>`;
+    return;
+  }
+  list.innerHTML=appData.clubs.map(c=>{
+    const going=c.members.filter(m=>m.rsvp==='yes').length;
+    const unread=c.notifications.filter(n=>!n.read).length;
+    return `<div class="club-tile" onclick="openClub('${c.id}')">
+      <div class="club-tile-emoji" style="background:${AVC[appData.clubs.indexOf(c)%7].bg};">${c.emoji||'🎵'}</div>
+      <div class="club-tile-info">
+        <div class="club-tile-name">${c.clubName}</div>
+        <div class="club-tile-meta">${c.meetingDate||'No meeting set'} · ${going} going${unread?` · <span style="color:var(--amber);font-weight:700;">${unread} new</span>`:''}</div>
+        <div class="club-tile-album">${c.currentAlbum&&c.currentAlbum!=='TBA'?'🎵 '+c.currentAlbum+(c.currentArtist?' — '+c.currentArtist.replace(/·.*/,'').trim():''):'No album set yet'}</div>
+      </div>
+      <div class="club-tile-arrow">›</div>
+    </div>`;
+  }).join('');
+}
+
+function openClub(id){
+  appData.activeClubId=id;
+  save();
+  expandedReviewId=null;
+  pendingStars=0;
+  showScreen('mainApp');
+  bootApp();
+  // reset to home tab
+  document.querySelectorAll('.nav-btn').forEach((b,i)=>b.classList.toggle('active',i===0));
+  document.querySelectorAll('.tab-pane').forEach((p,i)=>p.classList.toggle('active',i===0));
+  document.getElementById('notifPanel').classList.remove('open');
+  document.getElementById('schedBody').style.display='none';
+  document.querySelectorAll('.schedule-toggle').forEach(b=>b.textContent='▼ full schedule');
+}
+
+/* ═══════════════════════════════════════════════
+   SETUP
+═══════════════════════════════════════════════ */
+function showSetup(existingId){
+  editingClubId=existingId||null;
+  setupMembers=[];
+  const existing=existingId?appData.clubs.find(c=>c.id===existingId):null;
+  setupSelectedEmoji=existing?existing.emoji:'🎵';
+
+  document.getElementById('setupEmojiPreview').textContent=setupSelectedEmoji;
+  document.getElementById('setupTitleText').textContent=existing?'Edit club':'New club';
+  document.getElementById('sClubName').value=existing?existing.clubName:'';
+  document.getElementById('sMeetingDate').value=existing?existing.meetingDate:'';
+  document.getElementById('sMeetingTime').value=existing?existing.meetingTimeLoc:'';
+  document.getElementById('sAlbum').value=existing?existing.currentAlbum:'';
+  document.getElementById('sArtist').value=existing?existing.currentArtist:'';
+
+  if(existing){
+    setupMembers=existing.members.map(m=>({id:m.id,name:m.name,phone:m.phone||'',initials:m.initials}));
+  }
+
+  // render emoji picker
+  document.getElementById('emojiPicker').innerHTML=EMOJIS.map(e=>`<button class="emoji-opt${e===setupSelectedEmoji?' selected':''}" onclick="pickEmoji('${e}')">${e}</button>`).join('');
+
+  renderSetupChips();
+
+  // reset to step 1
+  document.getElementById('setupStep0').classList.add('active');
+  document.getElementById('setupStep1').classList.remove('active');
+  document.getElementById('dot0').classList.add('active');
+  document.getElementById('dot1').classList.remove('active');
+
+  showScreen('setupScreen');
+}
+
+function cancelSetup(){showScreen('lobbyScreen');renderLobby();}
+
+function pickEmoji(e){
+  setupSelectedEmoji=e;
+  document.getElementById('setupEmojiPreview').textContent=e;
+  document.querySelectorAll('.emoji-opt').forEach(btn=>{btn.classList.toggle('selected',btn.textContent===e);});
+}
+
+function setupNext(){
+  document.getElementById('setupStep0').classList.remove('active');
+  document.getElementById('setupStep1').classList.add('active');
+  document.getElementById('dot0').classList.remove('active');
+  document.getElementById('dot1').classList.add('active');
+}
+function setupBack(){
+  document.getElementById('setupStep1').classList.remove('active');
+  document.getElementById('setupStep0').classList.add('active');
+  document.getElementById('dot1').classList.remove('active');
+  document.getElementById('dot0').classList.add('active');
+}
+function setupAddMember(){
+  const input=document.getElementById('sNewMember');
+  const phoneInput=document.getElementById('sNewPhone');
+  const name=input.value.trim();
+  if(!name)return;
+  const phone=phoneInput?phoneInput.value.trim():'';
+  input.value='';if(phoneInput)phoneInput.value='';input.focus();
+  setupMembers.push({id:Date.now(),name,phone,initials:name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()});
+  renderSetupChips();
+}
+function setupRemoveMember(id){setupMembers=setupMembers.filter(m=>m.id!==id);renderSetupChips();}
+function renderSetupChips(){
+  document.getElementById('setupMemberChips').innerHTML=setupMembers.map((m,i)=>`
+    <div class="member-chip">
+      \${avHTML(m.initials,i,28)}
+      <div style="flex:1;min-width:0;">
+        <div class="chip-name">\${m.name}</div>
+        \${m.phone?`<div class="chip-phone">\${m.phone}</div>`:'<div class="chip-phone" style="color:var(--text3);font-style:italic;">no phone</div>'}
+      </div>
+      <button class="chip-remove" onclick="setupRemoveMember(\${m.id})">×</button>
+    </div>`).join('');
+}
+
+function setupFinish(){
+  if(!setupMembers.length){
+    const inp=document.getElementById('sNewMember');
+    inp.style.borderColor='var(--coral)';
+    inp.placeholder='Add at least one member!';
+    setTimeout(()=>{inp.style.borderColor='';inp.placeholder='Member name';},2000);
+    return;
+  }
+  const name=document.getElementById('sClubName').value.trim()||'New Club';
+  const date=document.getElementById('sMeetingDate').value.trim();
+  const timeLoc=document.getElementById('sMeetingTime').value.trim();
+  const album=document.getElementById('sAlbum').value.trim();
+  const artist=document.getElementById('sArtist').value.trim();
+
+  if(editingClubId){
+    // edit existing
+    appData.clubs=appData.clubs.map(c=>{
+      if(c.id!==editingClubId)return c;
+      const existingMemberIds=new Set(c.members.map(m=>m.id));
+      const newMembers=setupMembers.map((m,i)=>{const existing=c.members.find(em=>em.id===m.id);return existing?{...existing,name:m.name,phone:m.phone||existing.phone||'',initials:m.initials}:{id:m.id,name:m.name,phone:m.phone||'',initials:m.initials,role:i===0?'Host':'Member',listening:'…',ci:i%7,rsvp:'yes'};});
+      return{...c,clubName:name,emoji:setupSelectedEmoji,meetingDate:date||c.meetingDate,meetingTimeLoc:timeLoc||c.meetingTimeLoc,currentAlbum:album||c.currentAlbum,currentArtist:artist||c.currentArtist,members:newMembers};
+    });
+    save();
+    openClub(editingClubId);
+  } else {
+    // new club
+    const id='club_'+Date.now();
+    const club=newClubTemplate(id);
+    club.clubName=name;
+    club.emoji=setupSelectedEmoji;
+    club.meetingDate=date;
+    club.meetingTimeLoc=timeLoc;
+    club.currentAlbum=album||'TBA';
+    club.currentArtist=artist;
+    club.members=setupMembers.map((m,i)=>({id:m.id,name:m.name,phone:m.phone||'',initials:m.initials,role:i===0?'Host':'Member',listening:'…',ci:i%7,rsvp:'yes'}));
+    if(album){club.reviewAlbums=[{id:Date.now(),album,artist:artist.replace(/·.*/,'').trim(),ci:0,comments:[]}];}
+    appData.clubs.push(club);
+    save();
+    openClub(id);
+  }
+}
+
+function editClub(){showSetup(appData.activeClubId);}
+
+function confirmDeleteClub(){
+  const cl=getClub();
+  if(!cl)return;
+  if(!confirm(`Delete "${cl.clubName}"? This cannot be undone.`))return;
+  appData.clubs=appData.clubs.filter(c=>c.id!==appData.activeClubId);
+  appData.activeClubId=null;
+  save();
+  goToLobby();
+}
+
+/* ═══════════════════════════════════════════════
+   BOOT APP
+═══════════════════════════════════════════════ */
+function bootApp(){
+  const cl=getClub();
+  if(!cl)return;
+  document.getElementById('clubTitleEl').textContent=cl.clubName;
+  document.getElementById('heroAlbum').textContent=cl.currentAlbum||'TBA';
+  document.getElementById('heroMeta').textContent=cl.currentArtist||'';
+  document.getElementById('heroRsvpLabel').textContent='Your RSVP'+(cl.meetingDate?' for '+cl.meetingDate:'');
+  document.getElementById('meetingDateEl').textContent=cl.meetingDate||'No meeting set';
+  document.getElementById('meetingSubEl').textContent=cl.meetingTimeLoc||'';
+  document.getElementById('pickerThisMonth').textContent=(cl.members[0]?.name||'—')+' picked this month';
+  document.getElementById('pickerAlbumLine').textContent=cl.currentAlbum&&cl.currentAlbum!=='TBA'?cl.currentAlbum+(cl.currentArtist?' by '+cl.currentArtist.replace(/·.*/,'').trim():''):'';
+  const myRsvp=cl.myRsvp||'yes';
+  const rsvpBtns=document.querySelectorAll('#heroRsvpBtns .rsvp-q-btn');
+  rsvpBtns.forEach((b,i)=>{b.className='rsvp-q-btn';if((i===0&&myRsvp==='yes')||(i===1&&myRsvp==='maybe')||(i===2&&myRsvp==='no'))b.className+=' active-'+myRsvp;});
+  renderNotifs();renderRotation();renderPast();renderRsvp();renderReviews();renderMembers();renderFood();renderLinks();renderFooter();renderSmsMemberList();renderNowListening();renderConcerts();setNlPlatform('spotify');
+  document.getElementById('invTags').innerHTML='';
+  setPlatform(cl.currentPlatform||'spotify');
+}
+
+/* ═══════════════════════════════════════════════
+   TABS
+═══════════════════════════════════════════════ */
+function switchTab(id,btn){
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  btn.classList.add('active');
+}
+
+/* ═══════════════════════════════════════════════
+   NOTIFICATIONS
+═══════════════════════════════════════════════ */
+function toggleNotifs(){const p=document.getElementById('notifPanel');p.classList.toggle('open');if(p.classList.contains('open'))renderNotifs();}
+function renderNotifs(){
+  const cl=getClub();
+  const notifs=cl?cl.notifications:[];
+  const unread=notifs.filter(n=>!n.read).length;
+  document.getElementById('notifDot').style.display=unread>0?'block':'none';
+  document.getElementById('notifList').innerHTML=notifs.length
+    ?notifs.map(n=>`<div class="notif-item"><div class="notif-icon" style="background:${n.bg};">${n.icon}</div><div style="flex:1;"><div class="notif-text">${n.text}</div><div style="display:flex;align-items:center;gap:6px;margin-top:2px;"><span class="notif-time">${n.time}</span>${!n.read?'<div class="notif-unread-dot"></div>':''}</div></div></div>`).join('')
+    :'<div style="font-size:12px;color:var(--text3);padding:8px 0;">No notifications yet.</div>';
+}
+function markAllRead(){const cl=getClub();if(!cl)return;cl.notifications=cl.notifications.map(n=>({...n,read:true}));save();renderNotifs();}
+
+/* ═══════════════════════════════════════════════
+   HOME
+═══════════════════════════════════════════════ */
+function toggleSchedule(btn){const body=document.getElementById('schedBody');const open=body.style.display==='none'||!body.style.display;body.style.display=open?'block':'none';btn.textContent=open?'▲ hide schedule':'▼ full schedule';}
+function buildWelcomeUrl(){
+  const cl=getClub();if(!cl)return window.location.href;
+  const base=window.location.origin+window.location.pathname.replace('index.html','')+'welcome.html';
+  const p=new URLSearchParams({
+    club:cl.clubName||'',
+    album:cl.currentAlbum||'',
+    artist:cl.currentArtist||'',
+    date:(cl.meetingDate||'')+(cl.meetingTimeLoc?' · '+cl.meetingTimeLoc:''),
+    location:cl.meetingTimeLoc||'',
+    host:cl.members[0]?cl.members[0].name:'',
+    members:cl.members.map(m=>m.name).join(','),
+  });
+  return base+'?'+p.toString();
+}
+function sendInvite(){
+  const input=document.getElementById('invInput');
+  const val=input.value.trim();if(!val)return;
+  input.value='';toast('invToast');
+  const tag=document.createElement('div');tag.className='invite-tag';tag.textContent='✓ '+val;
+  document.getElementById('invTags').appendChild(tag);
+  push('📱','rgba(29,185,84,.18)',`Invite sent to <b>${val}</b>`);
+}
+function copyInviteLink(){
+  const url=buildWelcomeUrl();
+  navigator.clipboard.writeText(url).then(()=>{
+    const btn=document.getElementById('copyInviteBtn');
+    if(btn){const orig=btn.textContent;btn.textContent='✓ Copied!';setTimeout(()=>btn.textContent=orig,2000);}
+  }).catch(()=>{
+    prompt('Copy this invite link:',buildWelcomeUrl());
+  });
+}
+function openWelcomePage(){
+  window.open(buildWelcomeUrl(),'_blank');
+}
+function renderRotation(){
+  const cl=getClub();if(!cl)return;
+  document.getElementById('rotationStrip').innerHTML=cl.members.map((m,i)=>`<div class="rotation-chip" style="background:${i===0?'rgba(127,119,221,.18)':i===1?'rgba(93,202,165,.12)':'transparent'};border-color:${i===0?'rgba(127,119,221,.35)':i===1?'rgba(93,202,165,.3)':'var(--border)'};">
+    <span style="font-size:9px;font-weight:700;font-family:'DM Mono',monospace;color:${i===0?'var(--purple)':i===1?'var(--teal)':'var(--text3)'};">${i===0?'this':i===1?'next':'+'+(i)}</span>
+    <span style="font-size:11px;color:${i<=1?'var(--text1)':'var(--text2)'};">${m.name.split(' ')[0]}</span>
+  </div>`).join('');
+}
+function renderPast(){
+  const cl=getClub();if(!cl)return;
+  const past=cl.reviewAlbums.filter(a=>a.comments&&a.comments.length>0);
+  document.getElementById('pastList').innerHTML=past.length
+    ?past.map(a=>{const avg=avgRating(a.comments);return `<div class="past-row"><div class="past-art" style="background:${AVC[a.ci%7].bg};">🎵</div><div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;color:var(--text1);">${a.album}</div><div style="font-size:11px;color:var(--text2);">${a.artist}</div></div><div style="display:flex;align-items:center;gap:3px;">${starsHTML(avg,11)}<span style="font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;">${avg?avg.toFixed(1):''}</span></div></div>`;}).join('')
+    :'<div style="font-size:12px;color:var(--text3);padding:4px 0;">No past albums yet — add reviews on the Reviews tab.</div>';
+}
+
+/* ═══════════════════════════════════════════════
+   RSVP
+═══════════════════════════════════════════════ */
+function setMyRsvp(val){
+  const cl=getClub();if(!cl)return;
+  cl.myRsvp=val;
+  if(cl.members.length){const last=cl.members[cl.members.length-1];cl.members=cl.members.map(m=>m.id===last.id?{...m,rsvp:val}:m);}
+  document.querySelectorAll('#heroRsvpBtns .rsvp-q-btn').forEach((b,i)=>{b.className='rsvp-q-btn';if((i===0&&val==='yes')||(i===1&&val==='maybe')||(i===2&&val==='no'))b.className+=' active-'+val;});
+  renderRsvp();push('📋','rgba(93,202,165,.18)',`You RSVPed <b>${{yes:'Going',maybe:'Maybe',no:"Can't go"}[val]}</b>`);save();
+}
+function renderRsvp(){
+  const cl=getClub();if(!cl)return;
+  const going=cl.members.filter(m=>m.rsvp==='yes').length;
+  const maybe=cl.members.filter(m=>m.rsvp==='maybe').length;
+  const no=cl.members.filter(m=>m.rsvp==='no').length;
+  const total=cl.members.length;
+  document.getElementById('goingCnt').textContent=going;
+  document.getElementById('maybeCnt').textContent=maybe;
+  document.getElementById('cantCnt').textContent=no;
+  document.getElementById('rsvpSummaryBadge').textContent=going+' / '+total;
+  document.getElementById('attendBadge').textContent=going+' going';
+  document.getElementById('barYes').style.width=(total?going/total*100:0).toFixed(1)+'%';
+  document.getElementById('barMaybe').style.width=(total?maybe/total*100:0).toFixed(1)+'%';
+  document.getElementById('barNo').style.width=(total?no/total*100:0).toFixed(1)+'%';
+  document.getElementById('rsvpPct').textContent=total?Math.round(going/total*100)+'% of members going':'';
+  document.getElementById('rsvpMemberList').innerHTML=cl.members.map(m=>`<div class="rsvp-member-row">${avHTML(m.initials,m.ci,30)}<div style="flex:1;font-size:13px;font-weight:500;color:var(--text1);">${m.name}</div><span class="badge ${m.rsvp==='yes'?'badge-teal':m.rsvp==='maybe'?'badge-amber':'badge-coral'}">${m.rsvp==='yes'?'✓ Going':m.rsvp==='maybe'?'? Maybe':'✕ No'}</span><button class="rsvp-edit-btn" onclick="cycleRsvp(${m.id})">edit</button></div>`).join('');
+}
+function cycleRsvp(id){const cl=getClub();if(!cl)return;const order=['yes','maybe','no'];cl.members=cl.members.map(m=>{if(m.id!==id)return m;return{...m,rsvp:order[(order.indexOf(m.rsvp)+1)%3]};});save();renderRsvp();}
+function setGuestRsvp(val){const cl=getClub();if(!cl)return;cl.guestRsvpChoice=val;['yes','maybe','no'].forEach(v=>{const b=document.getElementById('g'+v);b.className='guest-rsvp-btn'+(v===val?' active-'+val:'');});}
+function addGuest(){
+  const cl=getClub();if(!cl)return;
+  const name=document.getElementById('guestName').value.trim();if(!name)return;
+  const initials=name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  cl.members.push({id:Date.now(),name,initials,role:'Guest',listening:'…',ci:cl.members.length%7,rsvp:cl.guestRsvpChoice||'yes'});
+  document.getElementById('guestName').value='';toast('guestToast');save();renderRsvp();renderMembers();
+  push('📋','rgba(93,202,165,.18)',`<b>${name}</b> added as a guest`);
+}
+
+/* ═══════════════════════════════════════════════
+   REVIEWS
+═══════════════════════════════════════════════ */
+function renderReviews(){
+  const cl=getClub();if(!cl)return;
+  const list=document.getElementById('reviewAlbumList');
+  if(!cl.reviewAlbums.length){list.innerHTML='<div style="font-size:12px;color:var(--text3);margin-bottom:14px;">No albums yet — add one below to get started.</div>';return;}
+  list.innerHTML=cl.reviewAlbums.map(a=>{
+    const avg=avgRating(a.comments);
+    const cnt=a.comments?a.comments.length:0;
+    const expanded=expandedReviewId===a.id;
+    return `<div class="card review-album-card card-section${expanded?' active-review':''}" id="rac-${a.id}">
+      <div class="rac-header">
+        <div class="rac-art" style="background:${AVC[a.ci%7].bg};">🎵</div>
+        <div style="flex:1;min-width:0;">
+          <div class="rac-title">${a.album}</div>
+          <div class="rac-artist">${a.artist}</div>
+          <div class="rac-stats">
+            <div>${starsHTML(avg)}</div>
+            ${avg?`<span style="font-size:11px;font-weight:700;color:var(--amber);">${avg.toFixed(1)}</span>`:''}
+            <span style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;">${cnt} review${cnt!==1?'s':''}</span>
+            <button class="rac-expand-btn" onclick="toggleReview(${a.id})">${expanded?'▲ hide':'▼ reviews'}</button>
+          </div>
+        </div>
+      </div>
+      ${expanded?renderReviewThread(cl,a):''}
+    </div>`;
+  }).join('');
+}
+
+function renderReviewThread(cl,a){
+  const me=cl.members.length?cl.members[cl.members.length-1]:{name:'You',initials:'ME',ci:0};
+  return `<div class="review-thread">
+    ${a.comments&&a.comments.length?a.comments.map(c=>`<div class="review-comment">${avHTML(c.initials,c.ci,30)}<div class="rc-body"><div class="rc-header"><span class="rc-name">${c.author}</span><span class="rc-time">${c.time}</span>${c.rating?`<div class="rc-stars">${starsHTML(c.rating,11)}</div>`:''}</div><div class="rc-text">${c.text}</div></div></div>`).join(''):'<div style="font-size:12px;color:var(--text3);margin-bottom:12px;">No reviews yet — be the first!</div>'}
+    <div class="write-review-form">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">${avHTML(me.initials,me.ci,30)}<span style="font-size:13px;font-weight:600;color:var(--text1);">${me.name}</span></div>
+      <div style="margin-bottom:8px;">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:6px;font-family:'DM Mono',monospace;letter-spacing:1px;">YOUR RATING</div>
+        <div class="star-picker" id="starPicker-${a.id}">${[1,2,3,4,5].map(n=>`<button class="star-pick-btn" onclick="pickStar(${a.id},${n})" id="sp-${a.id}-${n}" style="color:${pendingStars>=n?'var(--amber)':'var(--border2)'};">★</button>`).join('')}${pendingStars?`<span style="font-size:11px;color:var(--text3);align-self:center;font-family:'DM Mono',monospace;margin-left:4px;">${pendingStars}/5</span>`:''}</div>
+      </div>
+      <textarea id="revText-${a.id}" placeholder="What did you think? Favourite tracks, standout moments, how it hit you…" rows="3" style="margin-bottom:8px;"></textarea>
+      <div class="review-submit-row">
+        <button class="btn btn-primary" style="flex:1;justify-content:center;" onclick="submitReview(${a.id})">Post review</button>
+        <button class="btn btn-ghost btn-sm" onclick="toggleReview(${a.id})">Cancel</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function toggleReview(id){expandedReviewId=expandedReviewId===id?null:id;pendingStars=0;renderReviews();}
+function pickStar(albumId,n){
+  pendingStars=n;
+  for(let i=1;i<=5;i++){const b=document.getElementById(`sp-${albumId}-${i}`);if(b)b.style.color=i<=n?'var(--amber)':'var(--border2)';}
+  const p=document.getElementById('starPicker-'+albumId);if(!p)return;
+  let lbl=p.querySelector('.slbl');if(!lbl){lbl=document.createElement('span');lbl.className='slbl';lbl.style.cssText='font-size:11px;color:var(--text3);align-self:center;font-family:DM Mono,monospace;margin-left:4px;';p.appendChild(lbl);}
+  lbl.textContent=n+'/5';
+}
+function submitReview(albumId){
+  const cl=getClub();if(!cl)return;
+  const textEl=document.getElementById('revText-'+albumId);
+  const text=textEl?textEl.value.trim():'';
+  if(!text&&!pendingStars){if(textEl){textEl.style.borderColor='var(--coral)';setTimeout(()=>textEl.style.borderColor='',1500);}return;}
+  const me=cl.members.length?cl.members[cl.members.length-1]:{name:'You',initials:'ME',ci:0};
+  const comment={id:Date.now(),author:me.name,initials:me.initials,ci:me.ci,text:text||'⭐ Rated this album',rating:pendingStars,time:'just now'};
+  cl.reviewAlbums=cl.reviewAlbums.map(a=>a.id===albumId?{...a,comments:[...(a.comments||[]),comment]}:a);
+  pendingStars=0;expandedReviewId=albumId;save();
+  const album=cl.reviewAlbums.find(a=>a.id===albumId);
+  push('🎙️','rgba(127,119,221,.18)',`<b>${me.name}</b> reviewed <b>${album?.album||'an album'}</b>`);
+  renderReviews();renderPast();
+}
+function addReviewAlbum(){
+  const cl=getClub();if(!cl)return;
+  const album=document.getElementById('newRevAlbum').value.trim();
+  const artist=document.getElementById('newRevArtist').value.trim();
+  if(!album)return;
+  cl.reviewAlbums.unshift({id:Date.now(),album,artist:artist||'Unknown',ci:cl.reviewAlbums.length%7,comments:[]});
+  document.getElementById('newRevAlbum').value='';document.getElementById('newRevArtist').value='';
+  toast('revAlbumToast');save();renderReviews();renderPast();
+  push('🎵','rgba(93,202,165,.18)',`<b>${album}</b> added to the review board`);
+}
+
+/* ═══════════════════════════════════════════════
+   MEMBERS
+═══════════════════════════════════════════════ */
+function renderMembers(){
+  const cl=getClub();if(!cl)return;
+  document.getElementById('membersList').innerHTML=cl.members.map(m=>`
+    <div class="card member-card" id="mc-${m.id}">
+      <div class="member-inner">
+        ${avHTML(m.initials,m.ci,38)}
+        <div class="member-info">
+          <div class="member-name-row">
+            <span class="member-name">${m.name}</span>
+            ${m.role!=='Member'?`<span class="badge ${m.role==='Host'?'badge-teal':m.role==='Guest'?'badge-blue':'badge-purple'}">${m.role}</span>`:''}
+          </div>
+          <div class="member-phone" id="pview-${m.id}">
+            ${m.phone
+              ?`📱 <a href="sms:${m.phone}">${m.phone}</a><button class="phone-edit-btn" onclick="startPhoneEdit(${m.id})">edit</button>`
+              :`<span style="color:var(--text3);">no phone —</span><button class="phone-edit-btn" onclick="startPhoneEdit(${m.id})">add</button>`}
+          </div>
+          <div class="listening-edit" id="pedit-${m.id}" style="display:none;flex-direction:column;gap:6px;">
+            <input type="tel" id="pinput-${m.id}" value="${m.phone||''}" placeholder="Phone number" onkeydown="if(event.key==='Enter')savePhoneEdit(${m.id})">
+            <button class="btn btn-primary btn-sm" onclick="savePhoneEdit(${m.id})" style="align-self:flex-start;">Save</button>
+          </div>
+          <div class="listening-view" id="lview-${m.id}">
+            <span class="listening-pill">🎧 ${m.listening}</span>
+            <button class="edit-pen" onclick="startListeningEdit(${m.id})">✏️</button>
+          </div>
+          <div class="listening-edit" id="ledit-${m.id}">
+            <input type="text" id="linput-${m.id}" value="${m.listening}" placeholder="What are you listening to?" onkeydown="if(event.key==='Enter')saveListeningEdit(${m.id})">
+            <button class="btn btn-primary btn-sm" onclick="saveListeningEdit(${m.id})" style="align-self:flex-start;">Save</button>
+          </div>
+        </div>
+        <button class="remove-btn" onclick="removeMember(${m.id})" title="Remove">×</button>
+      </div>
+    </div>`).join('');
+  updateAvStack();
+  renderSmsMemberList();
+}
+function startPhoneEdit(id){
+  document.getElementById('pview-'+id).style.display='none';
+  const el=document.getElementById('pedit-'+id);
+  el.style.display='flex';
+  document.getElementById('pinput-'+id).focus();
+}
+function savePhoneEdit(id){
+  const cl=getClub();if(!cl)return;
+  const val=document.getElementById('pinput-'+id).value.trim();
+  cl.members=cl.members.map(m=>m.id===id?{...m,phone:val}:m);
+  save();renderMembers();
+}
+function startListeningEdit(id){document.getElementById('lview-'+id).style.display='none';const el=document.getElementById('ledit-'+id);el.style.display='flex';document.getElementById('linput-'+id).focus();}
+function saveListeningEdit(id){const cl=getClub();if(!cl)return;const val=document.getElementById('linput-'+id).value.trim();if(val)cl.members=cl.members.map(m=>m.id===id?{...m,listening:val}:m);save();renderMembers();}
+function removeMember(id){const cl=getClub();if(!cl)return;const m=cl.members.find(m=>m.id===id);if(!m||!confirm('Remove '+m.name+'?'))return;cl.members=cl.members.filter(m=>m.id!==id);save();renderMembers();renderRsvp();renderRotation();push('👤','rgba(216,90,48,.18)',`<b>${m.name}</b> removed`);}
+function showAddMember(){document.getElementById('addMemberArea').style.display='none';document.getElementById('addMemberForm').style.display='block';document.getElementById('newMemberName').focus();}
+function hideAddMember(){document.getElementById('addMemberArea').style.display='block';document.getElementById('addMemberForm').style.display='none';}
+function addMember(){
+  const cl=getClub();if(!cl)return;
+  const name=document.getElementById('newMemberName').value.trim();if(!name)return;
+  const phone=(document.getElementById('newMemberPhone')||{}).value||'';
+  const initials=name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  cl.members.push({id:Date.now(),name,phone:phone.trim(),initials,role:'Member',listening:'…',ci:cl.members.length%7,rsvp:'yes'});
+  document.getElementById('newMemberName').value='';
+  const phoneEl=document.getElementById('newMemberPhone');if(phoneEl)phoneEl.value='';
+  hideAddMember();save();renderMembers();renderRsvp();renderRotation();
+  push('👥','rgba(93,202,165,.18)',`<b>${name}</b> joined the club`);
+}
+function updateAvStack(){
+  const cl=getClub();if(!cl)return;
+  document.getElementById('avStack').innerHTML=cl.members.slice(0,4).map(m=>`<div class="av" style="width:30px;height:30px;background:${AVC[m.ci%7].bg};color:${AVC[m.ci%7].fg};font-size:9px;border:2px solid var(--bg);">${m.initials}</div>`).join('')
+    +`<div class="av" style="width:30px;height:30px;background:var(--card);color:var(--text2);font-size:9px;border:2px solid var(--bg);font-family:'DM Mono',monospace;">+${Math.max(0,cl.members.length-4)}</div>`;
+}
+
+/* ═══════════════════════════════════════════════
+   SMS / TEXT MEMBERS
+═══════════════════════════════════════════════ */
+function renderSmsMemberList(){
+  const cl=getClub();
+  const el=document.getElementById('smsMemberList');
+  if(!el||!cl)return;
+  const withPhone=cl.members.filter(m=>m.phone);
+  const noPhone=cl.members.filter(m=>!m.phone);
+  let html='';
+  if(!cl.members.length){el.innerHTML='<div style="font-size:12px;color:var(--text3);">No members yet.</div>';return;}
+  html+=withPhone.map(m=>`
+    <div class="member-sms-row">
+      <input type="checkbox" class="sms-check" id="sms-${m.id}" checked>
+      ${avHTML(m.initials,m.ci,26)}
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;color:var(--text1);font-weight:500;">${m.name}</div>
+        <div style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;">${m.phone}</div>
+      </div>
+    </div>`).join('');
+  html+=noPhone.map(m=>`
+    <div class="member-sms-row" style="opacity:.45;">
+      <input type="checkbox" class="sms-check" id="sms-${m.id}" disabled>
+      ${avHTML(m.initials,m.ci,26)}
+      <div style="flex:1;font-size:13px;color:var(--text1);">${m.name}</div>
+      <span class="sms-no-phone">no phone</span>
+    </div>`).join('');
+  el.innerHTML=html;
+  updateTextBtn();
+}
+document.addEventListener('change',function(e){if(e.target&&e.target.classList.contains('sms-check'))updateTextBtn();});
+function updateTextBtn(){
+  const cl=getClub();if(!cl)return;
+  const selected=cl.members.filter(m=>m.phone&&document.getElementById('sms-'+m.id)?.checked);
+  const btn=document.getElementById('textSelectedBtn');
+  if(btn)btn.textContent=selected.length?`💬 Text ${selected.length} member${selected.length!==1?'s':''}…`:'💬 Open in Messages';
+}
+function textSelected(){
+  const cl=getClub();if(!cl)return;
+  const msg=(document.getElementById('smsMessageInput')||{}).value||'';
+  const selected=cl.members.filter(m=>m.phone&&document.getElementById('sms-'+m.id)?.checked);
+  if(!selected.length){alert('No members with phone numbers are selected.');return;}
+  const numbers=selected.map(m=>m.phone).join(',');
+  const encoded=encodeURIComponent(msg);
+  // sms: URI — works on iOS and Android, opens native Messages app
+  const uri=`sms:${numbers}${msg?'?&body='+encoded:''}`;
+  window.location.href=uri;
+  toast('smsToast',3000);
+  push('📱','rgba(29,185,84,.18)',`Text opened for ${selected.length} member${selected.length!==1?'s':''}`);
+}
+
+/* ═══════════════════════════════════════════════
+   FOOD
+═══════════════════════════════════════════════ */
+function renderFoodSection(items,cat,label,icon,elId){
+  const cl=getClub();if(!cl)return;
+  const claimed=items.filter(i=>i.claimedBy).length;
+  let html=`<div class="food-header"><span class="food-icon">${icon}</span><span class="food-label">${label}</span><span class="food-count">${claimed}/${items.length}</span></div>`;
+  html+=items.map(item=>`<div class="food-row"><span class="food-name">${item.name}</span>${item.claimedBy?`<span class="badge badge-teal">${item.claimedBy} ✓</span>`:`<button class="claim-btn" onclick="claimItem('${cat}',${item.id})">claim</button>`}</div>`).join('');
+  html+=`<div class="food-add-row"><input type="text" id="fadd-${cat}" placeholder="Add an item…" onkeydown="if(event.key==='Enter')addFoodItem('${cat}')"><button class="btn btn-primary btn-sm" onclick="addFoodItem('${cat}')">+</button></div>`;
+  document.getElementById(elId).innerHTML=html;
+}
+function renderDrinksSection(){
+  const cl=getClub();if(!cl)return;
+  let html=`<div class="food-header"><span class="food-icon">🍷</span><span class="food-label">Drinks</span><span class="food-count">${cl.food.drinks.length} items</span></div>`;
+  html+=cl.food.drinks.map(d=>`<div class="food-row"><div class="drink-dot" style="background:${AVC[d.ci%7].bg};"></div><span class="food-name">${d.name}</span><span style="font-size:11px;color:var(--text2);">${d.claimedBy||''}</span></div>`).join('');
+  html+=`<div class="food-add-row"><input type="text" id="fadd-drinks" placeholder="Add a drink…" onkeydown="if(event.key==='Enter')addFoodItem('drinks')"><button class="btn btn-primary btn-sm" onclick="addFoodItem('drinks')">+</button></div>`;
+  document.getElementById('foodDrinks').innerHTML=html;
+}
+function renderFood(){
+  const cl=getClub();if(!cl)return;
+  renderFoodSection(cl.food.bites,'bites','Bites','🧀','foodBites');
+  renderFoodSection(cl.food.sweets,'sweets','Sweets','🍰','foodSweets');
+  renderDrinksSection();
+  const tot=cl.food.bites.length+cl.food.sweets.length+cl.food.drinks.length;
+  const c=cl.food.bites.filter(i=>i.claimedBy).length+cl.food.sweets.filter(i=>i.claimedBy).length+cl.food.drinks.filter(i=>i.claimedBy).length;
+  document.getElementById('foodProgress').textContent=c+'/'+tot+' claimed';
+}
+function claimItem(cat,id){
+  const cl=getClub();if(!cl)return;
+  const me=cl.members.length?cl.members[cl.members.length-1].name:'You';
+  cl.food[cat]=cl.food[cat].map(i=>i.id===id?{...i,claimedBy:me}:i);
+  const item=cl.food[cat].find(i=>i.id===id);save();renderFood();
+  push('🍽️','rgba(239,159,39,.18)',`<b>${me}</b> claimed <b>${item?.name}</b>`);
+}
+function addFoodItem(cat){
+  const cl=getClub();if(!cl)return;
+  const input=document.getElementById('fadd-'+cat);
+  const name=input.value.trim();if(!name)return;
+  cl.food[cat].push(cat==='drinks'?{id:Date.now(),name,claimedBy:null,ci:cl.food.drinks.length%7}:{id:Date.now(),name,claimedBy:null});
+  save();renderFood();
+}
+
+/* ═══════════════════════════════════════════════
+   LINKS
+═══════════════════════════════════════════════ */
+function setPlatform(p){
+  const cl=getClub();if(cl)cl.currentPlatform=p;
+  document.getElementById('pillSp').className='platform-btn '+(p==='spotify'?'pl-sp-on':'pl-sp-off');
+  document.getElementById('pillAp').className='platform-btn '+(p==='apple'?'pl-ap-on':'pl-ap-off');
+}
+function shareLink(){
+  const cl=getClub();if(!cl)return;
+  const title=document.getElementById('linkTitle').value.trim();
+  const url=document.getElementById('linkUrl').value.trim();
+  if(!title||!url)return;
+  cl.links.unshift({id:Date.now(),platform:cl.currentPlatform||'spotify',title,sharedBy:cl.members.length?cl.members[cl.members.length-1].name:'You',url});
+  document.getElementById('linkTitle').value='';document.getElementById('linkUrl').value='';
+  toast('linkToast');save();renderLinks();
+  push('🎧','rgba(93,202,165,.18)',`Link shared: <b>${title}</b>`);
+}
+function renderLinks(){
+  const cl=getClub();if(!cl)return;
+  document.getElementById('linksList').innerHTML=cl.links.length
+    ?cl.links.map(l=>`<div class="link-card"><span class="link-platform ${l.platform==='spotify'?'link-sp':'link-ap'}">${l.platform==='spotify'?'Spotify':'Apple'}</span><div class="link-info"><div class="link-title-text">${l.title}</div><div class="link-by">by ${l.sharedBy}</div></div><a href="${l.url}" target="_blank" rel="noopener" style="font-size:14px;color:var(--text3);">↗</a></div>`).join('')
+    :'<div style="font-size:12px;color:var(--text3);">No links shared yet.</div>';
+}
+
+/* ═══════════════════════════════════════════════
+   FOOTER
+═══════════════════════════════════════════════ */
+function renderFooter(){
+  const cl=getClub();
+  const el=document.getElementById('pageFooter');if(!el)return;
+  if(cl&&cl.meetingDate){const d=new Date(cl.meetingDate);if(!isNaN(d)){const days=Math.ceil((d-new Date())/864e5);el.textContent=days>0?`next meeting in ${days} days`:days===0?'the meeting is today! 🎉':'';return;}}
+  el.textContent='';
+}
+
+
+/* ═══════════════════════════════════════════════
+   NOW LISTENING
+═══════════════════════════════════════════════ */
+let nlPlatformSelected = 'spotify';
+
+function setNlPlatform(p){
+  nlPlatformSelected = p;
+  const styles = {
+    spotify:  {sp:'rgba(29,185,84,.2)/#1DB954',ap:'var(--card2)/var(--text3)',ot:'var(--card2)/var(--text3)'},
+    apple:    {sp:'var(--card2)/var(--text3)',ap:'rgba(252,60,68,.2)/#FC3C44',ot:'var(--card2)/var(--text3)'},
+    other:    {sp:'var(--card2)/var(--text3)',ap:'var(--card2)/var(--text3)',ot:'var(--blue-bg)/var(--blue)'},
+  };
+  const s = styles[p];
+  function setBtn(id, style){
+    const el = document.getElementById(id);
+    if(!el) return;
+    const [bg, col] = style.split('/');
+    el.style.background = bg; el.style.color = col;
+  }
+  setBtn('nlPillSp', s.sp); setBtn('nlPillAp', s.ap); setBtn('nlPillOther', s.ot);
+}
+
+function addNlPost(){
+  const cl = getClub(); if(!cl) return;
+  const title  = document.getElementById('nlTrackTitle').value.trim();
+  const artist = document.getElementById('nlTrackArtist').value.trim();
+  const url    = document.getElementById('nlTrackUrl').value.trim();
+  const note   = document.getElementById('nlNote').value.trim();
+  if(!title) return;
+  const me = cl.members.length ? cl.members[cl.members.length-1] : {name:'You',initials:'ME',ci:0};
+  if(!cl.nowListening) cl.nowListening = [];
+  cl.nowListening.unshift({
+    id: Date.now(), member: me.name, initials: me.initials, ci: me.ci,
+    title, artist, url, note, platform: nlPlatformSelected, time: 'just now',
+    thumbsUp: [], thumbsDown: [], comments: [], showComments: false
+  });
+  ['nlTrackTitle','nlTrackArtist','nlTrackUrl','nlNote'].forEach(id=>{
+    const el = document.getElementById(id); if(el) el.value='';
+  });
+  toast('nlToast'); save(); renderNowListening();
+  push('🎶','rgba(93,202,165,.18)', `<b>${me.name}</b> is listening to <b>${title}</b>`);
+}
+
+function removeNlPost(id){
+  const cl = getClub(); if(!cl) return;
+  cl.nowListening = (cl.nowListening||[]).filter(p => p.id !== id);
+  save(); renderNowListening();
+}
+
+function toggleNlReaction(postId, type){
+  const cl = getClub(); if(!cl) return;
+  const me = cl.members.length ? cl.members[cl.members.length-1].name : 'You';
+  cl.nowListening = (cl.nowListening||[]).map(p => {
+    if(p.id !== postId) return p;
+    const up = p.thumbsUp || [], down = p.thumbsDown || [];
+    const inUp = up.includes(me), inDown = down.includes(me);
+    if(type === 'up'){
+      return {...p,
+        thumbsUp:   inUp   ? up.filter(n=>n!==me) : [...up, me],
+        thumbsDown: inDown ? down.filter(n=>n!==me) : down
+      };
+    } else {
+      return {...p,
+        thumbsDown: inDown ? down.filter(n=>n!==me) : [...down, me],
+        thumbsUp:   inUp   ? up.filter(n=>n!==me) : up
+      };
+    }
+  });
+  save(); renderNowListening();
+}
+
+function toggleNlComments(postId){
+  const cl = getClub(); if(!cl) return;
+  cl.nowListening = (cl.nowListening||[]).map(p =>
+    p.id === postId ? {...p, showComments: !p.showComments} : p
+  );
+  save(); renderNowListening();
+  // re-focus the comment input if opening
+  setTimeout(()=>{
+    const inp = document.getElementById('nlci-'+postId);
+    if(inp && (cl.nowListening||[]).find(p=>p.id===postId)?.showComments) inp.focus();
+  }, 50);
+}
+
+function setNlCommentReaction(postId, emoji){
+  const btn = document.getElementById('nlcr-'+postId);
+  if(!btn) return;
+  const current = btn.dataset.selected;
+  if(current === emoji){ btn.dataset.selected=''; btn.querySelectorAll('.nl-rxn-btn').forEach(b=>b.classList.remove('selected')); return; }
+  btn.dataset.selected = emoji;
+  btn.querySelectorAll('.nl-rxn-btn').forEach(b => b.classList.toggle('selected', b.dataset.emoji===emoji));
+}
+
+function submitNlComment(postId){
+  const cl = getClub(); if(!cl) return;
+  const inp = document.getElementById('nlci-'+postId);
+  const reactionPicker = document.getElementById('nlcr-'+postId);
+  const text = inp ? inp.value.trim() : '';
+  const reaction = reactionPicker ? reactionPicker.dataset.selected || '' : '';
+  if(!text && !reaction) return;
+  const me = cl.members.length ? cl.members[cl.members.length-1] : {name:'You',initials:'ME',ci:0};
+  cl.nowListening = (cl.nowListening||[]).map(p => {
+    if(p.id !== postId) return p;
+    const comment = {id:Date.now(), author:me.name, initials:me.initials, ci:me.ci, text, reaction, time:'just now'};
+    return {...p, comments:[...(p.comments||[]), comment], showComments:true};
+  });
+  if(inp) inp.value = '';
+  if(reactionPicker){ reactionPicker.dataset.selected=''; reactionPicker.querySelectorAll('.nl-rxn-btn').forEach(b=>b.classList.remove('selected')); }
+  save(); renderNowListening();
+  const post = (cl.nowListening||[]).find(p=>p.id===postId);
+  push('💬','rgba(127,119,221,.18)', `<b>${me.name}</b> commented on <b>${post?.title||'a post'}</b>`);
+}
+
+function deleteNlComment(postId, commentId){
+  const cl = getClub(); if(!cl) return;
+  cl.nowListening = (cl.nowListening||[]).map(p =>
+    p.id !== postId ? p : {...p, comments:(p.comments||[]).filter(c=>c.id!==commentId)}
+  );
+  save(); renderNowListening();
+}
+
+function renderNowListening(){
+  const cl = getClub(); if(!cl) return;
+  const feed = document.getElementById('nlFeed'); if(!feed) return;
+  const posts = cl.nowListening || [];
+  const me = cl.members.length ? cl.members[cl.members.length-1].name : 'You';
+
+  if(!posts.length){
+    feed.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:4px 0 12px;">No posts yet — share what you're listening to!</div>';
+    return;
+  }
+
+  const platIcon  = p => p==='spotify'?'🟢':p==='apple'?'🔴':'🔗';
+  const platClass = p => p==='spotify'?'nl-sp':p==='apple'?'nl-ap':'';
+  const platLabel = p => p==='spotify'?'Spotify':p==='apple'?'Apple Music':'Link';
+
+  feed.innerHTML = posts.map(p => {
+    const up   = p.thumbsUp   || [];
+    const down = p.thumbsDown || [];
+    const comments = p.comments || [];
+    const iUp   = up.includes(me);
+    const iDown = down.includes(me);
+    const commentCount = comments.length;
+    const showComments = !!p.showComments;
+
+    const commentsHTML = showComments ? `
+      <div class="nl-comment-section">
+        ${comments.length ? comments.map(c => `
+          <div class="nl-comment-item">
+            ${avHTML(c.initials, c.ci, 24)}
+            <div class="nl-comment-body">
+              <div class="nl-comment-meta">
+                <span class="nl-comment-author">${c.author}</span>
+                <span class="nl-comment-time">${c.time}</span>
+              </div>
+              ${c.reaction ? `<div class="nl-comment-reaction">${c.reaction}</div>` : ''}
+              ${c.text ? `<div class="nl-comment-text">${c.text}</div>` : ''}
+            </div>
+            <button class="nl-comment-delete" onclick="deleteNlComment(${p.id},${c.id})" title="Delete">×</button>
+          </div>`).join('') : '<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">No comments yet.</div>'}
+        <div class="nl-comment-form">
+          <div class="nl-reaction-picker" id="nlcr-${p.id}" data-selected="">
+            <button class="nl-rxn-btn" data-emoji="👍" onclick="setNlCommentReaction(${p.id},'👍')" title="Thumbs up">👍</button>
+            <button class="nl-rxn-btn" data-emoji="👎" onclick="setNlCommentReaction(${p.id},'👎')" title="Thumbs down">👎</button>
+            <button class="nl-rxn-btn" data-emoji="🔥" onclick="setNlCommentReaction(${p.id},'🔥')" title="Fire">🔥</button>
+            <button class="nl-rxn-btn" data-emoji="❤️" onclick="setNlCommentReaction(${p.id},'❤️')" title="Love">❤️</button>
+            <button class="nl-rxn-btn" data-emoji="🤔" onclick="setNlCommentReaction(${p.id},'🤔')" title="Thinking">🤔</button>
+          </div>
+          <input class="nl-comment-input" id="nlci-${p.id}" placeholder="Add a comment…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitNlComment(${p.id});}">
+          <button class="nl-post-btn" onclick="submitNlComment(${p.id})">Post</button>
+        </div>
+      </div>` : '';
+
+    return `
+    <div class="nl-card">
+      <div class="nl-card-header">
+        <div class="nl-av-wrap">
+          ${avHTML(p.initials, p.ci, 32)}
+          <div class="nl-playing-dot"></div>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div class="nl-member-name">${p.member}</div>
+          <div class="nl-member-time">${p.time}</div>
+        </div>
+        <button class="nl-remove-btn" onclick="removeNlPost(${p.id})" title="Remove">×</button>
+      </div>
+      <div class="nl-track-row">
+        <div class="nl-track-art" style="background:${AVC[p.ci%7].bg};">🎵</div>
+        <div style="flex:1;min-width:0;">
+          <div class="nl-track-title">${p.title}</div>
+          ${p.artist ? `<div class="nl-track-artist">${p.artist}</div>` : ''}
+        </div>
+      </div>
+      ${p.url ? `<div class="nl-links"><a href="${p.url}" target="_blank" rel="noopener" class="nl-link-pill ${platClass(p.platform)}">${platIcon(p.platform)} ${platLabel(p.platform)}</a></div>` : ''}
+      ${p.note ? `<div class="nl-note">${p.note}</div>` : ''}
+      <div class="nl-footer">
+        <button class="nl-react-btn ${iUp?'up-active':''}" onclick="toggleNlReaction(${p.id},'up')" title="Thumbs up">
+          👍 <span class="nl-react-count">${up.length||''}</span>
+        </button>
+        <button class="nl-react-btn ${iDown?'down-active':''}" onclick="toggleNlReaction(${p.id},'down')" title="Thumbs down">
+          👎 <span class="nl-react-count">${down.length||''}</span>
+        </button>
+        <button class="nl-comment-toggle" onclick="toggleNlComments(${p.id})">
+          💬 ${commentCount > 0 ? commentCount+' comment'+(commentCount!==1?'s':'') : 'Comment'}
+          <span style="font-size:10px;">${showComments?'▲':'▼'}</span>
+        </button>
+      </div>
+      ${commentsHTML}
+    </div>`;
+  }).join('');
+}
+
