@@ -11,11 +11,14 @@ import {
 } from '@expo-google-fonts/dm-sans';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
 
 import { useTheme } from '@/hooks/use-theme';
+import { useAuthStore } from '@/stores/authStore';
 
 export default function RootLayout() {
   const { palette, isDark } = useTheme();
+  const { userId, isHydrated, hydrate } = useAuthStore();
   const [fontsLoaded] = useFonts({
     DMSans_400Regular,
     DMSans_500Medium,
@@ -25,7 +28,11 @@ export default function RootLayout() {
     DMMono_500Medium,
   });
 
-  if (!fontsLoaded) return null;
+  useEffect(() => {
+    hydrate();
+  }, [hydrate]);
+
+  if (!fontsLoaded || !isHydrated) return null;
 
   return (
     <>
@@ -35,7 +42,22 @@ export default function RootLayout() {
           headerShown: false,
           contentStyle: { backgroundColor: palette.bg },
         }}
-      />
+      >
+        <Stack.Protected guard={!!userId}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="profile-setup" />
+          <Stack.Screen name="create-club" />
+          <Stack.Screen name="join/index" />
+          <Stack.Screen name="club/[id]/index" />
+          <Stack.Screen name="club/[id]/members" />
+        </Stack.Protected>
+        <Stack.Protected guard={!userId}>
+          <Stack.Screen name="sign-in" />
+        </Stack.Protected>
+        {/* join/[code] is reachable signed-out: it renders the AuthForm inline
+            so an invite link survives the sign-in step without losing the code. */}
+        <Stack.Screen name="join/[code]" />
+      </Stack>
     </>
   );
 }

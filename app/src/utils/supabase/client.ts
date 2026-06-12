@@ -3,6 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
 
+import type { Database } from './database.types';
+
 export const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL as string;
 export const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY as string;
 
@@ -12,7 +14,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
     // Web uses supabase-js's default localStorage; native needs AsyncStorage.
     ...(Platform.OS !== 'web' ? { storage: AsyncStorage } : {}),

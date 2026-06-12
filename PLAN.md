@@ -64,6 +64,12 @@ functions, `context/` doc index.
 `get_album_summary(album)` (visibility-gated aggregate). Lifecycle RPCs publish
 matching `activity_events` rows transactionally.
 
+## Status
+
+- **Phase 0** shipped 2026-06-12 (scaffold, Supabase link, theme, Pages deploy).
+- **Phase 1** shipped 2026-06-12 (identity & clubs: migration `20260612210000`, email-OTP auth, lobby, create/join club, invite links, member/role management).
+- Next: **Phase 2** (cycle engine: wheel, albums, meetings, RSVPs).
+
 ## Phases
 
 **Phase 0 — Scaffold.** Move `index.html` + `welcome.html` refs → `legacy/`. Create
