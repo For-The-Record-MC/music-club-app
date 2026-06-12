@@ -35,15 +35,25 @@ export function AuthForm({ subtitle }: { subtitle?: string }) {
   };
 
   const verifyCode = async () => {
+    const addr = email.trim().toLowerCase();
+    const token = code.trim();
     setBusy(true);
     setError(null);
     const { error: err } = await supabase.auth.verifyOtp({
-      email: email.trim().toLowerCase(),
-      token: code.trim(),
+      email: addr,
+      token,
       type: 'email',
     });
+    if (err) {
+      // Fallback: accounts with a password set (dev/testing) can enter it here
+      // instead of an emailed code. Real auth — no bypass logic.
+      const { error: pwErr } = await supabase.auth.signInWithPassword({
+        email: addr,
+        password: token,
+      });
+      if (pwErr) setError(err.message);
+    }
     setBusy(false);
-    if (err) setError(err.message);
     // On success onAuthStateChange fires and the protected routes take over.
   };
 
