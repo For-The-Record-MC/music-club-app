@@ -10,7 +10,7 @@ The hard-constraint summary lives in [../AGENTS.md](../AGENTS.md); this file is 
    set -a; source app/.env.local; set +a
    supabase db push --linked --workdir "$(pwd)" -p "$SUPABASE_DB_PASSWORD"
    ```
-3. Regenerate the snapshot (requires Docker Desktop):
+3. Regenerate the snapshot (no Docker — introspects the live catalog via `supabase db query` + `supabase/schema-snapshot.gen.sql`, needs `jq`):
    ```bash
    ./supabase/refresh-schema-snapshot.sh
    ```

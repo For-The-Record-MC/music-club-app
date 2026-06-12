@@ -1,6 +1,6 @@
 -- GENERATED SNAPSHOT — do not hand-edit.
 -- Current-state DDL of the linked Supabase project (yecjvvnposykmrzemcej).
--- Regenerate with ./supabase/refresh-schema-snapshot.sh (requires Docker Desktop)
--- as the LAST step of every `supabase db push`.
+-- Regenerate with ./supabase/refresh-schema-snapshot.sh as the LAST step of
+-- every `supabase db push` (introspects via `supabase db query` — no Docker).
 --
 -- Phase 0: database is empty; first migration lands in Phase 1.

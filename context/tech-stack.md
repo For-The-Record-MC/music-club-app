@@ -42,4 +42,4 @@ npx tsc --noEmit    # type check (no test suite)
 
 ## Local prerequisites
 
-- Node ≥ 20, Supabase CLI (`supabase`), and **Docker Desktop** (only needed for `refresh-schema-snapshot.sh` / `db dump`; not installed on this machine as of 2026-06-12).
+- Node ≥ 20, Supabase CLI (`supabase`), `jq` (used by `refresh-schema-snapshot.sh`). No Docker required — the schema snapshot introspects the live catalog via `supabase db query`.

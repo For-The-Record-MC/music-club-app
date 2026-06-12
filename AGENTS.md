@@ -5,7 +5,7 @@
 Every agent working in this codebase MUST follow these rules. They override any default behavior. Full text + commands in [context/agent-rules.md](context/agent-rules.md).
 
 1. **Migrations only.** ALL database changes go through `.sql` files in `supabase/migrations/` applied via `supabase db push`. NEVER execute `INSERT`/`UPDATE`/`DELETE`/DDL directly against the live database.
-2. **Never read migrations to learn the current schema.** Migration files are append-only *history*. Current-state DDL lives in [supabase/schema.sql](supabase/schema.sql) (generated snapshot — never hand-edit; regenerate with `./supabase/refresh-schema-snapshot.sh` as the last step of every push; requires Docker Desktop). Only open a migration to understand history or to author a new one.
+2. **Never read migrations to learn the current schema.** Migration files are append-only *history*. Current-state DDL lives in [supabase/schema.sql](supabase/schema.sql) (generated snapshot — never hand-edit; regenerate with `./supabase/refresh-schema-snapshot.sh` as the last step of every push). Only open a migration to understand history or to author a new one.
 3. **Supabase CLI setup.** Every `supabase` command needs the env from `app/.env.local` (`SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`) plus `--linked --workdir $(pwd)` from the repo root — otherwise it fails with 401 or a password prompt.
 4. **All data comes from Supabase; all queries live in `db.ts`.** Never build ad-hoc queries from raw `supabase` client calls in screens/hooks — add a method to a typed query object in `app/src/utils/supabase/db.ts`.
 5. **"Current cycle" ≠ highest number.** It is the cycle with `status = 'open'` for the club — always query by status, never by max id/number.
