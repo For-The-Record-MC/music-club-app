@@ -69,6 +69,20 @@ CREATE TABLE profiles (
   created_at timestamp with time zone NOT NULL DEFAULT now()
 );
 
+CREATE TABLE ratings (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  album_id uuid NOT NULL,
+  profile_id uuid NOT NULL,
+  score integer NOT NULL,
+  review text,
+  favorite_track text,
+  favorite_reason text,
+  least_track text,
+  least_reason text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE rsvps (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   cycle_id uuid NOT NULL,
@@ -140,6 +154,22 @@ ALTER TABLE profiles ADD CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES
 
 ALTER TABLE profiles ADD CONSTRAINT profiles_pkey PRIMARY KEY (id);
 
+ALTER TABLE ratings ADD CONSTRAINT ratings_album_id_fkey FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE CASCADE;
+
+ALTER TABLE ratings ADD CONSTRAINT ratings_album_id_profile_id_key UNIQUE (album_id, profile_id);
+
+ALTER TABLE ratings ADD CONSTRAINT ratings_favorite_reason_check CHECK (((favorite_reason IS NULL) OR (char_length(favorite_reason) <= 1000)));
+
+ALTER TABLE ratings ADD CONSTRAINT ratings_least_reason_check CHECK (((least_reason IS NULL) OR (char_length(least_reason) <= 1000)));
+
+ALTER TABLE ratings ADD CONSTRAINT ratings_pkey PRIMARY KEY (id);
+
+ALTER TABLE ratings ADD CONSTRAINT ratings_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE ratings ADD CONSTRAINT ratings_review_check CHECK (((review IS NULL) OR (char_length(review) <= 4000)));
+
+ALTER TABLE ratings ADD CONSTRAINT ratings_score_check CHECK (((score >= 1) AND (score <= 10)));
+
 ALTER TABLE rsvps ADD CONSTRAINT rsvps_cycle_id_fkey FOREIGN KEY (cycle_id) REFERENCES cycles(id) ON DELETE CASCADE;
 
 ALTER TABLE rsvps ADD CONSTRAINT rsvps_cycle_id_profile_id_key UNIQUE (cycle_id, profile_id);
@@ -168,6 +198,8 @@ CREATE INDEX cycle_guests_cycle_idx ON public.cycle_guests USING btree (cycle_id
 CREATE INDEX cycles_club_idx ON public.cycles USING btree (club_id);
 
 CREATE UNIQUE INDEX cycles_one_open_idx ON public.cycles USING btree (club_id) WHERE (status = 'open'::text);
+
+CREATE INDEX ratings_album_idx ON public.ratings USING btree (album_id);
 
 CREATE INDEX rsvps_cycle_idx ON public.rsvps USING btree (cycle_id);
 
@@ -257,6 +289,33 @@ CREATE POLICY profiles_select ON profiles AS PERMISSIVE FOR SELECT TO authentica
 CREATE POLICY profiles_update ON profiles AS PERMISSIVE FOR UPDATE TO authenticated
   USING ((id = auth.uid()))
   WITH CHECK ((id = auth.uid()));
+
+ALTER TABLE ratings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY ratings_delete ON ratings AS PERMISSIVE FOR DELETE TO authenticated
+  USING (((profile_id = auth.uid()) AND (EXISTS ( SELECT 1
+   FROM (albums a
+     JOIN cycles c ON ((c.id = a.cycle_id)))
+  WHERE ((a.id = ratings.album_id) AND (c.status = 'open'::text))))));
+
+CREATE POLICY ratings_insert ON ratings AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (((profile_id = auth.uid()) AND (EXISTS ( SELECT 1
+   FROM (albums a
+     JOIN cycles c ON ((c.id = a.cycle_id)))
+  WHERE ((a.id = ratings.album_id) AND (c.status = 'open'::text) AND is_club_member(c.club_id))))));
+
+CREATE POLICY ratings_select ON ratings AS PERMISSIVE FOR SELECT TO authenticated
+  USING (((profile_id = auth.uid()) OR (EXISTS ( SELECT 1
+   FROM (albums a
+     JOIN cycles c ON ((c.id = a.cycle_id)))
+  WHERE ((a.id = ratings.album_id) AND (c.revealed_at IS NOT NULL) AND is_club_member(c.club_id))))));
+
+CREATE POLICY ratings_update ON ratings AS PERMISSIVE FOR UPDATE TO authenticated
+  USING ((profile_id = auth.uid()))
+  WITH CHECK (((profile_id = auth.uid()) AND (EXISTS ( SELECT 1
+   FROM (albums a
+     JOIN cycles c ON ((c.id = a.cycle_id)))
+  WHERE ((a.id = ratings.album_id) AND (c.status = 'open'::text) AND is_club_member(c.club_id))))));
 
 ALTER TABLE rsvps ENABLE ROW LEVEL SECURITY;
 
@@ -350,6 +409,55 @@ AS $function$
     ''
   )
   from generate_series(1, 8);
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.get_album_summary(p_album uuid)
+ RETURNS json
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_club uuid;
+  v_revealed boolean;
+  v_submitted uuid[];
+  v_mine boolean;
+  v_avg numeric;
+begin
+  select c.club_id, c.revealed_at is not null
+  into v_club, v_revealed
+  from albums a
+  join cycles c on c.id = a.cycle_id
+  where a.id = p_album;
+  if not found then
+    raise exception 'Album not found';
+  end if;
+  if not public.is_club_member(v_club) then
+    raise exception 'Not a club member';
+  end if;
+
+  select coalesce(array_agg(profile_id), '{}')
+  into v_submitted
+  from ratings
+  where album_id = p_album;
+
+  v_mine := auth.uid() = any (v_submitted);
+
+  if v_mine or v_revealed then
+    select round(avg(score)::numeric, 1) into v_avg
+    from ratings
+    where album_id = p_album;
+  end if;
+
+  return json_build_object(
+    'submitted', coalesce(to_json(v_submitted), '[]'::json),
+    'count', coalesce(array_length(v_submitted, 1), 0),
+    'avg_score', v_avg,
+    'revealed', v_revealed,
+    'mine_submitted', v_mine
+  );
+end;
 $function$
 ;
 

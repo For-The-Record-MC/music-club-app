@@ -15,6 +15,16 @@ export type Album = Tables<'albums'>;
 export type Rsvp = Tables<'rsvps'>;
 export type CycleGuest = Tables<'cycle_guests'>;
 export type RsvpStatus = 'yes' | 'maybe' | 'no';
+export type Rating = Tables<'ratings'>;
+
+// Shape of the get_album_summary RPC payload (json column, typed manually).
+export interface AlbumSummary {
+  submitted: string[];
+  count: number;
+  avg_score: number | null;
+  revealed: boolean;
+  mine_submitted: boolean;
+}
 
 export const profiles = {
   getById: (id: string) =>
@@ -67,6 +77,7 @@ export const cycles = {
       .eq('club_id', clubId)
       .eq('status', 'open')
       .maybeSingle(),
+  get: (id: string) => supabase.from('cycles').select('*').eq('id', id).single(),
   listClosed: (clubId: string) =>
     supabase
       .from('cycles')
@@ -88,11 +99,39 @@ export const cycles = {
 };
 
 export const albums = {
+  get: (id: string) => supabase.from('albums').select('*').eq('id', id).single(),
   listByCycle: (cycleId: string) =>
     supabase.from('albums').select('*').eq('cycle_id', cycleId).order('slot'),
   upsert: (album: TablesInsert<'albums'>) =>
     supabase.from('albums').upsert(album, { onConflict: 'cycle_id,slot' }).select().single(),
   remove: (id: string) => supabase.from('albums').delete().eq('id', id),
+};
+
+export const ratings = {
+  mine: (albumId: string, profileId: string) =>
+    supabase
+      .from('ratings')
+      .select('*')
+      .eq('album_id', albumId)
+      .eq('profile_id', profileId)
+      .maybeSingle(),
+  upsert: (rating: TablesInsert<'ratings'>) =>
+    supabase
+      .from('ratings')
+      .upsert(
+        { ...rating, updated_at: new Date().toISOString() },
+        { onConflict: 'album_id,profile_id' },
+      ),
+  // Pre-reveal RLS hides others' rows; this returns everything only once the
+  // cycle is revealed.
+  listRevealed: (albumId: string) =>
+    supabase
+      .from('ratings')
+      .select('*, profiles(display_name, avatar_color)')
+      .eq('album_id', albumId)
+      .order('score', { ascending: false }),
+  // The visibility-gated aggregate (see context/database-schema.md).
+  summary: (albumId: string) => supabase.rpc('get_album_summary', { p_album: albumId }),
 };
 
 export const rsvps = {

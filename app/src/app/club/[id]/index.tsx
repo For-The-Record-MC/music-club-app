@@ -1,7 +1,7 @@
 import * as Clipboard from 'expo-clipboard';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar, Button, Card, InlineNote, Label, Screen } from '@/components/ui';
@@ -12,7 +12,17 @@ import { useAuthStore } from '@/stores/authStore';
 import { inviteUrl } from '@/constants';
 import { fonts, radius } from '@/theme';
 import { confirmAsync } from '@/utils/confirm';
-import { cycles, rsvps as rsvpsDb, type RsvpStatus } from '@/utils/supabase/db';
+import {
+  cycles,
+  rsvps as rsvpsDb,
+  type Album,
+  type Cycle,
+  type RsvpStatus,
+} from '@/utils/supabase/db';
+
+interface ClosedCycle extends Cycle {
+  albums: Album[];
+}
 
 // Club home: the current cycle is the centerpiece — picker, two albums,
 // meeting, RSVP. No open cycle → the spin call-to-action.
@@ -25,6 +35,12 @@ export default function ClubHome() {
   const { cycle, albums, rsvps, guests, loading: cycleLoading, refresh } = useCycle(id);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pastCycles, setPastCycles] = useState<ClosedCycle[]>([]);
+
+  useEffect(() => {
+    if (!id) return;
+    cycles.listClosed(id).then(({ data }) => setPastCycles((data ?? []) as ClosedCycle[]));
+  }, [id, cycle]);
 
   const isAdmin = myRole === 'owner' || myRole === 'admin';
   const isPicker = cycle?.picker_id === userId;
@@ -65,6 +81,20 @@ export default function ClubHome() {
     const { error: err } = await rsvpsDb.set(cycle.id, userId, status);
     if (err) setError(err.message);
     refresh();
+  };
+
+  const revealCycle = async () => {
+    if (!cycle) return;
+    if (
+      await confirmAsync(
+        'Reveal ratings',
+        'Everyone will see all scores, reviews, and song picks. Do this at the meeting!',
+      )
+    ) {
+      const { error: err } = await cycles.reveal(cycle.id);
+      if (err) setError(err.message);
+      refresh();
+    }
   };
 
   const closeCycle = async () => {
@@ -137,7 +167,11 @@ export default function ClubHome() {
           ) : (
             <Card>
               {albums.map((a) => (
-                <View key={a.id} style={styles.albumRow}>
+                <Pressable
+                  key={a.id}
+                  onPress={() => router.push(`/club/${club.id}/album/${a.id}`)}
+                  style={({ pressed }) => [styles.albumRow, pressed && { opacity: 0.7 }]}
+                >
                   {a.artwork_url ? (
                     <Image source={{ uri: a.artwork_url }} style={styles.art} contentFit="cover" />
                   ) : (
@@ -152,8 +186,11 @@ export default function ClubHome() {
                       {a.artist}
                       {a.year ? ` · ${a.year}` : ''}
                     </Text>
+                    <Text style={[styles.rateHint, { color: palette.purple }]}>
+                      ⭐ rate & reviews ›
+                    </Text>
                   </View>
-                </View>
+                </Pressable>
               ))}
               {(isPicker || isAdmin) && albums.length < 2 ? (
                 <Button title={`Choose album ${albums.length + 1}`} variant="ghost" onPress={() => router.push(`/club/${club.id}/pick-albums`)} />
@@ -220,10 +257,49 @@ export default function ClubHome() {
           </Card>
 
           {isAdmin ? (
-            <Button title="Close this cycle" variant="danger" onPress={closeCycle} style={{ marginBottom: 12 }} />
+            <View style={{ gap: 8, marginBottom: 12 }}>
+              {albums.length > 0 && !cycle.revealed_at ? (
+                <Button title="🎙 Reveal ratings (at the meeting)" onPress={revealCycle} />
+              ) : null}
+              {cycle.revealed_at ? (
+                <InlineNote text="Ratings are revealed — open an album to read everything." tone="success" />
+              ) : null}
+              <Button title="Close this cycle" variant="danger" onPress={closeCycle} />
+            </View>
           ) : null}
         </>
       )}
+
+      {pastCycles.length > 0 ? (
+        <>
+          <Label>Past cycles</Label>
+          <Card>
+            {pastCycles.map((pc) =>
+              pc.albums
+                .slice()
+                .sort((a, b) => a.slot - b.slot)
+                .map((a) => (
+                  <Pressable
+                    key={a.id}
+                    onPress={() => router.push(`/club/${club.id}/album/${a.id}`)}
+                    style={({ pressed }) => [styles.pastRow, pressed && { opacity: 0.7 }]}
+                  >
+                    <Text style={[styles.pastCycleNum, { color: palette.text3 }]}>#{pc.number}</Text>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text numberOfLines={1} style={[styles.pastTitle, { color: palette.text1 }]}>
+                        {a.title}
+                      </Text>
+                      <Text numberOfLines={1} style={[styles.pastArtist, { color: palette.text2 }]}>
+                        {a.artist}
+                      </Text>
+                    </View>
+                    <Text style={{ color: palette.text3 }}>›</Text>
+                  </Pressable>
+                )),
+            )}
+          </Card>
+        </>
+      ) : null}
 
       <Label>Invite members</Label>
       <Card>
@@ -254,6 +330,11 @@ const styles = StyleSheet.create({
   albumPickLabel: { fontFamily: fonts.monoMedium, fontSize: 9, letterSpacing: 2.5, marginBottom: 3 },
   albumName: { fontFamily: fonts.sansBold, fontSize: 16, marginBottom: 1 },
   albumMeta: { fontFamily: fonts.sans, fontSize: 12 },
+  rateHint: { fontFamily: fonts.monoMedium, fontSize: 10, marginTop: 3 },
+  pastRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
+  pastCycleNum: { fontFamily: fonts.monoMedium, fontSize: 11, width: 28 },
+  pastTitle: { fontFamily: fonts.sansMedium, fontSize: 13 },
+  pastArtist: { fontFamily: fonts.sans, fontSize: 11 },
   meetingRow: { flexDirection: 'row', alignItems: 'flex-start' },
   meetingDate: { fontFamily: fonts.sansBold, fontSize: 20 },
   meetingSub: { fontFamily: fonts.sans, fontSize: 13, marginTop: 2 },

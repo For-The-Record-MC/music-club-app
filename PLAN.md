@@ -69,7 +69,8 @@ matching `activity_events` rows transactionally.
 - **Phase 0** shipped 2026-06-12 (scaffold, Supabase link, theme, Pages deploy).
 - **Phase 1** shipped 2026-06-12 (identity & clubs: migration `20260612210000`, email-OTP auth + password path, lobby, create/join club, invite links, member/role management).
 - **Phase 2** shipped 2026-06-12 (cycle engine: migration `20260612230000`, wheel screen with server-side spin, album picks via iTunes search, meeting scheduling, RSVPs + guests, cycle close).
-- Next: **Phase 3** (ratings & reveal).
+- **Phase 3** shipped 2026-06-12 (ratings & reveal: migration `20260613010000`, rate form with track pickers, album detail with checklist → club-average → full-reveal ladder, admin reveal, past-cycle history).
+- Next: **Phase 4** (social layer: feed, suggestions backlog, concerts, activity feed).
 
 ## Phases
 

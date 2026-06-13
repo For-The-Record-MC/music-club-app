@@ -296,6 +296,63 @@ export type Database = {
         }
         Relationships: []
       }
+      ratings: {
+        Row: {
+          album_id: string
+          created_at: string
+          favorite_reason: string | null
+          favorite_track: string | null
+          id: string
+          least_reason: string | null
+          least_track: string | null
+          profile_id: string
+          review: string | null
+          score: number
+          updated_at: string
+        }
+        Insert: {
+          album_id: string
+          created_at?: string
+          favorite_reason?: string | null
+          favorite_track?: string | null
+          id?: string
+          least_reason?: string | null
+          least_track?: string | null
+          profile_id: string
+          review?: string | null
+          score: number
+          updated_at?: string
+        }
+        Update: {
+          album_id?: string
+          created_at?: string
+          favorite_reason?: string | null
+          favorite_track?: string | null
+          id?: string
+          least_reason?: string | null
+          least_track?: string | null
+          profile_id?: string
+          review?: string | null
+          score?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ratings_album_id_fkey"
+            columns: ["album_id"]
+            isOneToOne: false
+            referencedRelation: "albums"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ratings_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rsvps: {
         Row: {
           cycle_id: string
@@ -381,6 +438,7 @@ export type Database = {
         }
       }
       generate_invite_code: { Args: never; Returns: string }
+      get_album_summary: { Args: { p_album: string }; Returns: Json }
       is_club_member: { Args: { p_club: string }; Returns: boolean }
       join_club: {
         Args: { p_code: string }
