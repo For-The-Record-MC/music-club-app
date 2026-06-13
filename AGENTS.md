@@ -28,4 +28,5 @@ Product decisions and the phased build plan: [PLAN.md](PLAN.md).
 | [context/tech-stack.md](context/tech-stack.md) | Tech stack/versions, how to run, env vars, Supabase client + data-layer file locations, deploy channels (GitHub Pages now, TestFlight later) |
 | [context/agent-rules.md](context/agent-rules.md) | Full text of the hard constraints incl. CLI commands and the migration workflow |
 | [context/database-schema.md](context/database-schema.md) | The schema: tables, columns, invariants (cycle lifecycle, rating-visibility ladder, role model) — *placeholder until Phase 1 migration lands* |
-| [context/data-architecture.md](context/data-architecture.md) | The hook + compute-function pattern and `db.ts` query-object conventions — *placeholder until Phase 1* |
+| [context/data-architecture.md](context/data-architecture.md) | The hook + compute-function pattern, `db.ts` query-object conventions, routing/auth gating, UI primitives, theme store, pull-to-refresh |
+| [context/launch.md](context/launch.md) | Launch/ops checklist: email (SMTP + OTP template), admin/dev login, seeding the existing club's data, deferred native build, known follow-ups |

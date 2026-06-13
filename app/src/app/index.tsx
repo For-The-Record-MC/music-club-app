@@ -1,7 +1,9 @@
 import { Redirect, useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { Avatar, Badge, Button, Screen } from '@/components/ui';
+import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { useMyClubs } from '@/hooks/useMyClubs';
 import { useAuthStore } from '@/stores/authStore';
@@ -12,7 +14,8 @@ export default function Lobby() {
   const { palette } = useTheme();
   const router = useRouter();
   const { profile, signOut } = useAuthStore();
-  const { rows, loading } = useMyClubs();
+  const { rows, loading, refresh } = useMyClubs();
+  const { refreshing, onRefresh } = useRefresh(refresh);
 
   // First sign-in: get a display name before anything else.
   if (profile && !profile.display_name) {
@@ -20,19 +23,22 @@ export default function Lobby() {
   }
 
   return (
-    <Screen>
+    <Screen onRefresh={onRefresh} refreshing={refreshing}>
       <View style={styles.topbar}>
         <View>
           <Text style={[styles.eyebrow, { color: palette.text3 }]}>YOUR CLUBS</Text>
           <Text style={[styles.wordmark, { color: palette.text1 }]}>Vinyl &amp; Vino</Text>
         </View>
-        <Pressable onPress={() => router.push('/profile-setup')}>
-          <Avatar
-            name={profile?.display_name ?? null}
-            colorIndex={profile?.avatar_color ?? 0}
-            size={38}
-          />
-        </Pressable>
+        <View style={styles.topbarRight}>
+          <ThemeToggle />
+          <Pressable onPress={() => router.push('/profile-setup')}>
+            <Avatar
+              name={profile?.display_name ?? null}
+              colorIndex={profile?.avatar_color ?? 0}
+              size={38}
+            />
+          </Pressable>
+        </View>
       </View>
 
       {!loading && rows.length === 0 ? (
@@ -100,6 +106,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 28,
   },
+  topbarRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   eyebrow: { fontFamily: fonts.monoMedium, fontSize: 10, letterSpacing: 2, marginBottom: 2 },
   wordmark: { fontFamily: fonts.sansBold, fontSize: 22 },
   empty: { alignItems: 'center', paddingVertical: 40, paddingHorizontal: 20 },

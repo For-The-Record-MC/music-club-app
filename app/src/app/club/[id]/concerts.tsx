@@ -4,6 +4,7 @@ import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar, Button, Card, InlineNote, Label, Screen, TextField } from '@/components/ui';
 import { useConcerts, type ConcertRow } from '@/hooks/useConcerts';
+import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
 import { confirmAsync } from '@/utils/confirm';
@@ -16,6 +17,7 @@ export default function Concerts() {
   const { palette } = useTheme();
   const userId = useAuthStore((s) => s.userId);
   const { rows, refresh } = useConcerts(id);
+  const { refreshing, onRefresh } = useRefresh(refresh);
 
   const [open, setOpen] = useState(false);
   const [artist, setArtist] = useState('');
@@ -65,7 +67,7 @@ export default function Concerts() {
   };
 
   return (
-    <Screen>
+    <Screen onRefresh={onRefresh} refreshing={refreshing}>
       <View style={styles.topbar}>
         <Pressable onPress={() => router.back()}>
           <Text style={[styles.back, { color: palette.text2 }]}>←</Text>

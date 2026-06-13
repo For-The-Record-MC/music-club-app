@@ -4,6 +4,7 @@ import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar, Button, Card, InlineNote, Label, Screen, TextField } from '@/components/ui';
 import { useFeed, type FeedRow } from '@/hooks/useFeed';
+import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
 import { timeAgo } from '@/utils/activityTemplates';
@@ -29,6 +30,7 @@ export default function Feed() {
   const { palette } = useTheme();
   const userId = useAuthStore((s) => s.userId);
   const { posts, refresh } = useFeed(id);
+  const { refreshing, onRefresh } = useRefresh(refresh);
 
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
@@ -80,7 +82,7 @@ export default function Feed() {
   };
 
   return (
-    <Screen>
+    <Screen onRefresh={onRefresh} refreshing={refreshing}>
       <View style={styles.topbar}>
         <Pressable onPress={() => router.back()}>
           <Text style={[styles.back, { color: palette.text2 }]}>←</Text>

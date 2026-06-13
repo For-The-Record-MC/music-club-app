@@ -1,11 +1,13 @@
 import { useColorScheme } from 'react-native';
 
+import { useThemeStore } from '@/stores/themeStore';
 import { palettes, type Palette } from '@/theme';
 
-// Follows the device/browser color scheme. A per-user override (like the MVP's
-// moon/sun toggle) can be layered on later via a preference store.
+// Resolves the active palette from the user's theme preference, falling back to
+// the device color scheme when the preference is 'system'.
 export function useTheme(): { palette: Palette; isDark: boolean } {
   const scheme = useColorScheme();
-  const isDark = scheme !== 'light';
+  const mode = useThemeStore((s) => s.mode);
+  const isDark = mode === 'system' ? scheme !== 'light' : mode === 'dark';
   return { palette: isDark ? palettes.dark : palettes.light, isDark };
 }

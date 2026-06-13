@@ -2,6 +2,7 @@ import { type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -18,7 +19,17 @@ import { avatarColors, fonts, radius } from '@/theme';
 // Shared primitives ported from the MVP's visual language (legacy/index.html):
 // cards with hairline borders, mono eyebrow labels, pill badges, initial avatars.
 
-export function Screen({ children, scroll = true }: { children: ReactNode; scroll?: boolean }) {
+export function Screen({
+  children,
+  scroll = true,
+  onRefresh,
+  refreshing = false,
+}: {
+  children: ReactNode;
+  scroll?: boolean;
+  onRefresh?: () => void;
+  refreshing?: boolean;
+}) {
   const { palette } = useTheme();
   const insets = useSafeAreaInsets();
   const inner = (
@@ -28,6 +39,11 @@ export function Screen({ children, scroll = true }: { children: ReactNode; scrol
     <ScrollView
       style={{ flex: 1, backgroundColor: palette.bg }}
       contentContainerStyle={[styles.pageContent, { paddingTop: insets.top + 20 }]}
+      refreshControl={
+        onRefresh ? (
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.text2} />
+        ) : undefined
+      }
     >
       {inner}
     </ScrollView>

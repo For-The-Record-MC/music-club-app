@@ -12,13 +12,16 @@ import {
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
+import { useThemeStore } from '@/stores/themeStore';
 
 export default function RootLayout() {
   const { palette, isDark } = useTheme();
   const { userId, isHydrated, hydrate } = useAuthStore();
+  const hydrateTheme = useThemeStore((s) => s.hydrate);
   const [fontsLoaded] = useFonts({
     DMSans_400Regular,
     DMSans_500Medium,
@@ -30,7 +33,9 @@ export default function RootLayout() {
 
   useEffect(() => {
     hydrate();
-  }, [hydrate]);
+    hydrateTheme();
+    if (Platform.OS === 'web') document.title = 'Vinyl & Vino — Listening Clubs';
+  }, [hydrate, hydrateTheme]);
 
   if (!fontsLoaded || !isHydrated) return null;
 

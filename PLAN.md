@@ -71,7 +71,8 @@ matching `activity_events` rows transactionally.
 - **Phase 2** shipped 2026-06-12 (cycle engine: migration `20260612230000`, wheel screen with server-side spin, album picks via iTunes search, meeting scheduling, RSVPs + guests, cycle close).
 - **Phase 3** shipped 2026-06-12 (ratings & reveal: migration `20260613010000`, rate form with track pickers, album detail with checklist → club-average → full-reveal ladder, admin reveal, past-cycle history).
 - **Phase 4** shipped 2026-06-12 (social layer: migration `20260613030000`, club feed with reactions/comments + album-suggestion backlog, concerts board with interest, activity feed with client-side templates + unread bell wired into lifecycle RPCs and member actions).
-- Next: **Phase 5** (polish & launch).
+- **Phase 5** shipped 2026-06-13 (polish & launch: per-user theme toggle system/dark/light, pull-to-refresh on browse screens, web document title, launch/ops doc in [context/launch.md](context/launch.md)). Remaining pre-launch step is operational, not code: configure SMTP + the OTP email template (see launch.md).
+- **All six phases complete.** Follow-ups (non-blocking): SMTP config, bulk history import, Expo push, Spotify links, native TestFlight build.
 
 ## Phases
 

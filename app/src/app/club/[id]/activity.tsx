@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card, InlineNote, Screen } from '@/components/ui';
 import { useActivity } from '@/hooks/useActivity';
+import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { renderActivity, timeAgo } from '@/utils/activityTemplates';
 import { fonts } from '@/theme';
@@ -14,14 +15,15 @@ export default function Activity() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { palette } = useTheme();
-  const { events, markRead } = useActivity(id);
+  const { events, markRead, refresh } = useActivity(id);
+  const { refreshing, onRefresh } = useRefresh(refresh);
 
   useEffect(() => {
     markRead();
   }, [markRead]);
 
   return (
-    <Screen>
+    <Screen onRefresh={onRefresh} refreshing={refreshing}>
       <View style={styles.topbar}>
         <Pressable onPress={() => router.back()}>
           <Text style={[styles.back, { color: palette.text2 }]}>←</Text>

@@ -1,13 +1,14 @@
 import * as Clipboard from 'expo-clipboard';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar, Button, Card, InlineNote, Label, Screen } from '@/components/ui';
 import { useActivity } from '@/hooks/useActivity';
 import { useClubData } from '@/hooks/useClubData';
 import { useCycle } from '@/hooks/useCycle';
+import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
 import { inviteUrl } from '@/constants';
@@ -32,17 +33,27 @@ export default function ClubHome() {
   const { palette } = useTheme();
   const router = useRouter();
   const userId = useAuthStore((s) => s.userId);
-  const { club, members, myRole, loading: clubLoading } = useClubData(id);
+  const { club, members, myRole, loading: clubLoading, refresh: refreshClub } = useClubData(id);
   const { cycle, albums, rsvps, guests, loading: cycleLoading, refresh } = useCycle(id);
-  const { unread } = useActivity(id);
+  const { unread, refresh: refreshActivity } = useActivity(id);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pastCycles, setPastCycles] = useState<ClosedCycle[]>([]);
 
-  useEffect(() => {
+  const loadPast = useCallback(() => {
     if (!id) return;
     cycles.listClosed(id).then(({ data }) => setPastCycles((data ?? []) as ClosedCycle[]));
-  }, [id, cycle]);
+  }, [id]);
+
+  useEffect(() => {
+    loadPast();
+  }, [loadPast, cycle]);
+
+  const refreshAll = useCallback(async () => {
+    await Promise.all([refreshClub(), refresh(), refreshActivity()]);
+    loadPast();
+  }, [refreshClub, refresh, refreshActivity, loadPast]);
+  const { refreshing, onRefresh } = useRefresh(refreshAll);
 
   const isAdmin = myRole === 'owner' || myRole === 'admin';
   const isPicker = cycle?.picker_id === userId;
@@ -114,7 +125,7 @@ export default function ClubHome() {
   };
 
   return (
-    <Screen>
+    <Screen onRefresh={onRefresh} refreshing={refreshing}>
       <View style={styles.topbar}>
         <Pressable onPress={() => router.replace('/')}>
           <Text style={[styles.back, { color: palette.text2 }]}>←</Text>

@@ -25,4 +25,9 @@ When adding a screen: create the route file, then **add a `Stack.Screen` entry t
 
 ## UI primitives
 
-`app/src/components/ui.tsx`: `Screen`, `Card`, `Label`, `Button`, `TextField`, `Avatar`, `Badge`, `InlineNote` — all themed via `useTheme()`, visual language ported from the legacy MVP. `AuthForm` (`components/AuthForm.tsx`) is the shared email-OTP form. Cross-platform destructive confirms: `utils/confirm.ts` (`window.confirm` on web, `Alert.alert` native).
+`app/src/components/ui.tsx`: `Screen`, `Card`, `Label`, `Button`, `TextField`, `Avatar`, `Badge`, `InlineNote` — all themed via `useTheme()`, visual language ported from the legacy MVP. `AuthForm` (`components/AuthForm.tsx`) is the shared email-OTP form (with a no-email "I have a password" path for admin/dev). `ThemeToggle` cycles system/dark/light. Cross-platform destructive confirms: `utils/confirm.ts` (`window.confirm` on web, `Alert.alert` native).
+
+## Theme & refresh
+
+- Theme: `useTheme()` resolves the active palette from `stores/themeStore.ts` (mode `system`/`dark`/`light`, persisted to AsyncStorage, hydrated in the root layout) falling back to the device scheme. Never read `useColorScheme` directly in screens.
+- Pull-to-refresh: `<Screen onRefresh refreshing>` renders a `RefreshControl`; pair it with `hooks/useRefresh.ts` wrapping a hook's `refresh`. Wired on lobby, club home (refreshes club+cycle+activity+past), feed, concerts, activity.
