@@ -83,6 +83,15 @@ CREATE TABLE cycle_guests (
   created_at timestamp with time zone NOT NULL DEFAULT now()
 );
 
+CREATE TABLE cycle_preferences (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  cycle_id uuid NOT NULL,
+  profile_id uuid NOT NULL,
+  album_id uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE cycles (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   club_id uuid NOT NULL,
@@ -233,6 +242,16 @@ ALTER TABLE cycle_guests ADD CONSTRAINT cycle_guests_pkey PRIMARY KEY (id);
 
 ALTER TABLE cycle_guests ADD CONSTRAINT cycle_guests_status_check CHECK ((status = ANY (ARRAY['yes'::text, 'maybe'::text, 'no'::text])));
 
+ALTER TABLE cycle_preferences ADD CONSTRAINT cycle_preferences_album_id_fkey FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE CASCADE;
+
+ALTER TABLE cycle_preferences ADD CONSTRAINT cycle_preferences_cycle_id_fkey FOREIGN KEY (cycle_id) REFERENCES cycles(id) ON DELETE CASCADE;
+
+ALTER TABLE cycle_preferences ADD CONSTRAINT cycle_preferences_cycle_id_profile_id_key UNIQUE (cycle_id, profile_id);
+
+ALTER TABLE cycle_preferences ADD CONSTRAINT cycle_preferences_pkey PRIMARY KEY (id);
+
+ALTER TABLE cycle_preferences ADD CONSTRAINT cycle_preferences_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
 ALTER TABLE cycles ADD CONSTRAINT cycles_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
 
 ALTER TABLE cycles ADD CONSTRAINT cycles_club_id_number_key UNIQUE (club_id, number);
@@ -329,6 +348,8 @@ CREATE INDEX concert_interest_concert_idx ON public.concert_interest USING btree
 CREATE INDEX concerts_club_idx ON public.concerts USING btree (club_id, concert_date);
 
 CREATE INDEX cycle_guests_cycle_idx ON public.cycle_guests USING btree (cycle_id);
+
+CREATE INDEX cycle_preferences_cycle_idx ON public.cycle_preferences USING btree (cycle_id);
 
 CREATE INDEX cycles_club_idx ON public.cycles USING btree (club_id);
 
@@ -445,6 +466,20 @@ CREATE POLICY cycle_guests_update ON cycle_guests AS PERMISSIVE FOR UPDATE TO au
   USING (((added_by = auth.uid()) OR (EXISTS ( SELECT 1
    FROM cycles c
   WHERE ((c.id = cycle_guests.cycle_id) AND (club_role(c.club_id) = ANY (ARRAY['owner'::text, 'admin'::text])))))));
+
+ALTER TABLE cycle_preferences ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY cycle_preferences_select ON cycle_preferences AS PERMISSIVE FOR SELECT TO authenticated
+  USING (((profile_id = auth.uid()) OR (EXISTS ( SELECT 1
+   FROM cycles c
+  WHERE ((c.id = cycle_preferences.cycle_id) AND (c.revealed_at IS NOT NULL) AND is_club_member(c.club_id))))));
+
+CREATE POLICY cycle_preferences_write ON cycle_preferences AS PERMISSIVE FOR ALL TO authenticated
+  USING ((profile_id = auth.uid()))
+  WITH CHECK (((profile_id = auth.uid()) AND (EXISTS ( SELECT 1
+   FROM (albums a
+     JOIN cycles c ON ((c.id = a.cycle_id)))
+  WHERE ((a.id = cycle_preferences.album_id) AND (a.cycle_id = a.cycle_id) AND (c.status = 'open'::text) AND is_club_member(c.club_id))))));
 
 ALTER TABLE cycles ENABLE ROW LEVEL SECURITY;
 

@@ -14,6 +14,7 @@ export type Cycle = Tables<'cycles'>;
 export type Album = Tables<'albums'>;
 export type Rsvp = Tables<'rsvps'>;
 export type CycleGuest = Tables<'cycle_guests'>;
+export type CyclePreference = Tables<'cycle_preferences'>;
 export type RsvpStatus = 'yes' | 'maybe' | 'no';
 export type Rating = Tables<'ratings'>;
 export type FeedPost = Tables<'feed_posts'>;
@@ -142,6 +143,17 @@ export const ratings = {
       .order('score', { ascending: false }),
   // The visibility-gated aggregate (see context/database-schema.md).
   summary: (albumId: string) => supabase.rpc('get_album_summary', { p_album: albumId }),
+};
+
+export const preferences = {
+  // RLS returns only your own row pre-reveal; everyone's after reveal.
+  listByCycle: (cycleId: string) =>
+    supabase.from('cycle_preferences').select('*').eq('cycle_id', cycleId),
+  set: (cycleId: string, profileId: string, albumId: string) =>
+    supabase.from('cycle_preferences').upsert(
+      { cycle_id: cycleId, profile_id: profileId, album_id: albumId, updated_at: new Date().toISOString() },
+      { onConflict: 'cycle_id,profile_id' },
+    ),
 };
 
 export const rsvps = {

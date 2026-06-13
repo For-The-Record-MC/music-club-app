@@ -383,6 +383,55 @@ export type Database = {
           },
         ]
       }
+      cycle_preferences: {
+        Row: {
+          album_id: string
+          created_at: string
+          cycle_id: string
+          id: string
+          profile_id: string
+          updated_at: string
+        }
+        Insert: {
+          album_id: string
+          created_at?: string
+          cycle_id: string
+          id?: string
+          profile_id: string
+          updated_at?: string
+        }
+        Update: {
+          album_id?: string
+          created_at?: string
+          cycle_id?: string
+          id?: string
+          profile_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cycle_preferences_album_id_fkey"
+            columns: ["album_id"]
+            isOneToOne: false
+            referencedRelation: "albums"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cycle_preferences_cycle_id_fkey"
+            columns: ["cycle_id"]
+            isOneToOne: false
+            referencedRelation: "cycles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cycle_preferences_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cycles: {
         Row: {
           closed_at: string | null

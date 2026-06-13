@@ -17,6 +17,7 @@ import { addToCalendar } from '@/utils/calendar';
 import { confirmAsync } from '@/utils/confirm';
 import {
   cycles,
+  preferences as preferencesDb,
   rsvps as rsvpsDb,
   type Album,
   type Cycle,
@@ -34,7 +35,7 @@ export default function HomeTab() {
   const userId = useAuthStore((s) => s.userId);
   const clubId = useCurrentClubStore((s) => s.clubId) ?? undefined;
   const { club, members, myRole, loading: clubLoading, refresh: refreshClub } = useClubData(clubId);
-  const { cycle, albums, rsvps, guests, loading: cycleLoading, refresh } = useCycle(clubId);
+  const { cycle, albums, rsvps, guests, preferences, loading: cycleLoading, refresh } = useCycle(clubId);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pastCycles, setPastCycles] = useState<ClosedCycle[]>([]);
@@ -93,6 +94,14 @@ export default function HomeTab() {
   const setMyRsvp = async (status: RsvpStatus) => {
     if (!cycle || !userId) return;
     const { error: err } = await rsvpsDb.set(cycle.id, userId, status);
+    if (err) setError(err.message);
+    refresh();
+  };
+
+  const myPreference = preferences.find((p) => p.profile_id === userId)?.album_id;
+  const setPreference = async (albumId: string) => {
+    if (!cycle || !userId) return;
+    const { error: err } = await preferencesDb.set(cycle.id, userId, albumId);
     if (err) setError(err.message);
     refresh();
   };
@@ -206,6 +215,43 @@ export default function HomeTab() {
               ) : null}
             </Card>
           )}
+
+          {albums.length === 2 ? (
+            <>
+              <Label>Which did you like more?</Label>
+              <Card>
+                <View style={styles.prefRow}>
+                  {albums.map((a) => {
+                    const mine = myPreference === a.id;
+                    const votes = preferences.filter((p) => p.album_id === a.id).length;
+                    return (
+                      <Pressable
+                        key={a.id}
+                        onPress={() => setPreference(a.id)}
+                        style={[
+                          styles.prefBtn,
+                          { backgroundColor: palette.card2, borderColor: palette.border },
+                          mine && { backgroundColor: palette.purpleBg, borderColor: palette.purple },
+                        ]}
+                      >
+                        <Text numberOfLines={1} style={[styles.prefTitle, { color: mine ? palette.purple : palette.text1 }]}>
+                          {a.title}
+                        </Text>
+                        <Text style={[styles.prefMeta, { color: palette.text3 }]}>
+                          {cycle.revealed_at ? `${votes} vote${votes === 1 ? '' : 's'}` : mine ? 'your pick' : 'tap to pick'}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                {!cycle.revealed_at ? (
+                  <Text style={[styles.prefNote, { color: palette.text3 }]}>
+                    Votes stay sealed until the reveal.
+                  </Text>
+                ) : null}
+              </Card>
+            </>
+          ) : null}
 
           <Label>Meeting</Label>
           <Card>
@@ -381,4 +427,17 @@ const styles = StyleSheet.create({
   },
   quickText: { fontFamily: fonts.monoMedium, fontSize: 11 },
   inviteUrl: { fontFamily: fonts.mono, fontSize: 12, marginBottom: 10 },
+  prefRow: { flexDirection: 'row', gap: 8 },
+  prefBtn: {
+    flex: 1,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.md,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    gap: 3,
+  },
+  prefTitle: { fontFamily: fonts.sansBold, fontSize: 13, maxWidth: '100%' },
+  prefMeta: { fontFamily: fonts.mono, fontSize: 10 },
+  prefNote: { fontFamily: fonts.mono, fontSize: 10, marginTop: 8, textAlign: 'center' },
 });

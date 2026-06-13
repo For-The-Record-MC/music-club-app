@@ -4,10 +4,12 @@ import {
   albums as albumsDb,
   cycleGuests,
   cycles,
+  preferences as preferencesDb,
   rsvps as rsvpsDb,
   type Album,
   type Cycle,
   type CycleGuest,
+  type CyclePreference,
   type Rsvp,
 } from '@/utils/supabase/db';
 
@@ -21,6 +23,7 @@ export function useCycle(clubId: string | undefined) {
   const [albums, setAlbums] = useState<Album[]>([]);
   const [rsvps, setRsvps] = useState<RsvpRow[]>([]);
   const [guests, setGuests] = useState<CycleGuest[]>([]);
+  const [preferences, setPreferences] = useState<CyclePreference[]>([]);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
@@ -28,18 +31,21 @@ export function useCycle(clubId: string | undefined) {
     const { data: current } = await cycles.current(clubId);
     setCycle(current ?? null);
     if (current) {
-      const [a, r, g] = await Promise.all([
+      const [a, r, g, p] = await Promise.all([
         albumsDb.listByCycle(current.id),
         rsvpsDb.listByCycle(current.id),
         cycleGuests.listByCycle(current.id),
+        preferencesDb.listByCycle(current.id),
       ]);
       setAlbums(a.data ?? []);
       setRsvps((r.data ?? []) as RsvpRow[]);
       setGuests(g.data ?? []);
+      setPreferences(p.data ?? []);
     } else {
       setAlbums([]);
       setRsvps([]);
       setGuests([]);
+      setPreferences([]);
     }
     setLoading(false);
   }, [clubId]);
@@ -48,5 +54,5 @@ export function useCycle(clubId: string | undefined) {
     refresh();
   }, [refresh]);
 
-  return { cycle, albums, rsvps, guests, loading, refresh };
+  return { cycle, albums, rsvps, guests, preferences, loading, refresh };
 }
