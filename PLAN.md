@@ -82,6 +82,60 @@ matching `activity_events` rows transactionally.
 - **Album preference** (migration `20260613190000`): `cycle_preferences` — each member picks which of the cycle's two albums they liked more; sealed until reveal, then a vote tally.
 - **iTunes song search in the feed** (`searchSongs`): members search Apple Music and pick a track (auto-fills title/artist/link/artwork) instead of pasting links; artwork shows on posts.
 
+## v3 — Club admin + Spotify integration (planned 2026-06-13)
+
+Locked via a grill-me design session. Three independently shippable phases.
+
+**Decisions:**
+- **Admin hub:** new `club/[id]/settings.tsx` (owner **+ admin**), with member management
+  folded in; reached via a **gear icon on Clubs-tab tiles** where `role≠member`.
+- **Streaming:** separate **owner-only** sub-screen `club/[id]/streaming.tsx`.
+- **Song limit:** `clubs.song_limit_per_cycle int NULL` (NULL = unlimited, default NULL).
+  Counts `kind='track'` posts per member since the **open cycle's start**;
+  **no open cycle → no cap**; **server-enforced** via a `feed_posts` insert trigger.
+- **Spotify only** (Apple Music deferred). Search via an Edge Function proxy
+  (client-credentials token) so every member can search without connecting; composer
+  **defaults to Spotify**, stores the Spotify track URI, keeps iTunes as a secondary toggle.
+- **Connection:** per-club, owner-only, Auth Code + PKCE (`expo-auth-session`),
+  **web + native**; token exchange/refresh/storage all server-side (Edge Function +
+  RLS-locked `streaming_connections` table; tokens never reach the client).
+- **Playlists:** **one per cycle**, auto-created lazily, **public**. Every track post with
+  a Spotify URI is appended (best-effort match for Apple/manual; skip unmatched).
+  **Client calls a sync Edge Function after posting + a manual re-sync button**;
+  per-post `playlist_synced_at` marker dedupes.
+- **Links surfaced:** feed header, home/current-cycle card, closed-cycle history.
+- **Disconnect:** stop syncing, keep playlists/links; revoked token → owner "reconnect" banner.
+
+**Phase A — Settings + song limit** (no Spotify): migration (`song_limit_per_cycle`
+column + enforcement trigger + `my_song_quota` RPC), `settings.tsx` admin hub, gear entry
+on Clubs tab, feed composer "X of N songs left" + graceful limit error.
+
+**Phase B — Spotify search proxy:** first Edge Function in the repo (`spotify-search`,
+client-credentials), `utils/spotify.ts` mirroring `itunes.ts`, composer defaults to Spotify
+and stores the URI, iTunes kept as a secondary toggle.
+
+**Phase C — OAuth + playlists:** `streaming_connections` table (RLS-locked) + per-cycle
+playlist fields on `cycles` + `feed_posts.playlist_synced_at`; Edge Functions
+`spotify-oauth` (token exchange/refresh) and `spotify-sync` (lazy public playlist create +
+append using owner's token); `streaming.tsx` PKCE connect flow; client sync-after-post +
+re-sync button; surface links + reconnect banner.
+
+Prereqs: register a Spotify Developer app (client_id/secret, redirect URIs for web +
+`vinylvino://`), scaffold `supabase/functions/` (none exist yet — check `~/Code/PindejosBowling`
+for an Edge Function + deploy pattern to port), set `SPOTIFY_CLIENT_ID`/`SECRET` secrets.
+
+**Status 2026-06-13:** All three phases built; `npx tsc --noEmit` clean. Phase A + C
+migrations applied to the live DB (`20260613240000`, `20260613250000`); Edge Functions
+`spotify-search`, `spotify-oauth`, `spotify-sync` deployed (project `yecjvvnposykmrzemcej`)
+with `SPOTIFY_CLIENT_ID`/`SECRET` secrets set; `spotify-search` smoke-tested OK. App code
+ready but **uncommitted/unpushed** (live web unchanged). Remaining manual steps before
+OAuth works end-to-end: (1) register redirect URIs in the Spotify app — `vinylvino://spotify-callback`,
+`https://jordanreticker.github.io/music-club-app/spotify-callback`, and (for local web dev)
+`http://127.0.0.1:8081/spotify-callback`; (2) add GitHub Actions secret
+`EXPO_PUBLIC_SPOTIFY_CLIENT_ID`. (Client secret was rotated + re-set on Supabase 2026-06-13.)
+Deferred: Apple Music; home-screen reconnect banner for owners (today reconnect lives on the
+streaming screen).
+
 ## Backlog / future ideas
 
 - **Auto-generate Google Meet links on schedule** (deferred 2026-06-13). Today the schedule form takes a pasted video link with a `meet.new` shortcut (shipped) — works, but one manual step. Truly automatic minting (a Meet link created the instant a meeting is scheduled) requires Google OAuth: only Google can create a real Meet link, via the Calendar API (event with `conferenceData`, `conferenceDataVersion=1`) or the Meet API (`spaces`). Needs a Google Cloud project, OAuth consent-screen verification for sensitive calendar scopes, an admin Google sign-in + token storage, and an Edge Function to hold the secret. A consumer `@gmail.com` can't do it via a service account (that needs Workspace domain-wide delegation). Same weight as the Ticketmaster integration — only worth it if the manual paste becomes annoying.

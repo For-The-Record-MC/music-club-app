@@ -371,6 +371,20 @@ authorization_url_path = "/oauth/consent"
 # Allow dynamic client registration
 allow_dynamic_registration = false
 
+# Spotify track-search proxy (client-credentials). verify_jwt keeps it members-only
+# so our Spotify rate budget can't be hit anonymously. Secrets SPOTIFY_CLIENT_ID /
+# SPOTIFY_CLIENT_SECRET must be set (supabase secrets set …) before it works.
+[functions.spotify-search]
+verify_jwt = true
+
+# Owner connects Spotify: server-side code→token exchange + connection storage.
+[functions.spotify-oauth]
+verify_jwt = true
+
+# Pushes the open cycle's feed songs to its Spotify playlist (owner's token).
+[functions.spotify-sync]
+verify_jwt = true
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.

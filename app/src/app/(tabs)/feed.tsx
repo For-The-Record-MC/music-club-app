@@ -4,27 +4,45 @@ import { useEffect, useRef, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar, Button, Card, InlineNote, Label, NoClubSelected, Screen, TextField } from '@/components/ui';
+import { useCycle } from '@/hooks/useCycle';
 import { useFeed, type FeedRow } from '@/hooks/useFeed';
 import { useFocusTarget, useGlow } from '@/hooks/useFocusTarget';
 import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
 import { useCurrentClubStore } from '@/stores/currentClubStore';
-import { searchSongs, type ItunesSong } from '@/utils/itunes';
+import { searchSongs as searchItunes } from '@/utils/itunes';
+import { searchSongs as searchSpotify } from '@/utils/spotify';
 import { timeAgo } from '@/utils/activityTemplates';
 import { confirmAsync } from '@/utils/confirm';
 import {
   activity,
+  clubs as clubsDb,
   comments as commentsDb,
   feed as feedDb,
   reactions as reactionsDb,
+  streaming as streamingDb,
   REACTION_EMOJIS,
   type ReactionEmoji,
+  type SongQuota,
 } from '@/utils/supabase/db';
 import { fonts, radius } from '@/theme';
 
 type Platform = 'spotify' | 'apple' | 'other';
 type Kind = 'track' | 'album' | 'playlist';
+type SearchSource = 'spotify' | 'apple';
+
+// One source-agnostic search row for the composer list. spotifyUri is set only
+// for Spotify results — it's what the per-cycle playlist sync needs.
+interface SearchResult {
+  key: string;
+  trackName: string;
+  artistName: string;
+  artworkUrl: string;
+  url: string;
+  platform: Platform;
+  spotifyUri?: string;
+}
 
 // Artwork URL stored on a post's metadata jsonb (from iTunes search), if any.
 function artworkOf(post: FeedRow): string | null {
@@ -40,6 +58,7 @@ export default function Feed() {
   const { palette } = useTheme();
   const userId = useAuthStore((s) => s.userId);
   const { posts, refresh } = useFeed(id);
+  const { cycle } = useCycle(id);
   const { refreshing, onRefresh } = useRefresh(refresh);
   const { focus, scrollRef, onItemLayout } = useFocusTarget();
 
@@ -52,29 +71,74 @@ export default function Feed() {
   const [platform, setPlatform] = useState<Platform>('spotify');
   const [suggestion, setSuggestion] = useState(false);
   const [artwork, setArtwork] = useState<string | null>(null);
+  const [spotifyUri, setSpotifyUri] = useState<string | null>(null);
+  const [source, setSource] = useState<SearchSource>('spotify');
   const [search, setSearch] = useState('');
-  const [results, setResults] = useState<ItunesSong[]>([]);
+  const [results, setResults] = useState<SearchResult[]>([]);
   const searchSeq = useRef(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [quota, setQuota] = useState<SongQuota | null>(null);
 
-  const runSearch = async (term: string) => {
+  // My per-cycle song quota — drives the "X of N songs left" hint and disables
+  // posting a song once the cap is hit. Only kind='track' counts.
+  const loadQuota = async () => {
+    if (!id) return;
+    const { data } = await clubsDb.songQuota(id);
+    setQuota((data as unknown as SongQuota) ?? null);
+  };
+  useEffect(() => {
+    loadQuota();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  const capped = quota?.limit != null && quota.has_open_cycle;
+  const remaining = capped ? Math.max(0, (quota!.limit as number) - quota!.used) : null;
+  const songBlocked = kind === 'track' && remaining === 0;
+
+  const runSearch = async (term: string, src: SearchSource = source) => {
     setSearch(term);
     const seq = ++searchSeq.current;
     if (term.trim().length < 3) {
       setResults([]);
       return;
     }
-    const found = await searchSongs(term);
+    const found: SearchResult[] =
+      src === 'spotify'
+        ? (await searchSpotify(term)).map((s) => ({
+            key: s.id,
+            trackName: s.trackName,
+            artistName: s.artistName,
+            artworkUrl: s.artworkUrl,
+            url: s.spotifyUrl,
+            platform: 'spotify' as const,
+            spotifyUri: s.uri,
+          }))
+        : (await searchItunes(term)).map((s) => ({
+            key: String(s.trackId),
+            trackName: s.trackName,
+            artistName: s.artistName,
+            artworkUrl: s.artworkUrl,
+            url: s.appleUrl,
+            platform: 'apple' as const,
+          }));
     if (seq === searchSeq.current) setResults(found);
   };
 
-  const pickSong = (s: ItunesSong) => {
+  // Switching source re-runs the active query against the new provider.
+  const switchSource = (src: SearchSource) => {
+    setSource(src);
+    if (search.trim().length >= 3) runSearch(search, src);
+    else setResults([]);
+  };
+
+  const pickSong = (s: SearchResult) => {
     setTitle(s.trackName);
     setArtist(s.artistName);
-    setUrl(s.appleUrl);
-    setPlatform('apple');
+    setUrl(s.url);
+    setPlatform(s.platform);
     setArtwork(s.artworkUrl || null);
+    setSpotifyUri(s.spotifyUri ?? null);
     setKind('track');
     setResults([]);
     setSearch('');
@@ -87,6 +151,7 @@ export default function Feed() {
     setNote('');
     setSuggestion(false);
     setArtwork(null);
+    setSpotifyUri(null);
     setSearch('');
     setResults([]);
     setOpen(false);
@@ -109,7 +174,10 @@ export default function Feed() {
       platform,
       note: note.trim() || null,
       is_album_suggestion: suggestion,
-      metadata: artwork ? { artwork } : null,
+      metadata:
+        artwork || spotifyUri
+          ? { ...(artwork ? { artwork } : {}), ...(spotifyUri ? { spotify_uri: spotifyUri } : {}) }
+          : null,
     });
     if (!err && data) {
       await activity.publish(id, 'feed_post', {
@@ -125,6 +193,10 @@ export default function Feed() {
     }
     resetComposer();
     refresh();
+    loadQuota();
+    // Push to the cycle's Spotify playlist if the club is connected. Fire-and-
+    // forget + no-ops server-side when not connected / not a track.
+    if (kind === 'track') streamingDb.sync(id).catch(() => {});
   };
 
   if (!id) return <NoClubSelected what="feed" />;
@@ -136,9 +208,16 @@ export default function Feed() {
           <Text style={[styles.eyebrow, { color: palette.text3 }]}>WHAT YOU'RE HEARING</Text>
           <Text style={[styles.title, { color: palette.text1 }]}>The Feed</Text>
         </View>
-        <Pressable onPress={() => router.push(`/club/${id}/suggestions`)}>
-          <Text style={[styles.link, { color: palette.purple }]}>💡 Backlog</Text>
-        </Pressable>
+        <View style={{ alignItems: 'flex-end', gap: 6 }}>
+          <Pressable onPress={() => router.push(`/club/${id}/suggestions`)}>
+            <Text style={[styles.link, { color: palette.purple }]}>💡 Backlog</Text>
+          </Pressable>
+          {cycle?.spotify_playlist_url ? (
+            <Pressable onPress={() => Linking.openURL(cycle.spotify_playlist_url!)}>
+              <Text style={[styles.link, { color: palette.teal }]}>▶ Playlist</Text>
+            </Pressable>
+          ) : null}
+        </View>
       </View>
 
       {!open ? (
@@ -146,15 +225,36 @@ export default function Feed() {
       ) : (
         <Card>
           <Label>Search a song</Label>
+          <View style={[styles.segRow, { marginBottom: 8 }]}>
+            {(['spotify', 'apple'] as SearchSource[]).map((src) => (
+              <Pressable
+                key={src}
+                onPress={() => switchSource(src)}
+                style={[
+                  styles.seg,
+                  { borderColor: palette.border, backgroundColor: palette.card2 },
+                  source === src && { borderColor: palette.teal, backgroundColor: palette.tealBg },
+                ]}
+              >
+                <Text style={[styles.segText, { color: source === src ? palette.teal : palette.text3 }]}>
+                  {src === 'spotify' ? 'Spotify' : 'Apple Music'}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
           <TextField
-            placeholder="Search Apple Music… (e.g. Dreams Fleetwood Mac)"
+            placeholder={
+              source === 'spotify'
+                ? 'Search Spotify… (e.g. Dreams Fleetwood Mac)'
+                : 'Search Apple Music… (e.g. Dreams Fleetwood Mac)'
+            }
             value={search}
-            onChangeText={runSearch}
+            onChangeText={(t) => runSearch(t)}
             autoCorrect={false}
           />
           {results.map((s) => (
             <Pressable
-              key={s.trackId}
+              key={s.key}
               onPress={() => pickSong(s)}
               style={({ pressed }) => [
                 styles.resultRow,
@@ -178,7 +278,7 @@ export default function Feed() {
                 <Text numberOfLines={1} style={[styles.resultTitle, { color: palette.text1 }]}>{title}</Text>
                 <Text numberOfLines={1} style={[styles.resultArtist, { color: palette.text2 }]}>{artist}</Text>
               </View>
-              <Text onPress={() => { setArtwork(null); setUrl(''); }} style={[styles.clearPick, { color: palette.text3 }]}>×</Text>
+              <Text onPress={() => { setArtwork(null); setUrl(''); setSpotifyUri(null); }} style={[styles.clearPick, { color: palette.text3 }]}>×</Text>
             </View>
           ) : null}
 
@@ -243,7 +343,17 @@ export default function Feed() {
                 Suggest as a future album pick (adds to the backlog)
               </Text>
             </Pressable>
-            <Button title="Post" onPress={submit} loading={busy} />
+            {capped ? (
+              <InlineNote
+                text={
+                  remaining === 0
+                    ? `You've used all ${quota!.limit} of this cycle's songs.`
+                    : `${remaining} of ${quota!.limit} song${quota!.limit === 1 ? '' : 's'} left this cycle.`
+                }
+                tone={remaining === 0 ? 'error' : 'muted'}
+              />
+            ) : null}
+            <Button title="Post" onPress={submit} loading={busy} disabled={songBlocked} />
             <Button title="Cancel" variant="ghost" onPress={resetComposer} />
             {error ? <InlineNote text={error} tone="error" /> : null}
           </View>

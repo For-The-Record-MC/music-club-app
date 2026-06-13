@@ -61,6 +61,7 @@ export default function ClubsTab() {
 
       {rows.map(({ club, role }, i) => {
         const isCurrent = club.id === currentClubId;
+        const canManage = role !== 'member';
         return (
           <Pressable
             key={club.id}
@@ -89,7 +90,17 @@ export default function ClubsTab() {
                 bg={role === 'owner' ? palette.tealBg : palette.purpleBg}
               />
             ) : null}
-            <Text style={[styles.tileArrow, { color: palette.text3 }]}>›</Text>
+            {canManage ? (
+              <Pressable
+                hitSlop={10}
+                onPress={() => router.push(`/club/${club.id}/settings`)}
+                style={styles.tileGear}
+              >
+                <Text style={{ fontSize: 17 }}>⚙</Text>
+              </Pressable>
+            ) : (
+              <Text style={[styles.tileArrow, { color: palette.text3 }]}>›</Text>
+            )}
           </Pressable>
         );
       })}
@@ -144,6 +155,7 @@ const styles = StyleSheet.create({
   tileName: { fontFamily: fonts.sansBold, fontSize: 16, marginBottom: 3 },
   tileMeta: { fontFamily: fonts.mono, fontSize: 11 },
   tileArrow: { fontSize: 20 },
+  tileGear: { paddingHorizontal: 4, paddingVertical: 2 },
   newClub: {
     borderWidth: 1,
     borderStyle: 'dashed',

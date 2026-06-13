@@ -70,8 +70,21 @@ export default function Concerts() {
   const id = useCurrentClubStore((s) => s.clubId) ?? undefined;
   const { palette } = useTheme();
   const userId = useAuthStore((s) => s.userId);
-  const { myRole } = useClubData(id);
+  const { myRole, members } = useClubData(id);
   const isAdmin = myRole === 'owner' || myRole === 'admin';
+
+  // profile_id → name/color, so concert interest (which only stores ids) can show
+  // who's interested/going, not just counts.
+  const memberInfo = useMemo(() => {
+    const m = new Map<string, { display_name: string | null; avatar_color: number }>();
+    members.forEach((mem) =>
+      m.set(mem.profile_id, {
+        display_name: mem.profiles?.display_name ?? null,
+        avatar_color: mem.profiles?.avatar_color ?? 0,
+      }),
+    );
+    return m;
+  }, [members]);
   const { rows, refresh } = useConcerts(id);
   const { refreshing, onRefresh } = useRefresh(refresh);
   const { focus, scrollRef, onItemLayout } = useFocusTarget();
@@ -188,7 +201,7 @@ export default function Concerts() {
 
       {upcoming.map((c) => (
         <View key={c.id} onLayout={onItemLayout(c.id)}>
-          <ConcertCard concert={c} userId={userId} isAdmin={isAdmin} onEdit={startEdit} onChange={refresh} highlight={c.id === focus} />
+          <ConcertCard concert={c} userId={userId} isAdmin={isAdmin} memberInfo={memberInfo} onEdit={startEdit} onChange={refresh} highlight={c.id === focus} />
         </View>
       ))}
 
@@ -206,7 +219,7 @@ export default function Concerts() {
           {showCompleted
             ? completed.map((c) => (
                 <View key={c.id} onLayout={onItemLayout(c.id)}>
-                  <ConcertCard concert={c} userId={userId} isAdmin={isAdmin} onEdit={startEdit} onChange={refresh} highlight={c.id === focus} />
+                  <ConcertCard concert={c} userId={userId} isAdmin={isAdmin} memberInfo={memberInfo} onEdit={startEdit} onChange={refresh} highlight={c.id === focus} />
                 </View>
               ))
             : null}
@@ -247,10 +260,47 @@ function Stars({
   );
 }
 
+// Shows who's interested/going with name + avatar, not just a count.
+function InterestGroup({
+  label,
+  people,
+  memberInfo,
+  color,
+}: {
+  label: string;
+  people: { profile_id: string; status: ConcertStatus }[];
+  memberInfo: Map<string, { display_name: string | null; avatar_color: number }>;
+  color: string;
+}) {
+  const { palette } = useTheme();
+  if (people.length === 0) return null;
+  return (
+    <View style={styles.interestGroup}>
+      <Text style={[styles.interestLabel, { color }]}>
+        {label} ({people.length})
+      </Text>
+      <View style={styles.interestPeople}>
+        {people.map((p) => {
+          const info = memberInfo.get(p.profile_id);
+          return (
+            <View key={p.profile_id} style={styles.interestChip}>
+              <Avatar name={info?.display_name ?? null} colorIndex={info?.avatar_color ?? 0} size={18} />
+              <Text style={[styles.interestName, { color: palette.text2 }]}>
+                {info?.display_name ?? 'Someone'}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 function ConcertCard({
   concert,
   userId,
   isAdmin,
+  memberInfo,
   onEdit,
   onChange,
   highlight = false,
@@ -258,6 +308,7 @@ function ConcertCard({
   concert: ConcertRow;
   userId: string | null;
   isAdmin: boolean;
+  memberInfo: Map<string, { display_name: string | null; avatar_color: number }>;
   onEdit: (c: ConcertRow) => void;
   onChange: () => void;
   highlight?: boolean;
@@ -266,8 +317,8 @@ function ConcertCard({
   const glow = useGlow(highlight);
   const canManage = concert.added_by === userId || isAdmin;
   const myStatus = concert.concert_interest.find((i) => i.profile_id === userId)?.status ?? null;
-  const interestedCount = concert.concert_interest.filter((i) => i.status === 'interested').length;
-  const goingCount = concert.concert_interest.filter((i) => i.status === 'going').length;
+  const going = concert.concert_interest.filter((i) => i.status === 'going');
+  const interested = concert.concert_interest.filter((i) => i.status === 'interested');
   const commentCount = concert.concert_comments[0]?.count ?? 0;
   const isCompleted = !!concert.completed_at;
 
@@ -314,6 +365,12 @@ function ConcertCard({
             {formatWhen(concert)}
             {concert.price ? ` · ${concert.price}` : ''}
           </Text>
+          <View style={styles.cByRow}>
+            <Avatar name={concert.profiles?.display_name ?? null} colorIndex={concert.profiles?.avatar_color ?? 0} size={16} />
+            <Text style={[styles.cBy, { color: palette.text3 }]}>
+              added by {concert.profiles?.display_name ?? 'someone'}
+            </Text>
+          </View>
         </View>
         {canManage ? (
           <View style={styles.manageRow}>
@@ -368,9 +425,13 @@ function ConcertCard({
         ) : null}
       </View>
 
-      <Text style={[styles.cCount, { color: palette.text3 }]}>
-        {interestedCount} interested · {goingCount} going
-      </Text>
+      <View style={styles.interestLists}>
+        <InterestGroup label="Going" people={going} memberInfo={memberInfo} color={palette.purple} />
+        <InterestGroup label="Interested" people={interested} memberInfo={memberInfo} color={palette.teal} />
+        {going.length === 0 && interested.length === 0 ? (
+          <Text style={[styles.cCount, { color: palette.text3 }]}>No one yet — be the first.</Text>
+        ) : null}
+      </View>
 
       <View style={[styles.cActions, { borderTopColor: palette.border }]}>
         <Pressable onPress={() => setShowComments((s) => !s)} hitSlop={6}>
@@ -497,6 +558,8 @@ const styles = StyleSheet.create({
   cArtist: { fontFamily: fonts.sansBold, fontSize: 15, marginBottom: 2 },
   cVenue: { fontFamily: fonts.sans, fontSize: 12, marginBottom: 2 },
   cMeta: { fontFamily: fonts.mono, fontSize: 11 },
+  cByRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
+  cBy: { fontFamily: fonts.mono, fontSize: 10 },
   manageRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   cNote: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 19, marginTop: 8 },
   reviewBox: {
@@ -519,6 +582,12 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   cCount: { fontFamily: fonts.sans, fontSize: 12, marginTop: 8 },
+  interestLists: { marginTop: 10, gap: 8 },
+  interestGroup: { gap: 5 },
+  interestLabel: { fontFamily: fonts.monoMedium, fontSize: 10, letterSpacing: 0.5 },
+  interestPeople: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  interestChip: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  interestName: { fontFamily: fonts.sans, fontSize: 12 },
   cActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
