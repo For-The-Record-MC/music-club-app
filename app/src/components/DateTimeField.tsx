@@ -10,19 +10,26 @@ import { fonts, radius } from '@/theme';
 export function DateTimeField({
   value,
   onChange,
+  mode: fieldMode = 'datetime',
 }: {
   value: Date | null;
   onChange: (d: Date) => void;
+  mode?: 'datetime' | 'date';
 }) {
   const { palette } = useTheme();
   const [show, setShow] = useState(false);
   const [mode, setMode] = useState<'date' | 'time'>('date');
   const current = value ?? new Date();
+  const dateOnly = fieldMode === 'date';
 
   const open = (m: 'date' | 'time') => {
     setMode(m);
     setShow(true);
   };
+
+  const display = dateOnly
+    ? ({ weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' } as const)
+    : ({ weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' } as const);
 
   return (
     <>
@@ -31,17 +38,9 @@ export function DateTimeField({
         style={[styles.field, { backgroundColor: palette.card2, borderColor: palette.border }]}
       >
         <Text style={[styles.value, { color: value ? palette.text1 : palette.text3 }]}>
-          {value
-            ? value.toLocaleString(undefined, {
-                weekday: 'short',
-                month: 'short',
-                day: 'numeric',
-                hour: 'numeric',
-                minute: '2-digit',
-              })
-            : 'Pick a date & time'}
+          {value ? value.toLocaleString(undefined, display) : dateOnly ? 'Pick a date' : 'Pick a date & time'}
         </Text>
-        {value ? (
+        {value && !dateOnly ? (
           <Text onPress={() => open('time')} style={[styles.editTime, { color: palette.teal }]}>
             edit time
           </Text>
@@ -59,11 +58,13 @@ export function DateTimeField({
               return;
             }
             if (mode === 'date') {
-              // Keep the existing time, swap the date; then prompt for time.
+              // Keep the existing time, swap the date; then prompt for time
+              // (datetime mode only).
               const next = new Date(current);
               next.setFullYear(selected.getFullYear(), selected.getMonth(), selected.getDate());
+              if (dateOnly) next.setHours(12, 0, 0, 0);
               onChange(next);
-              if (Platform.OS !== 'ios') open('time');
+              if (!dateOnly && Platform.OS !== 'ios') open('time');
             } else {
               const next = new Date(current);
               next.setHours(selected.getHours(), selected.getMinutes(), 0, 0);

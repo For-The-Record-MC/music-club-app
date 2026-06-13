@@ -253,7 +253,7 @@ export default function HomeTab() {
             </>
           ) : null}
 
-          <Label>Meeting</Label>
+          <Label>Meeting &amp; RSVP</Label>
           <Card>
             <View style={styles.meetingRow}>
               <View style={{ flex: 1 }}>
@@ -278,34 +278,8 @@ export default function HomeTab() {
                 {goingCount} going
               </Text>
             </View>
-            {cycle.meeting_at ? (
-              <Button
-                title="📅 Add to calendar"
-                variant="ghost"
-                onPress={() =>
-                  addToCalendar({
-                    title: `${club.name} — Cycle ${cycle.number}`,
-                    start: new Date(cycle.meeting_at!),
-                    location: cycle.meeting_time_location,
-                    details: albums.map((a) => `${a.title} — ${a.artist}`).join('\n'),
-                  })
-                }
-                style={{ marginTop: 10 }}
-              />
-            ) : null}
-            {isAdmin ? (
-              <Button
-                title={cycle.meeting_at ? 'Edit meeting' : 'Set the meeting'}
-                variant="ghost"
-                onPress={() => router.push(`/club/${club.id}/schedule`)}
-                style={{ marginTop: 8 }}
-              />
-            ) : null}
-          </Card>
 
-          <Label>Your RSVP</Label>
-          <Card>
-            <View style={styles.quickRow}>
+            <View style={styles.rsvpQuick}>
               {(
                 [
                   ['yes', '✓ Going', palette.teal, palette.tealBg],
@@ -329,7 +303,39 @@ export default function HomeTab() {
                 );
               })}
             </View>
-            <Button title="Full RSVP list & guests" variant="ghost" onPress={() => router.push(`/club/${club.id}/rsvp`)} style={{ marginTop: 10 }} />
+
+            <View style={[styles.cardDivider, { borderTopColor: palette.border }]} />
+            <View style={styles.meetingActions}>
+              <Button
+                title="RSVP list & guests"
+                variant="ghost"
+                onPress={() => router.push(`/club/${club.id}/rsvp`)}
+                style={styles.actionFlex}
+              />
+              {cycle.meeting_at ? (
+                <Button
+                  title="📅 Calendar"
+                  variant="ghost"
+                  onPress={() =>
+                    addToCalendar({
+                      title: `${club.name} — Cycle ${cycle.number}`,
+                      start: new Date(cycle.meeting_at!),
+                      location: cycle.meeting_time_location,
+                      details: albums.map((a) => `${a.title} — ${a.artist}`).join('\n'),
+                    })
+                  }
+                  style={styles.actionFlex}
+                />
+              ) : null}
+            </View>
+            {isAdmin ? (
+              <Button
+                title={cycle.meeting_at ? 'Edit meeting' : 'Set the meeting'}
+                variant="ghost"
+                onPress={() => router.push(`/club/${club.id}/schedule`)}
+                style={{ marginTop: 8 }}
+              />
+            ) : null}
           </Card>
 
           {isAdmin ? (
@@ -418,6 +424,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   quickRow: { flexDirection: 'row', gap: 6 },
+  rsvpQuick: { flexDirection: 'row', gap: 6, marginTop: 12 },
+  cardDivider: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: 12 },
+  meetingActions: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  actionFlex: { flex: 1 },
   quickBtn: {
     flex: 1,
     paddingVertical: 10,

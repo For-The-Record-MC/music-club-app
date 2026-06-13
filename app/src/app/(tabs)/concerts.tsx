@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { DateTimeField } from '@/components/DateTimeField';
 import { Avatar, Button, Card, InlineNote, Label, NoClubSelected, Screen, TextField } from '@/components/ui';
 import { useConcerts, type ConcertRow } from '@/hooks/useConcerts';
 import { useRefresh } from '@/hooks/useRefresh';
@@ -22,7 +23,7 @@ export default function Concerts() {
 
   const [open, setOpen] = useState(false);
   const [artist, setArtist] = useState('');
-  const [date, setDate] = useState('');
+  const [date, setDate] = useState<Date | null>(null);
   const [venue, setVenue] = useState('');
   const [price, setPrice] = useState('');
   const [ticketUrl, setTicketUrl] = useState('');
@@ -35,17 +36,16 @@ export default function Concerts() {
       setError('Artist name is required.');
       return;
     }
-    if (date.trim() && !/^\d{4}-\d{2}-\d{2}$/.test(date.trim())) {
-      setError('Date must be YYYY-MM-DD.');
-      return;
-    }
     setBusy(true);
     setError(null);
+    // concert_date is a date column — store the local calendar date (YYYY-MM-DD).
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const dateStr = date ? `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` : null;
     const { data, error: err } = await concertsDb.create({
       club_id: id,
       added_by: userId,
       artist: artist.trim(),
-      concert_date: date.trim() || null,
+      concert_date: dateStr,
       venue: venue.trim() || null,
       price: price.trim() || null,
       ticket_url: ticketUrl.trim() || null,
@@ -58,7 +58,7 @@ export default function Concerts() {
       return;
     }
     setArtist('');
-    setDate('');
+    setDate(null);
     setVenue('');
     setPrice('');
     setTicketUrl('');
@@ -85,7 +85,7 @@ export default function Concerts() {
           <Label>Add a concert</Label>
           <View style={{ gap: 8 }}>
             <TextField placeholder="Artist / band" value={artist} onChangeText={setArtist} />
-            <TextField placeholder="Date — YYYY-MM-DD (optional)" value={date} onChangeText={setDate} autoCapitalize="none" />
+            <DateTimeField value={date} onChange={setDate} mode="date" />
             <TextField placeholder="Venue & city (optional)" value={venue} onChangeText={setVenue} />
             <TextField placeholder="Ticket price (optional)" value={price} onChangeText={setPrice} />
             <TextField placeholder="Ticket link (optional)" value={ticketUrl} onChangeText={setTicketUrl} autoCapitalize="none" />
@@ -142,7 +142,14 @@ function ConcertCard({
           <Text style={[styles.cArtist, { color: palette.text1 }]}>{concert.artist}</Text>
           {concert.venue ? <Text style={[styles.cVenue, { color: palette.text2 }]}>{concert.venue}</Text> : null}
           <Text style={[styles.cMeta, { color: palette.text3 }]}>
-            {concert.concert_date ?? 'Date TBA'}
+            {concert.concert_date
+              ? new Date(`${concert.concert_date}T12:00`).toLocaleDateString(undefined, {
+                  weekday: 'short',
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                })
+              : 'Date TBA'}
             {concert.price ? ` · ${concert.price}` : ''}
           </Text>
         </View>
