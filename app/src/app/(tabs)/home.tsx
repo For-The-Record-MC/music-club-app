@@ -13,6 +13,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useCurrentClubStore } from '@/stores/currentClubStore';
 import { inviteUrl } from '@/constants';
 import { fonts, radius } from '@/theme';
+import { addToCalendar } from '@/utils/calendar';
 import { confirmAsync } from '@/utils/confirm';
 import {
   cycles,
@@ -211,7 +212,15 @@ export default function HomeTab() {
             <View style={styles.meetingRow}>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.meetingDate, { color: palette.text1 }]}>
-                  {cycle.meeting_date ?? 'No meeting set'}
+                  {cycle.meeting_at
+                    ? new Date(cycle.meeting_at).toLocaleString(undefined, {
+                        weekday: 'short',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                      })
+                    : 'No meeting set'}
                 </Text>
                 {cycle.meeting_time_location ? (
                   <Text style={[styles.meetingSub, { color: palette.text2 }]}>
@@ -223,12 +232,27 @@ export default function HomeTab() {
                 {goingCount} going
               </Text>
             </View>
+            {cycle.meeting_at ? (
+              <Button
+                title="📅 Add to calendar"
+                variant="ghost"
+                onPress={() =>
+                  addToCalendar({
+                    title: `${club.name} — Cycle ${cycle.number}`,
+                    start: new Date(cycle.meeting_at!),
+                    location: cycle.meeting_time_location,
+                    details: albums.map((a) => `${a.title} — ${a.artist}`).join('\n'),
+                  })
+                }
+                style={{ marginTop: 10 }}
+              />
+            ) : null}
             {isAdmin ? (
               <Button
-                title={cycle.meeting_date ? 'Edit meeting' : 'Set the meeting'}
+                title={cycle.meeting_at ? 'Edit meeting' : 'Set the meeting'}
                 variant="ghost"
                 onPress={() => router.push(`/club/${club.id}/schedule`)}
-                style={{ marginTop: 10 }}
+                style={{ marginTop: 8 }}
               />
             ) : null}
           </Card>

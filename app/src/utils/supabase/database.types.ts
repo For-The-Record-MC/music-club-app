@@ -389,6 +389,7 @@ export type Database = {
           club_id: string
           created_at: string
           id: string
+          meeting_at: string | null
           meeting_date: string | null
           meeting_time_location: string | null
           number: number
@@ -402,6 +403,7 @@ export type Database = {
           club_id: string
           created_at?: string
           id?: string
+          meeting_at?: string | null
           meeting_date?: string | null
           meeting_time_location?: string | null
           number: number
@@ -415,6 +417,7 @@ export type Database = {
           club_id?: string
           created_at?: string
           id?: string
+          meeting_at?: string | null
           meeting_date?: string | null
           meeting_time_location?: string | null
           number?: number
@@ -707,6 +710,7 @@ export type Database = {
           club_id: string
           created_at: string
           id: string
+          meeting_at: string | null
           meeting_date: string | null
           meeting_time_location: string | null
           number: number
@@ -772,6 +776,7 @@ export type Database = {
           club_id: string
           created_at: string
           id: string
+          meeting_at: string | null
           meeting_date: string | null
           meeting_time_location: string | null
           number: number
@@ -795,6 +800,7 @@ export type Database = {
           club_id: string
           created_at: string
           id: string
+          meeting_at: string | null
           meeting_date: string | null
           meeting_time_location: string | null
           number: number

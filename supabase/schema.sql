@@ -94,7 +94,8 @@ CREATE TABLE cycles (
   meeting_time_location text,
   revealed_at timestamp with time zone,
   closed_at timestamp with time zone,
-  created_at timestamp with time zone NOT NULL DEFAULT now()
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  meeting_at timestamp with time zone
 );
 
 CREATE TABLE feed_posts (

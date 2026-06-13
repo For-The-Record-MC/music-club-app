@@ -93,10 +93,12 @@ export const cycles = {
       .eq('club_id', clubId)
       .eq('status', 'closed')
       .order('number', { ascending: false }),
-  scheduleMeeting: (id: string, date: string | null, timeLocation: string | null) =>
+  // meeting_at is a full timestamp (calendar-ready); meeting_time_location is
+  // the free-text location.
+  scheduleMeeting: (id: string, meetingAt: string | null, location: string | null) =>
     supabase
       .from('cycles')
-      .update({ meeting_date: date, meeting_time_location: timeLocation })
+      .update({ meeting_at: meetingAt, meeting_time_location: location })
       .eq('id', id),
   // RPCs — see context/database-schema.md for semantics.
   spin: (clubId: string) => supabase.rpc('spin_wheel', { p_club: clubId }),
