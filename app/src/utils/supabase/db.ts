@@ -1,6 +1,6 @@
 import { supabase, supabaseAnonKey, supabaseUrl } from './client';
 
-import type { Json, Tables, TablesInsert } from './database.types';
+import type { Json, Tables, TablesInsert, TablesUpdate } from './database.types';
 
 // ALL Supabase queries live in this file, grouped into typed query objects —
 // one object per domain. Screens and hooks must never call the raw supabase
@@ -17,11 +17,16 @@ export type CycleGuest = Tables<'cycle_guests'>;
 export type CyclePreference = Tables<'cycle_preferences'>;
 export type RsvpStatus = 'yes' | 'maybe' | 'no';
 export type Rating = Tables<'ratings'>;
+export type SongNote = Tables<'song_notes'>;
+export type SongNoteShare = Tables<'song_note_shares'>;
+export type Thumb = 'up' | 'down';
 export type FeedPost = Tables<'feed_posts'>;
 export type PostReaction = Tables<'post_reactions'>;
 export type PostComment = Tables<'post_comments'>;
 export type Concert = Tables<'concerts'>;
 export type ConcertInterest = Tables<'concert_interest'>;
+export type ConcertComment = Tables<'concert_comments'>;
+export type ConcertStatus = 'interested' | 'going';
 export type ActivityEvent = Tables<'activity_events'>;
 export type ReactionEmoji = '👍' | '❤️' | '🔥' | '😂' | '🤔';
 export const REACTION_EMOJIS: ReactionEmoji[] = ['👍', '❤️', '🔥', '😂', '🤔'];
@@ -150,6 +155,59 @@ export const ratings = {
   summary: (albumId: string) => supabase.rpc('get_album_summary', { p_album: albumId }),
 };
 
+// Personal per-track listening notes (rating 1–10, thumb, comment). Private by
+// default; RLS opens a member's notes for an album once they share it. See the
+// song_notes migration for the visibility rules.
+export const songNotes = {
+  // My own notes for one album, in track order (for the editor).
+  mine: (albumId: string, profileId: string) =>
+    supabase
+      .from('song_notes')
+      .select('*')
+      .eq('album_id', albumId)
+      .eq('profile_id', profileId)
+      .order('track_number'),
+  // My note rows across several albums — used to badge "X noted" in the tab.
+  mineForAlbums: (albumIds: string[], profileId: string) =>
+    supabase
+      .from('song_notes')
+      .select('album_id, track_number')
+      .in('album_id', albumIds)
+      .eq('profile_id', profileId),
+  // Every note for an album the caller may see (own + club-shared, RLS-gated),
+  // with author. Used to show others' shared notes.
+  listVisible: (albumId: string) =>
+    supabase
+      .from('song_notes')
+      .select('*, profiles(display_name, avatar_color)')
+      .eq('album_id', albumId)
+      .order('track_number'),
+  // Upsert a batch of touched tracks in one round-trip.
+  upsertMany: (notes: TablesInsert<'song_notes'>[]) =>
+    supabase.from('song_notes').upsert(
+      notes.map((n) => ({ ...n, updated_at: new Date().toISOString() })),
+      { onConflict: 'album_id,profile_id,track_number' },
+    ),
+  // Clear notes that were emptied, by id.
+  removeMany: (ids: string[]) => supabase.from('song_notes').delete().in('id', ids),
+};
+
+export const songNoteShares = {
+  // Who has shared notes for these albums (club-member visible).
+  listForAlbums: (albumIds: string[]) =>
+    supabase.from('song_note_shares').select('*').in('album_id', albumIds),
+  set: (albumId: string, profileId: string, shared: boolean) =>
+    shared
+      ? supabase
+          .from('song_note_shares')
+          .upsert({ album_id: albumId, profile_id: profileId }, { onConflict: 'album_id,profile_id' })
+      : supabase
+          .from('song_note_shares')
+          .delete()
+          .eq('album_id', albumId)
+          .eq('profile_id', profileId),
+};
+
 export const preferences = {
   // RLS returns only your own row pre-reveal; everyone's after reveal.
   listByCycle: (cycleId: string) =>
@@ -230,19 +288,43 @@ export const concerts = {
   list: (clubId: string) =>
     supabase
       .from('concerts')
-      .select('*, profiles(display_name, avatar_color), concert_interest(profile_id)')
+      .select(
+        '*, profiles(display_name, avatar_color), concert_interest(profile_id, status), concert_comments(count)',
+      )
       .eq('club_id', clubId)
       .order('concert_date', { nullsFirst: false }),
   create: (concert: TablesInsert<'concerts'>) =>
     supabase.from('concerts').insert(concert).select().single(),
+  update: (id: string, patch: TablesUpdate<'concerts'>) =>
+    supabase
+      .from('concerts')
+      .update({ ...patch, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single(),
   remove: (id: string) => supabase.from('concerts').delete().eq('id', id),
-  setInterest: (concertId: string, profileId: string, interested: boolean) =>
-    interested
+  // status null clears the row; otherwise upsert as 'interested' | 'going'.
+  setInterest: (concertId: string, profileId: string, status: ConcertStatus | null) =>
+    status
       ? supabase.from('concert_interest').upsert(
-          { concert_id: concertId, profile_id: profileId },
+          { concert_id: concertId, profile_id: profileId, status },
           { onConflict: 'concert_id,profile_id' },
         )
       : supabase.from('concert_interest').delete().eq('concert_id', concertId).eq('profile_id', profileId),
+};
+
+export const concertComments = {
+  listByConcert: (concertId: string) =>
+    supabase
+      .from('concert_comments')
+      .select('*, profiles(display_name, avatar_color)')
+      .eq('concert_id', concertId)
+      .order('created_at'),
+  add: (concertId: string, authorId: string, text: string) =>
+    supabase
+      .from('concert_comments')
+      .insert({ concert_id: concertId, author_id: authorId, text: text.trim() }),
+  remove: (id: string) => supabase.from('concert_comments').delete().eq('id', id),
 };
 
 export const activity = {

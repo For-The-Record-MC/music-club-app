@@ -32,6 +32,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="index" options={{ title: 'Clubs', tabBarIcon: tabIcon('💿') }} />
       <Tabs.Screen name="home" options={{ title: 'Home', tabBarIcon: tabIcon('🏠') }} />
       <Tabs.Screen name="feed" options={{ title: 'Feed', tabBarIcon: tabIcon('🎧') }} />
+      <Tabs.Screen name="notes" options={{ title: 'Notes', tabBarIcon: tabIcon('📝') }} />
       <Tabs.Screen name="concerts" options={{ title: 'Concerts', tabBarIcon: tabIcon('🎤') }} />
       <Tabs.Screen
         name="activity"

@@ -10,7 +10,9 @@ import { fonts, radius } from '@/theme';
 import {
   albums as albumsDb,
   ratings as ratingsDb,
+  songNotes as songNotesDb,
   type Album,
+  type SongNote,
 } from '@/utils/supabase/db';
 
 interface Track {
@@ -42,10 +44,16 @@ export default function RateAlbum() {
   const [leastReason, setLeastReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [songNotes, setSongNotes] = useState<SongNote[]>([]);
 
   useEffect(() => {
     if (!albumId || !userId) return;
     albumsDb.get(albumId).then(({ data }) => setAlbum(data ?? null));
+    songNotesDb.mine(albumId, userId).then(({ data }) =>
+      setSongNotes(
+        (data ?? []).filter((n) => n.rating !== null || n.thumb !== null || !!n.comment),
+      ),
+    );
     ratingsDb.mine(albumId, userId).then(({ data }) => {
       if (data) {
         setScore(data.score);
@@ -59,6 +67,12 @@ export default function RateAlbum() {
   }, [albumId, userId]);
 
   const tracks = useMemo(() => parseTracks(album?.tracks), [album]);
+
+  const noteEstimate = useMemo(() => {
+    const scores = songNotes.map((n) => n.rating).filter((r): r is number => r !== null);
+    if (scores.length === 0) return null;
+    return Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10;
+  }, [songNotes]);
 
   const save = async () => {
     if (!albumId || !userId) return;
@@ -102,6 +116,46 @@ export default function RateAlbum() {
           <Image source={{ uri: album.artwork_url }} style={styles.art} contentFit="cover" />
         ) : null}
       </View>
+
+      {songNotes.length > 0 ? (
+        <>
+          <Label>Your song notes</Label>
+          <Card>
+            {songNotes.map((n) => (
+              <View key={n.id} style={styles.noteRow}>
+                <Text style={[styles.noteTrack, { color: palette.text1 }]} numberOfLines={1}>
+                  {n.track_name}
+                </Text>
+                {n.rating != null ? (
+                  <Text style={[styles.noteScore, { color: palette.teal }]}>{n.rating}/10</Text>
+                ) : null}
+                {n.thumb ? <Text style={{ fontSize: 12 }}>{n.thumb === 'up' ? '👍' : '👎'}</Text> : null}
+                {n.comment ? (
+                  <Text style={[styles.noteComment, { color: palette.text2 }]} numberOfLines={3}>
+                    {n.comment}
+                  </Text>
+                ) : null}
+              </View>
+            ))}
+            {noteEstimate != null ? (
+              <View style={[styles.estimateRow, { borderTopColor: palette.border }]}>
+                <Text style={[styles.estimateText, { color: palette.text2 }]}>
+                  Avg of your track scores
+                </Text>
+                <Text style={[styles.estimateScore, { color: palette.teal }]}>{noteEstimate}/10</Text>
+                {score === null ? (
+                  <Pressable onPress={() => setScore(Math.round(noteEstimate))}>
+                    <Text style={[styles.estimateUse, { color: palette.purple }]}>use ›</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
+            <Pressable onPress={() => router.push(`/club/${id}/notes/${albumId}`)}>
+              <Text style={[styles.noteEdit, { color: palette.purple }]}>📝 Edit song notes ›</Text>
+            </Pressable>
+          </Card>
+        </>
+      ) : null}
 
       <Label>Your score</Label>
       <Card>
@@ -258,6 +312,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   scoreText: { fontFamily: fonts.monoMedium, fontSize: 15 },
+  noteRow: { flexDirection: 'row', alignItems: 'center', gap: 7, flexWrap: 'wrap', paddingVertical: 5 },
+  noteTrack: { fontFamily: fonts.sansMedium, fontSize: 13, maxWidth: '60%' },
+  noteScore: { fontFamily: fonts.sansBold, fontSize: 13 },
+  noteComment: { flexBasis: '100%', fontFamily: fonts.sans, fontSize: 12, lineHeight: 17 },
+  noteEdit: { fontFamily: fonts.monoMedium, fontSize: 11, marginTop: 8 },
+  estimateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  estimateText: { flex: 1, fontFamily: fonts.sans, fontSize: 12 },
+  estimateScore: { fontFamily: fonts.sansBold, fontSize: 14 },
+  estimateUse: { fontFamily: fonts.monoMedium, fontSize: 11 },
   scoreNote: { fontFamily: fonts.mono, fontSize: 11, marginTop: 8 },
   trackWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   trackChip: {

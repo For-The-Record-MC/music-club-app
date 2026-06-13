@@ -1,10 +1,11 @@
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar, Button, Card, InlineNote, Label, NoClubSelected, Screen, TextField } from '@/components/ui';
 import { useFeed, type FeedRow } from '@/hooks/useFeed';
+import { useFocusTarget, useGlow } from '@/hooks/useFocusTarget';
 import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
@@ -40,6 +41,7 @@ export default function Feed() {
   const userId = useAuthStore((s) => s.userId);
   const { posts, refresh } = useFeed(id);
   const { refreshing, onRefresh } = useRefresh(refresh);
+  const { focus, scrollRef, onItemLayout } = useFocusTarget();
 
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
@@ -113,6 +115,7 @@ export default function Feed() {
       await activity.publish(id, 'feed_post', {
         title: data.title,
         is_album_suggestion: suggestion,
+        post_id: data.id,
       });
     }
     setBusy(false);
@@ -127,7 +130,7 @@ export default function Feed() {
   if (!id) return <NoClubSelected what="feed" />;
 
   return (
-    <Screen onRefresh={onRefresh} refreshing={refreshing}>
+    <Screen onRefresh={onRefresh} refreshing={refreshing} scrollRef={scrollRef}>
       <View style={styles.topbar}>
         <View style={{ flex: 1 }}>
           <Text style={[styles.eyebrow, { color: palette.text3 }]}>WHAT YOU'RE HEARING</Text>
@@ -251,7 +254,9 @@ export default function Feed() {
         <InlineNote text="No posts yet — be the first to share what you're listening to." />
       ) : (
         posts.map((post) => (
-          <PostCard key={post.id} post={post} userId={userId} onChange={refresh} />
+          <View key={post.id} onLayout={onItemLayout(post.id)}>
+            <PostCard post={post} userId={userId} onChange={refresh} highlight={post.id === focus} />
+          </View>
         ))
       )}
     </Screen>
@@ -262,12 +267,15 @@ function PostCard({
   post,
   userId,
   onChange,
+  highlight = false,
 }: {
   post: FeedRow;
   userId: string | null;
   onChange: () => void;
+  highlight?: boolean;
 }) {
   const { palette } = useTheme();
+  const glow = useGlow(highlight);
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [commentRows, setCommentRows] = useState<
@@ -318,7 +326,7 @@ function PostCard({
   }, {});
 
   return (
-    <Card>
+    <Card style={glow ? { borderColor: palette.amber } : undefined}>
       <View style={styles.postHead}>
         <Avatar name={post.profiles?.display_name ?? null} colorIndex={post.profiles?.avatar_color ?? 0} size={32} />
         <View style={{ flex: 1, minWidth: 0 }}>

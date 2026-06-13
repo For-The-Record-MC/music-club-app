@@ -251,24 +251,66 @@ export type Database = {
           },
         ]
       }
+      concert_comments: {
+        Row: {
+          author_id: string
+          concert_id: string
+          created_at: string
+          id: string
+          text: string
+        }
+        Insert: {
+          author_id: string
+          concert_id: string
+          created_at?: string
+          id?: string
+          text: string
+        }
+        Update: {
+          author_id?: string
+          concert_id?: string
+          created_at?: string
+          id?: string
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "concert_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "concert_comments_concert_id_fkey"
+            columns: ["concert_id"]
+            isOneToOne: false
+            referencedRelation: "concerts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       concert_interest: {
         Row: {
           concert_id: string
           created_at: string
           id: string
           profile_id: string
+          status: string
         }
         Insert: {
           concert_id: string
           created_at?: string
           id?: string
           profile_id: string
+          status?: string
         }
         Update: {
           concert_id?: string
           created_at?: string
           id?: string
           profile_id?: string
+          status?: string
         }
         Relationships: [
           {
@@ -292,36 +334,51 @@ export type Database = {
           added_by: string
           artist: string
           club_id: string
+          completed_at: string | null
           concert_date: string | null
+          concert_time: string | null
           created_at: string
           id: string
           note: string | null
           price: string | null
+          rating: number | null
+          review: string | null
           ticket_url: string | null
+          updated_at: string
           venue: string | null
         }
         Insert: {
           added_by: string
           artist: string
           club_id: string
+          completed_at?: string | null
           concert_date?: string | null
+          concert_time?: string | null
           created_at?: string
           id?: string
           note?: string | null
           price?: string | null
+          rating?: number | null
+          review?: string | null
           ticket_url?: string | null
+          updated_at?: string
           venue?: string | null
         }
         Update: {
           added_by?: string
           artist?: string
           club_id?: string
+          completed_at?: string | null
           concert_date?: string | null
+          concert_time?: string | null
           created_at?: string
           id?: string
           note?: string | null
           price?: string | null
+          rating?: number | null
+          review?: string | null
           ticket_url?: string | null
+          updated_at?: string
           venue?: string | null
         }
         Relationships: [
@@ -743,6 +800,93 @@ export type Database = {
           },
           {
             foreignKeyName: "rsvps_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      song_note_shares: {
+        Row: {
+          album_id: string
+          created_at: string
+          profile_id: string
+        }
+        Insert: {
+          album_id: string
+          created_at?: string
+          profile_id: string
+        }
+        Update: {
+          album_id?: string
+          created_at?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "song_note_shares_album_id_fkey"
+            columns: ["album_id"]
+            isOneToOne: false
+            referencedRelation: "albums"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "song_note_shares_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      song_notes: {
+        Row: {
+          album_id: string
+          comment: string | null
+          created_at: string
+          id: string
+          profile_id: string
+          rating: number | null
+          thumb: string | null
+          track_name: string
+          track_number: number
+          updated_at: string
+        }
+        Insert: {
+          album_id: string
+          comment?: string | null
+          created_at?: string
+          id?: string
+          profile_id: string
+          rating?: number | null
+          thumb?: string | null
+          track_name: string
+          track_number: number
+          updated_at?: string
+        }
+        Update: {
+          album_id?: string
+          comment?: string | null
+          created_at?: string
+          id?: string
+          profile_id?: string
+          rating?: number | null
+          thumb?: string | null
+          track_name?: string
+          track_number?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "song_notes_album_id_fkey"
+            columns: ["album_id"]
+            isOneToOne: false
+            referencedRelation: "albums"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "song_notes_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"

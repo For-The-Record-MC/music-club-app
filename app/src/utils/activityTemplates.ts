@@ -4,10 +4,23 @@ import type { ActivityEvent } from '@/utils/supabase/db';
 // renders each event client-side, so wording can change without a migration.
 // To add an event type: publish it (publish_activity_event) and add a case here.
 
+// Where tapping an activity row should take you. `pathname` is a tab route;
+// `params.focus` (when present) is the id of the specific item to scroll to and
+// highlight on that tab.
+export interface ActivityTarget {
+  pathname: string;
+  params?: Record<string, string>;
+}
+
 interface Rendered {
   icon: string;
   text: string;
+  target?: ActivityTarget;
 }
+
+// Cycle-wide events (spin, albums, meeting, reveal) all live on the Home tab,
+// which always shows the current cycle.
+const HOME: ActivityTarget = { pathname: '/home' };
 
 export function renderActivity(event: ActivityEvent, actorName: string | null): Rendered {
   const p = (event.payload ?? {}) as Record<string, any>;
@@ -17,23 +30,30 @@ export function renderActivity(event: ActivityEvent, actorName: string | null): 
       return {
         icon: '🎡',
         text: `The wheel landed on ${p.picker_name ?? 'a member'} for cycle ${p.cycle_number ?? '?'}.`,
+        target: HOME,
       };
     case 'albums_set':
-      return { icon: '🎵', text: `${who} set the albums for cycle ${p.cycle_number ?? '?'}.` };
+      return { icon: '🎵', text: `${who} set the albums for cycle ${p.cycle_number ?? '?'}.`, target: HOME };
     case 'meeting_scheduled':
       return {
         icon: '📅',
         text: `${who} scheduled the cycle ${p.cycle_number ?? '?'} meeting${p.meeting_date ? ` for ${p.meeting_date}` : ''}.`,
+        target: HOME,
       };
     case 'ratings_revealed':
-      return { icon: '🎙️', text: `Ratings for cycle ${p.cycle_number ?? '?'} are revealed!` };
+      return { icon: '🎙️', text: `Ratings for cycle ${p.cycle_number ?? '?'} are revealed!`, target: HOME };
     case 'feed_post':
       return {
         icon: p.is_album_suggestion ? '💡' : '🎧',
         text: `${who} shared ${p.is_album_suggestion ? 'an album suggestion' : 'music'}: ${p.title ?? ''}`,
+        target: { pathname: '/feed', params: p.post_id ? { focus: String(p.post_id) } : undefined },
       };
     case 'concert_added':
-      return { icon: '🎤', text: `${who} added a concert: ${p.artist ?? ''}.` };
+      return {
+        icon: '🎤',
+        text: `${who} added a concert: ${p.artist ?? ''}.`,
+        target: { pathname: '/concerts', params: p.concert_id ? { focus: String(p.concert_id) } : undefined },
+      };
     default:
       return { icon: '•', text: `${who} did something.` };
   }

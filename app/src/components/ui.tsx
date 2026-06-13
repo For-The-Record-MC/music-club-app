@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react';
+import { type ReactNode, type RefObject } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -24,11 +24,13 @@ export function Screen({
   scroll = true,
   onRefresh,
   refreshing = false,
+  scrollRef,
 }: {
   children: ReactNode;
   scroll?: boolean;
   onRefresh?: () => void;
   refreshing?: boolean;
+  scrollRef?: RefObject<ScrollView | null>;
 }) {
   const { palette } = useTheme();
   const insets = useSafeAreaInsets();
@@ -37,6 +39,7 @@ export function Screen({
   );
   return scroll ? (
     <ScrollView
+      ref={scrollRef}
       style={{ flex: 1, backgroundColor: palette.bg }}
       contentContainerStyle={[styles.pageContent, { paddingTop: insets.top + 20 }]}
       refreshControl={

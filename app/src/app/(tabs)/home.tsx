@@ -186,72 +186,68 @@ export default function HomeTab() {
             </Card>
           ) : (
             <Card>
-              {albums.map((a) => (
-                <Pressable
-                  key={a.id}
-                  onPress={() => router.push(`/club/${club.id}/album/${a.id}`)}
-                  style={({ pressed }) => [styles.albumRow, pressed && { opacity: 0.7 }]}
-                >
-                  {a.artwork_url ? (
-                    <Image source={{ uri: a.artwork_url }} style={styles.art} contentFit="cover" />
-                  ) : (
-                    <View style={[styles.art, styles.artFallback, { backgroundColor: palette.purpleBg }]}>
-                      <Text style={{ fontSize: 26 }}>🎵</Text>
-                    </View>
-                  )}
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={[styles.albumPickLabel, { color: palette.teal }]}>ALBUM {a.slot}</Text>
-                    <Text numberOfLines={1} style={[styles.albumName, { color: palette.text1 }]}>{a.title}</Text>
-                    <Text numberOfLines={1} style={[styles.albumMeta, { color: palette.text2 }]}>
-                      {a.artist}
-                      {a.year ? ` · ${a.year}` : ''}
-                    </Text>
-                    <Text style={[styles.rateHint, { color: palette.purple }]}>⭐ rate &amp; reviews ›</Text>
+              {albums.map((a) => {
+                const mine = myPreference === a.id;
+                const votes = preferences.filter((p) => p.album_id === a.id).length;
+                return (
+                  <View key={a.id} style={styles.albumRow}>
+                    <Pressable
+                      onPress={() => router.push(`/club/${club.id}/album/${a.id}`)}
+                      style={({ pressed }) => [styles.albumMain, pressed && { opacity: 0.7 }]}
+                    >
+                      {a.artwork_url ? (
+                        <Image source={{ uri: a.artwork_url }} style={styles.art} contentFit="cover" />
+                      ) : (
+                        <View style={[styles.art, styles.artFallback, { backgroundColor: palette.purpleBg }]}>
+                          <Text style={{ fontSize: 26 }}>🎵</Text>
+                        </View>
+                      )}
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={[styles.albumPickLabel, { color: palette.teal }]}>ALBUM {a.slot}</Text>
+                        <Text numberOfLines={1} style={[styles.albumName, { color: palette.text1 }]}>{a.title}</Text>
+                        <Text numberOfLines={1} style={[styles.albumMeta, { color: palette.text2 }]}>
+                          {a.artist}
+                          {a.year ? ` · ${a.year}` : ''}
+                        </Text>
+                        <Text style={[styles.rateHint, { color: palette.purple }]}>⭐ rate &amp; reviews ›</Text>
+                      </View>
+                    </Pressable>
+                    {albums.length === 2 ? (
+                      <Pressable
+                        onPress={() => setPreference(a.id)}
+                        hitSlop={8}
+                        accessibilityLabel={`Mark ${a.title} as your favorite`}
+                        style={[
+                          styles.crownBtn,
+                          { backgroundColor: palette.card2, borderColor: palette.border },
+                          mine && { backgroundColor: palette.amberBg, borderColor: palette.amber },
+                        ]}
+                      >
+                        <Text style={{ fontSize: 17, opacity: mine ? 1 : 0.3 }}>👑</Text>
+                        {cycle.revealed_at ? (
+                          <Text style={[styles.crownVotes, { color: mine ? palette.amber : palette.text3 }]}>
+                            {votes}
+                          </Text>
+                        ) : null}
+                      </Pressable>
+                    ) : null}
                   </View>
-                </Pressable>
-              ))}
+                );
+              })}
+              {albums.length === 2 ? (
+                <Text style={[styles.crownHint, { color: palette.text3 }]}>
+                  {cycle.revealed_at
+                    ? '👑 favorite votes are in.'
+                    : myPreference
+                      ? '👑 Tap a crown to change your favorite — sealed until the reveal.'
+                      : '👑 Tap a crown to mark your favorite of the two.'}
+                </Text>
+              ) : null}
               {(isPicker || isAdmin) && albums.length < 2 ? (
                 <Button title={`Choose album ${albums.length + 1}`} variant="ghost" onPress={() => router.push(`/club/${club.id}/pick-albums`)} />
               ) : null}
             </Card>
           )}
-
-          {albums.length === 2 ? (
-            <>
-              <Label>Which did you like more?</Label>
-              <Card>
-                <View style={styles.prefRow}>
-                  {albums.map((a) => {
-                    const mine = myPreference === a.id;
-                    const votes = preferences.filter((p) => p.album_id === a.id).length;
-                    return (
-                      <Pressable
-                        key={a.id}
-                        onPress={() => setPreference(a.id)}
-                        style={[
-                          styles.prefBtn,
-                          { backgroundColor: palette.card2, borderColor: palette.border },
-                          mine && { backgroundColor: palette.purpleBg, borderColor: palette.purple },
-                        ]}
-                      >
-                        <Text numberOfLines={1} style={[styles.prefTitle, { color: mine ? palette.purple : palette.text1 }]}>
-                          {a.title}
-                        </Text>
-                        <Text style={[styles.prefMeta, { color: palette.text3 }]}>
-                          {cycle.revealed_at ? `${votes} vote${votes === 1 ? '' : 's'}` : mine ? 'your pick' : 'tap to pick'}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-                {!cycle.revealed_at ? (
-                  <Text style={[styles.prefNote, { color: palette.text3 }]}>
-                    Votes stay sealed until the reveal.
-                  </Text>
-                ) : null}
-              </Card>
-            </>
-          ) : null}
 
           <Label>Meeting &amp; RSVP</Label>
           <Card>
@@ -414,7 +410,19 @@ const styles = StyleSheet.create({
   avStack: { flexDirection: 'row', marginLeft: 8 },
   heroTitle: { fontFamily: fonts.sansBold, fontSize: 18, marginBottom: 6 },
   heroSub: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 19, textAlign: 'center' },
-  albumRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 8 },
+  albumRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
+  albumMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 14 },
+  crownBtn: {
+    width: 46,
+    paddingVertical: 8,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 1,
+  },
+  crownVotes: { fontFamily: fonts.monoMedium, fontSize: 10 },
+  crownHint: { fontFamily: fonts.mono, fontSize: 10, lineHeight: 15, marginTop: 6 },
   art: { width: 64, height: 64, borderRadius: radius.md },
   artFallback: { alignItems: 'center', justifyContent: 'center' },
   albumPickLabel: { fontFamily: fonts.monoMedium, fontSize: 9, letterSpacing: 2.5, marginBottom: 3 },
@@ -450,17 +458,4 @@ const styles = StyleSheet.create({
   },
   quickText: { fontFamily: fonts.monoMedium, fontSize: 11 },
   inviteUrl: { fontFamily: fonts.mono, fontSize: 12, marginBottom: 10 },
-  prefRow: { flexDirection: 'row', gap: 8 },
-  prefBtn: {
-    flex: 1,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.md,
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    alignItems: 'center',
-    gap: 3,
-  },
-  prefTitle: { fontFamily: fonts.sansBold, fontSize: 13, maxWidth: '100%' },
-  prefMeta: { fontFamily: fonts.mono, fontSize: 10 },
-  prefNote: { fontFamily: fonts.mono, fontSize: 10, marginTop: 8, textAlign: 'center' },
 });

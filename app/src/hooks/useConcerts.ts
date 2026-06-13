@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import { concerts, type Concert } from '@/utils/supabase/db';
+import { concerts, type Concert, type ConcertStatus } from '@/utils/supabase/db';
 
 export interface ConcertRow extends Concert {
   profiles: { display_name: string | null; avatar_color: number } | null;
-  concert_interest: { profile_id: string }[];
+  concert_interest: { profile_id: string; status: ConcertStatus }[];
+  concert_comments: { count: number }[];
 }
 
 export function useConcerts(clubId: string | undefined) {

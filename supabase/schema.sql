@@ -54,11 +54,20 @@ CREATE TABLE clubs (
   created_at timestamp with time zone NOT NULL DEFAULT now()
 );
 
+CREATE TABLE concert_comments (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  concert_id uuid NOT NULL,
+  author_id uuid NOT NULL,
+  text text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE concert_interest (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   concert_id uuid NOT NULL,
   profile_id uuid NOT NULL,
-  created_at timestamp with time zone NOT NULL DEFAULT now()
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  status text NOT NULL DEFAULT 'interested'::text
 );
 
 CREATE TABLE concerts (
@@ -71,7 +80,12 @@ CREATE TABLE concerts (
   price text,
   ticket_url text,
   note text,
-  created_at timestamp with time zone NOT NULL DEFAULT now()
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  concert_time time without time zone,
+  review text,
+  rating integer,
+  completed_at timestamp with time zone,
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
 );
 
 CREATE TABLE cycle_guests (
@@ -168,6 +182,25 @@ CREATE TABLE rsvps (
   updated_at timestamp with time zone NOT NULL DEFAULT now()
 );
 
+CREATE TABLE song_note_shares (
+  album_id uuid NOT NULL,
+  profile_id uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE song_notes (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  album_id uuid NOT NULL,
+  profile_id uuid NOT NULL,
+  track_number integer NOT NULL,
+  track_name text NOT NULL,
+  rating integer,
+  thumb text,
+  comment text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
 
 -- =====================================================
 -- CONSTRAINTS
@@ -215,6 +248,14 @@ ALTER TABLE clubs ADD CONSTRAINT clubs_owner_id_fkey FOREIGN KEY (owner_id) REFE
 
 ALTER TABLE clubs ADD CONSTRAINT clubs_pkey PRIMARY KEY (id);
 
+ALTER TABLE concert_comments ADD CONSTRAINT concert_comments_author_id_fkey FOREIGN KEY (author_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE concert_comments ADD CONSTRAINT concert_comments_concert_id_fkey FOREIGN KEY (concert_id) REFERENCES concerts(id) ON DELETE CASCADE;
+
+ALTER TABLE concert_comments ADD CONSTRAINT concert_comments_pkey PRIMARY KEY (id);
+
+ALTER TABLE concert_comments ADD CONSTRAINT concert_comments_text_check CHECK (((char_length(TRIM(BOTH FROM text)) >= 1) AND (char_length(TRIM(BOTH FROM text)) <= 2000)));
+
 ALTER TABLE concert_interest ADD CONSTRAINT concert_interest_concert_id_fkey FOREIGN KEY (concert_id) REFERENCES concerts(id) ON DELETE CASCADE;
 
 ALTER TABLE concert_interest ADD CONSTRAINT concert_interest_concert_id_profile_id_key UNIQUE (concert_id, profile_id);
@@ -222,6 +263,8 @@ ALTER TABLE concert_interest ADD CONSTRAINT concert_interest_concert_id_profile_
 ALTER TABLE concert_interest ADD CONSTRAINT concert_interest_pkey PRIMARY KEY (id);
 
 ALTER TABLE concert_interest ADD CONSTRAINT concert_interest_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE concert_interest ADD CONSTRAINT concert_interest_status_check CHECK ((status = ANY (ARRAY['interested'::text, 'going'::text])));
 
 ALTER TABLE concerts ADD CONSTRAINT concerts_added_by_fkey FOREIGN KEY (added_by) REFERENCES profiles(id) ON DELETE CASCADE;
 
@@ -232,6 +275,10 @@ ALTER TABLE concerts ADD CONSTRAINT concerts_club_id_fkey FOREIGN KEY (club_id) 
 ALTER TABLE concerts ADD CONSTRAINT concerts_note_check CHECK (((note IS NULL) OR (char_length(note) <= 1000)));
 
 ALTER TABLE concerts ADD CONSTRAINT concerts_pkey PRIMARY KEY (id);
+
+ALTER TABLE concerts ADD CONSTRAINT concerts_rating_check CHECK (((rating IS NULL) OR ((rating >= 1) AND (rating <= 5))));
+
+ALTER TABLE concerts ADD CONSTRAINT concerts_review_check CHECK (((review IS NULL) OR (char_length(review) <= 2000)));
 
 ALTER TABLE cycle_guests ADD CONSTRAINT cycle_guests_added_by_fkey FOREIGN KEY (added_by) REFERENCES profiles(id);
 
@@ -329,6 +376,26 @@ ALTER TABLE rsvps ADD CONSTRAINT rsvps_profile_id_fkey FOREIGN KEY (profile_id) 
 
 ALTER TABLE rsvps ADD CONSTRAINT rsvps_status_check CHECK ((status = ANY (ARRAY['yes'::text, 'maybe'::text, 'no'::text])));
 
+ALTER TABLE song_note_shares ADD CONSTRAINT song_note_shares_album_id_fkey FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE CASCADE;
+
+ALTER TABLE song_note_shares ADD CONSTRAINT song_note_shares_pkey PRIMARY KEY (album_id, profile_id);
+
+ALTER TABLE song_note_shares ADD CONSTRAINT song_note_shares_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE song_notes ADD CONSTRAINT song_notes_album_id_fkey FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE CASCADE;
+
+ALTER TABLE song_notes ADD CONSTRAINT song_notes_album_id_profile_id_track_number_key UNIQUE (album_id, profile_id, track_number);
+
+ALTER TABLE song_notes ADD CONSTRAINT song_notes_comment_check CHECK (((comment IS NULL) OR (char_length(comment) <= 4000)));
+
+ALTER TABLE song_notes ADD CONSTRAINT song_notes_pkey PRIMARY KEY (id);
+
+ALTER TABLE song_notes ADD CONSTRAINT song_notes_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE song_notes ADD CONSTRAINT song_notes_rating_check CHECK (((rating IS NULL) OR ((rating >= 1) AND (rating <= 10))));
+
+ALTER TABLE song_notes ADD CONSTRAINT song_notes_thumb_check CHECK (((thumb IS NULL) OR (thumb = ANY (ARRAY['up'::text, 'down'::text]))));
+
 
 -- =====================================================
 -- INDEXES
@@ -343,6 +410,8 @@ CREATE INDEX club_members_club_idx ON public.club_members USING btree (club_id);
 CREATE UNIQUE INDEX club_members_one_owner_idx ON public.club_members USING btree (club_id) WHERE (role = 'owner'::text);
 
 CREATE INDEX club_members_profile_idx ON public.club_members USING btree (profile_id);
+
+CREATE INDEX concert_comments_concert_idx ON public.concert_comments USING btree (concert_id, created_at);
 
 CREATE INDEX concert_interest_concert_idx ON public.concert_interest USING btree (concert_id);
 
@@ -367,6 +436,8 @@ CREATE INDEX post_reactions_post_idx ON public.post_reactions USING btree (post_
 CREATE INDEX ratings_album_idx ON public.ratings USING btree (album_id);
 
 CREATE INDEX rsvps_cycle_idx ON public.rsvps USING btree (cycle_id);
+
+CREATE INDEX song_notes_album_profile_idx ON public.song_notes USING btree (album_id, profile_id);
 
 
 -- =====================================================
@@ -422,6 +493,23 @@ CREATE POLICY clubs_update ON clubs AS PERMISSIVE FOR UPDATE TO authenticated
   USING ((club_role(id) = ANY (ARRAY['owner'::text, 'admin'::text])))
   WITH CHECK ((club_role(id) = ANY (ARRAY['owner'::text, 'admin'::text])));
 
+ALTER TABLE concert_comments ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY concert_comments_delete ON concert_comments AS PERMISSIVE FOR DELETE TO authenticated
+  USING (((author_id = auth.uid()) OR (EXISTS ( SELECT 1
+   FROM concerts c
+  WHERE ((c.id = concert_comments.concert_id) AND (club_role(c.club_id) = ANY (ARRAY['owner'::text, 'admin'::text])))))));
+
+CREATE POLICY concert_comments_insert ON concert_comments AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (((author_id = auth.uid()) AND (EXISTS ( SELECT 1
+   FROM concerts c
+  WHERE ((c.id = concert_comments.concert_id) AND is_club_member(c.club_id))))));
+
+CREATE POLICY concert_comments_select ON concert_comments AS PERMISSIVE FOR SELECT TO authenticated
+  USING ((EXISTS ( SELECT 1
+   FROM concerts c
+  WHERE ((c.id = concert_comments.concert_id) AND is_club_member(c.club_id)))));
+
 ALTER TABLE concert_interest ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY concert_interest_select ON concert_interest AS PERMISSIVE FOR SELECT TO authenticated
@@ -445,6 +533,10 @@ CREATE POLICY concerts_insert ON concerts AS PERMISSIVE FOR INSERT TO authentica
 
 CREATE POLICY concerts_select ON concerts AS PERMISSIVE FOR SELECT TO authenticated
   USING (is_club_member(club_id));
+
+CREATE POLICY concerts_update ON concerts AS PERMISSIVE FOR UPDATE TO authenticated
+  USING (((added_by = auth.uid()) OR (club_role(club_id) = ANY (ARRAY['owner'::text, 'admin'::text]))))
+  WITH CHECK (is_club_member(club_id));
 
 ALTER TABLE cycle_guests ENABLE ROW LEVEL SECURITY;
 
@@ -583,6 +675,48 @@ CREATE POLICY rsvps_write ON rsvps AS PERMISSIVE FOR ALL TO authenticated
   WITH CHECK (((profile_id = auth.uid()) AND (EXISTS ( SELECT 1
    FROM cycles c
   WHERE ((c.id = rsvps.cycle_id) AND (c.status = 'open'::text) AND is_club_member(c.club_id))))));
+
+ALTER TABLE song_note_shares ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY song_note_shares_delete ON song_note_shares AS PERMISSIVE FOR DELETE TO authenticated
+  USING ((profile_id = auth.uid()));
+
+CREATE POLICY song_note_shares_insert ON song_note_shares AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (((profile_id = auth.uid()) AND (EXISTS ( SELECT 1
+   FROM (albums a
+     JOIN cycles c ON ((c.id = a.cycle_id)))
+  WHERE ((a.id = song_note_shares.album_id) AND is_club_member(c.club_id))))));
+
+CREATE POLICY song_note_shares_select ON song_note_shares AS PERMISSIVE FOR SELECT TO authenticated
+  USING ((EXISTS ( SELECT 1
+   FROM (albums a
+     JOIN cycles c ON ((c.id = a.cycle_id)))
+  WHERE ((a.id = song_note_shares.album_id) AND is_club_member(c.club_id)))));
+
+ALTER TABLE song_notes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY song_notes_delete ON song_notes AS PERMISSIVE FOR DELETE TO authenticated
+  USING ((profile_id = auth.uid()));
+
+CREATE POLICY song_notes_insert ON song_notes AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (((profile_id = auth.uid()) AND (EXISTS ( SELECT 1
+   FROM (albums a
+     JOIN cycles c ON ((c.id = a.cycle_id)))
+  WHERE ((a.id = song_notes.album_id) AND is_club_member(c.club_id))))));
+
+CREATE POLICY song_notes_select ON song_notes AS PERMISSIVE FOR SELECT TO authenticated
+  USING (((profile_id = auth.uid()) OR (EXISTS ( SELECT 1
+   FROM ((song_note_shares s
+     JOIN albums a ON ((a.id = s.album_id)))
+     JOIN cycles c ON ((c.id = a.cycle_id)))
+  WHERE ((s.album_id = song_notes.album_id) AND (s.profile_id = song_notes.profile_id) AND is_club_member(c.club_id))))));
+
+CREATE POLICY song_notes_update ON song_notes AS PERMISSIVE FOR UPDATE TO authenticated
+  USING ((profile_id = auth.uid()))
+  WITH CHECK (((profile_id = auth.uid()) AND (EXISTS ( SELECT 1
+   FROM (albums a
+     JOIN cycles c ON ((c.id = a.cycle_id)))
+  WHERE ((a.id = song_notes.album_id) AND is_club_member(c.club_id))))));
 
 
 -- =====================================================
