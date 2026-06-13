@@ -7,6 +7,7 @@ import { Linking, Platform, Pressable, Share, StyleSheet, Text, View } from 'rea
 import { Avatar, Button, Card, InlineNote, Label, NoClubSelected, Screen } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
 import { useCycle } from '@/hooks/useCycle';
+import { useFeed, type FeedRow } from '@/hooks/useFeed';
 import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
@@ -28,6 +29,37 @@ interface ClosedCycle extends Cycle {
   albums: Album[];
 }
 
+// "Positive" reactions for the featured-song pick (everything but the skeptical 🤔).
+const POSITIVE_EMOJIS = ['👍', '❤️', '🔥', '😂'];
+
+// The one song to spotlight on home: the track post with the most positive
+// reactions; on a tie or if nothing's been reacted to, the most recent track
+// flagged as a suggestion (else the most recent track overall). `posts` arrives
+// newest-first, so [0] of any filtered slice is the most recent.
+function pickFeaturedSong(posts: FeedRow[]): FeedRow | null {
+  const tracks = posts.filter((p) => p.kind === 'track');
+  if (tracks.length === 0) return null;
+  const score = (p: FeedRow) =>
+    p.post_reactions.filter((r) => POSITIVE_EMOJIS.includes(r.emoji)).length;
+  const max = Math.max(...tracks.map(score));
+  const leaders = tracks.filter((p) => score(p) === max);
+  if (max > 0 && leaders.length === 1) return leaders[0];
+  return tracks.find((p) => p.is_album_suggestion) ?? tracks[0];
+}
+
+function artworkOf(post: FeedRow): string | null {
+  const m = post.metadata as { artwork?: string } | null;
+  return m?.artwork ?? null;
+}
+
+// The little eyebrow above the featured song, explaining why it's here.
+function featuredMeta(post: FeedRow): string {
+  const n = post.post_reactions.filter((r) => POSITIVE_EMOJIS.includes(r.emoji)).length;
+  if (n > 0) return `★ MOST LOVED · ${n} reaction${n === 1 ? '' : 's'}`;
+  if (post.is_album_suggestion) return '💡 SUGGESTED PICK';
+  return 'RECENTLY SHARED';
+}
+
 // Home tab: the selected club's current cycle — picker, two albums, meeting, RSVP.
 export default function HomeTab() {
   const { palette } = useTheme();
@@ -36,6 +68,8 @@ export default function HomeTab() {
   const clubId = useCurrentClubStore((s) => s.clubId) ?? undefined;
   const { club, members, myRole, loading: clubLoading, refresh: refreshClub } = useClubData(clubId);
   const { cycle, albums, rsvps, guests, preferences, loading: cycleLoading, refresh } = useCycle(clubId);
+  const { posts: feedPosts } = useFeed(clubId);
+  const featuredSong = useMemo(() => pickFeaturedSong(feedPosts), [feedPosts]);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pastCycles, setPastCycles] = useState<ClosedCycle[]>([]);
@@ -246,8 +280,54 @@ export default function HomeTab() {
               {(isPicker || isAdmin) && albums.length < 2 ? (
                 <Button title={`Choose album ${albums.length + 1}`} variant="ghost" onPress={() => router.push(`/club/${club.id}/pick-albums`)} />
               ) : null}
+              {cycle.spotify_playlist_url ? (
+                <Pressable
+                  onPress={() => Linking.openURL(cycle.spotify_playlist_url!)}
+                  style={({ pressed }) => [styles.playlistBtn, { opacity: pressed ? 0.85 : 1 }]}
+                >
+                  <Text style={styles.playlistBtnIcon}>▶</Text>
+                  <Text style={styles.playlistBtnText}>Current Cycle Playlist</Text>
+                </Pressable>
+              ) : null}
             </Card>
           )}
+
+          {featuredSong ? (
+            <>
+              <Label>From the feed</Label>
+              <Pressable
+                onPress={() =>
+                  router.push({ pathname: '/feed', params: { focus: String(featuredSong.id) } })
+                }
+              >
+                <Card style={{ marginBottom: 12 }}>
+                  <View style={styles.featuredRow}>
+                    {artworkOf(featuredSong) ? (
+                      <Image source={{ uri: artworkOf(featuredSong)! }} style={styles.featuredArt} contentFit="cover" />
+                    ) : (
+                      <View style={[styles.featuredArt, styles.artFallback, { backgroundColor: palette.tealBg }]}>
+                        <Text style={{ fontSize: 22 }}>🎵</Text>
+                      </View>
+                    )}
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={[styles.featuredEyebrow, { color: palette.teal }]}>
+                        {featuredMeta(featuredSong)}
+                      </Text>
+                      <Text numberOfLines={1} style={[styles.featuredTitle, { color: palette.text1 }]}>
+                        {featuredSong.title}
+                      </Text>
+                      {featuredSong.artist ? (
+                        <Text numberOfLines={1} style={[styles.featuredArtist, { color: palette.text2 }]}>
+                          {featuredSong.artist}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <Text style={{ color: palette.text3 }}>›</Text>
+                  </View>
+                </Card>
+              </Pressable>
+            </>
+          ) : null}
 
           <Label>Meeting &amp; RSVP</Label>
           <Card>
@@ -365,25 +445,34 @@ export default function HomeTab() {
         <>
           <Label>Past cycles</Label>
           <Card>
-            {pastCycles.map((pc) =>
-              pc.albums
-                .slice()
-                .sort((a, b) => a.slot - b.slot)
-                .map((a) => (
-                  <Pressable
-                    key={a.id}
-                    onPress={() => router.push(`/club/${club.id}/album/${a.id}`)}
-                    style={({ pressed }) => [styles.pastRow, pressed && { opacity: 0.7 }]}
-                  >
-                    <Text style={[styles.pastCycleNum, { color: palette.text3 }]}>#{pc.number}</Text>
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text numberOfLines={1} style={[styles.pastTitle, { color: palette.text1 }]}>{a.title}</Text>
-                      <Text numberOfLines={1} style={[styles.pastArtist, { color: palette.text2 }]}>{a.artist}</Text>
-                    </View>
-                    <Text style={{ color: palette.text3 }}>›</Text>
+            {pastCycles.map((pc) => (
+              <View key={pc.id}>
+                {pc.albums
+                  .slice()
+                  .sort((a, b) => a.slot - b.slot)
+                  .map((a) => (
+                    <Pressable
+                      key={a.id}
+                      onPress={() => router.push(`/club/${club.id}/album/${a.id}`)}
+                      style={({ pressed }) => [styles.pastRow, pressed && { opacity: 0.7 }]}
+                    >
+                      <Text style={[styles.pastCycleNum, { color: palette.text3 }]}>#{pc.number}</Text>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text numberOfLines={1} style={[styles.pastTitle, { color: palette.text1 }]}>{a.title}</Text>
+                        <Text numberOfLines={1} style={[styles.pastArtist, { color: palette.text2 }]}>{a.artist}</Text>
+                      </View>
+                      <Text style={{ color: palette.text3 }}>›</Text>
+                    </Pressable>
+                  ))}
+                {pc.spotify_playlist_url ? (
+                  <Pressable onPress={() => Linking.openURL(pc.spotify_playlist_url!)}>
+                    <Text style={[styles.pastPlaylistLink, { color: palette.teal }]}>
+                      ▶ Cycle {pc.number} playlist
+                    </Text>
                   </Pressable>
-                )),
-            )}
+                ) : null}
+              </View>
+            ))}
           </Card>
         </>
       ) : null}
@@ -411,6 +500,24 @@ const styles = StyleSheet.create({
   heroTitle: { fontFamily: fonts.sansBold, fontSize: 18, marginBottom: 6 },
   heroSub: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 19, textAlign: 'center' },
   albumRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
+  playlistBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
+    backgroundColor: '#1DB954', // Spotify brand green — works on both themes
+    borderRadius: radius.lg,
+    paddingVertical: 13,
+    marginTop: 14,
+  },
+  playlistBtnIcon: { color: '#fff', fontSize: 13 },
+  playlistBtnText: { fontFamily: fonts.sansBold, fontSize: 14, color: '#fff', letterSpacing: 0.2 },
+  pastPlaylistLink: { fontFamily: fonts.monoMedium, fontSize: 11, marginTop: 2, marginBottom: 10, marginLeft: 28 },
+  featuredRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  featuredArt: { width: 50, height: 50, borderRadius: radius.sm },
+  featuredEyebrow: { fontFamily: fonts.monoMedium, fontSize: 9, letterSpacing: 1.5, marginBottom: 3 },
+  featuredTitle: { fontFamily: fonts.sansBold, fontSize: 15, marginBottom: 1 },
+  featuredArtist: { fontFamily: fonts.sans, fontSize: 12 },
   albumMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 14 },
   crownBtn: {
     width: 46,

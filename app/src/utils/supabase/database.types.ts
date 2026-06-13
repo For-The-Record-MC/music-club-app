@@ -224,6 +224,7 @@ export type Database = {
           invite_code: string
           name: string
           owner_id: string
+          song_limit_per_cycle: number | null
         }
         Insert: {
           created_at?: string
@@ -232,6 +233,7 @@ export type Database = {
           invite_code?: string
           name: string
           owner_id: string
+          song_limit_per_cycle?: number | null
         }
         Update: {
           created_at?: string
@@ -240,6 +242,7 @@ export type Database = {
           invite_code?: string
           name?: string
           owner_id?: string
+          song_limit_per_cycle?: number | null
         }
         Relationships: [
           {
@@ -502,6 +505,8 @@ export type Database = {
           number: number
           picker_id: string
           revealed_at: string | null
+          spotify_playlist_id: string | null
+          spotify_playlist_url: string | null
           start_date: string
           status: string
         }
@@ -517,6 +522,8 @@ export type Database = {
           number: number
           picker_id: string
           revealed_at?: string | null
+          spotify_playlist_id?: string | null
+          spotify_playlist_url?: string | null
           start_date?: string
           status?: string
         }
@@ -532,6 +539,8 @@ export type Database = {
           number?: number
           picker_id?: string
           revealed_at?: string | null
+          spotify_playlist_id?: string | null
+          spotify_playlist_url?: string | null
           start_date?: string
           status?: string
         }
@@ -564,6 +573,7 @@ export type Database = {
           metadata: Json | null
           note: string | null
           platform: string
+          playlist_synced_at: string | null
           title: string
           url: string | null
         }
@@ -578,6 +588,7 @@ export type Database = {
           metadata?: Json | null
           note?: string | null
           platform?: string
+          playlist_synced_at?: string | null
           title: string
           url?: string | null
         }
@@ -592,6 +603,7 @@ export type Database = {
           metadata?: Json | null
           note?: string | null
           platform?: string
+          playlist_synced_at?: string | null
           title?: string
           url?: string | null
         }
@@ -894,6 +906,66 @@ export type Database = {
           },
         ]
       }
+      streaming_connections: {
+        Row: {
+          access_token: string
+          club_id: string
+          connected_by: string | null
+          created_at: string
+          display_name: string | null
+          expires_at: string
+          provider: string
+          refresh_token: string
+          scope: string | null
+          spotify_user_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          access_token: string
+          club_id: string
+          connected_by?: string | null
+          created_at?: string
+          display_name?: string | null
+          expires_at: string
+          provider?: string
+          refresh_token: string
+          scope?: string | null
+          spotify_user_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          club_id?: string
+          connected_by?: string | null
+          created_at?: string
+          display_name?: string | null
+          expires_at?: string
+          provider?: string
+          refresh_token?: string
+          scope?: string | null
+          spotify_user_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "streaming_connections_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: true
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "streaming_connections_connected_by_fkey"
+            columns: ["connected_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -913,6 +985,8 @@ export type Database = {
           number: number
           picker_id: string
           revealed_at: string | null
+          spotify_playlist_id: string | null
+          spotify_playlist_url: string | null
           start_date: string
           status: string
         }
@@ -933,6 +1007,7 @@ export type Database = {
           invite_code: string
           name: string
           owner_id: string
+          song_limit_per_cycle: number | null
         }
         SetofOptions: {
           from: "*"
@@ -953,6 +1028,7 @@ export type Database = {
           invite_code: string
           name: string
           owner_id: string
+          song_limit_per_cycle: number | null
         }
         SetofOptions: {
           from: "*"
@@ -962,6 +1038,7 @@ export type Database = {
         }
       }
       mark_activity_read: { Args: { p_club: string }; Returns: undefined }
+      my_song_quota: { Args: { p_club: string }; Returns: Json }
       publish_activity_event: {
         Args: { p_club: string; p_payload?: Json; p_type: string }
         Returns: undefined
@@ -980,6 +1057,8 @@ export type Database = {
           number: number
           picker_id: string
           revealed_at: string | null
+          spotify_playlist_id: string | null
+          spotify_playlist_url: string | null
           start_date: string
           status: string
         }
@@ -1005,6 +1084,8 @@ export type Database = {
           number: number
           picker_id: string
           revealed_at: string | null
+          spotify_playlist_id: string | null
+          spotify_playlist_url: string | null
           start_date: string
           status: string
         }
@@ -1015,6 +1096,8 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      streaming_disconnect: { Args: { p_club: string }; Returns: undefined }
+      streaming_status: { Args: { p_club: string }; Returns: Json }
       wheel_pool: { Args: { p_club: string }; Returns: string[] }
     }
     Enums: {

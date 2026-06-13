@@ -51,7 +51,8 @@ CREATE TABLE clubs (
   emoji text NOT NULL DEFAULT '🎵'::text,
   owner_id uuid NOT NULL,
   invite_code text NOT NULL DEFAULT generate_invite_code(),
-  created_at timestamp with time zone NOT NULL DEFAULT now()
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  song_limit_per_cycle integer
 );
 
 CREATE TABLE concert_comments (
@@ -119,7 +120,9 @@ CREATE TABLE cycles (
   closed_at timestamp with time zone,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   meeting_at timestamp with time zone,
-  meeting_url text
+  meeting_url text,
+  spotify_playlist_id text,
+  spotify_playlist_url text
 );
 
 CREATE TABLE feed_posts (
@@ -134,7 +137,8 @@ CREATE TABLE feed_posts (
   note text,
   is_album_suggestion boolean NOT NULL DEFAULT false,
   metadata jsonb,
-  created_at timestamp with time zone NOT NULL DEFAULT now()
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  playlist_synced_at timestamp with time zone
 );
 
 CREATE TABLE post_comments (
@@ -201,6 +205,21 @@ CREATE TABLE song_notes (
   updated_at timestamp with time zone NOT NULL DEFAULT now()
 );
 
+CREATE TABLE streaming_connections (
+  club_id uuid NOT NULL,
+  provider text NOT NULL DEFAULT 'spotify'::text,
+  access_token text NOT NULL,
+  refresh_token text NOT NULL,
+  expires_at timestamp with time zone NOT NULL,
+  scope text,
+  spotify_user_id text,
+  display_name text,
+  status text NOT NULL DEFAULT 'active'::text,
+  connected_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
 
 -- =====================================================
 -- CONSTRAINTS
@@ -247,6 +266,8 @@ ALTER TABLE clubs ADD CONSTRAINT clubs_name_check CHECK (((char_length(TRIM(BOTH
 ALTER TABLE clubs ADD CONSTRAINT clubs_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES profiles(id);
 
 ALTER TABLE clubs ADD CONSTRAINT clubs_pkey PRIMARY KEY (id);
+
+ALTER TABLE clubs ADD CONSTRAINT clubs_song_limit_per_cycle_check CHECK (((song_limit_per_cycle IS NULL) OR (song_limit_per_cycle >= 1)));
 
 ALTER TABLE concert_comments ADD CONSTRAINT concert_comments_author_id_fkey FOREIGN KEY (author_id) REFERENCES profiles(id) ON DELETE CASCADE;
 
@@ -395,6 +416,14 @@ ALTER TABLE song_notes ADD CONSTRAINT song_notes_profile_id_fkey FOREIGN KEY (pr
 ALTER TABLE song_notes ADD CONSTRAINT song_notes_rating_check CHECK (((rating IS NULL) OR ((rating >= 1) AND (rating <= 10))));
 
 ALTER TABLE song_notes ADD CONSTRAINT song_notes_thumb_check CHECK (((thumb IS NULL) OR (thumb = ANY (ARRAY['up'::text, 'down'::text]))));
+
+ALTER TABLE streaming_connections ADD CONSTRAINT streaming_connections_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+
+ALTER TABLE streaming_connections ADD CONSTRAINT streaming_connections_connected_by_fkey FOREIGN KEY (connected_by) REFERENCES profiles(id);
+
+ALTER TABLE streaming_connections ADD CONSTRAINT streaming_connections_pkey PRIMARY KEY (club_id);
+
+ALTER TABLE streaming_connections ADD CONSTRAINT streaming_connections_status_check CHECK ((status = ANY (ARRAY['active'::text, 'needs_reconnect'::text])));
 
 
 -- =====================================================
@@ -718,6 +747,8 @@ CREATE POLICY song_notes_update ON song_notes AS PERMISSIVE FOR UPDATE TO authen
      JOIN cycles c ON ((c.id = a.cycle_id)))
   WHERE ((a.id = song_notes.album_id) AND is_club_member(c.club_id))))));
 
+ALTER TABLE streaming_connections ENABLE ROW LEVEL SECURITY;
+
 
 -- =====================================================
 -- FUNCTIONS & PROCEDURES
@@ -784,6 +815,51 @@ begin
   values (v_club.id, auth.uid(), 'owner');
 
   return v_club;
+end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.enforce_song_limit()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_limit int;
+  v_cycle_start timestamptz;
+  v_count int;
+begin
+  if new.kind <> 'track' then
+    return new;  -- only songs are capped
+  end if;
+
+  select song_limit_per_cycle into v_limit from clubs where id = new.club_id;
+  if v_limit is null then
+    return new;  -- unlimited
+  end if;
+
+  select created_at into v_cycle_start
+  from cycles
+  where club_id = new.club_id and status = 'open'
+  limit 1;
+  if v_cycle_start is null then
+    return new;  -- no open cycle → cap dormant
+  end if;
+
+  select count(*) into v_count
+  from feed_posts
+  where club_id = new.club_id
+    and author_id = new.author_id
+    and kind = 'track'
+    and created_at >= v_cycle_start;
+
+  if v_count >= v_limit then
+    raise exception 'You''ve hit this cycle''s limit of % song(s).', v_limit
+      using errcode = 'check_violation';
+  end if;
+
+  return new;
 end;
 $function$
 ;
@@ -924,6 +1000,46 @@ end;
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.my_song_quota(p_club uuid)
+ RETURNS json
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_limit int;
+  v_cycle_start timestamptz;
+  v_used int := 0;
+begin
+  if not public.is_club_member(p_club) then
+    raise exception 'Not a club member';
+  end if;
+
+  select song_limit_per_cycle into v_limit from clubs where id = p_club;
+
+  select created_at into v_cycle_start
+  from cycles
+  where club_id = p_club and status = 'open'
+  limit 1;
+
+  if v_cycle_start is not null then
+    select count(*) into v_used
+    from feed_posts
+    where club_id = p_club
+      and author_id = auth.uid()
+      and kind = 'track'
+      and created_at >= v_cycle_start;
+  end if;
+
+  return json_build_object(
+    'limit', v_limit,
+    'used', v_used,
+    'has_open_cycle', v_cycle_start is not null
+  );
+end;
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.publish_activity_event(p_club uuid, p_type text, p_payload jsonb DEFAULT '{}'::jsonb)
  RETURNS void
  LANGUAGE plpgsql
@@ -1037,6 +1153,49 @@ end;
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.streaming_disconnect(p_club uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if public.club_role(p_club) <> 'owner' then
+    raise exception 'Only the owner can disconnect streaming';
+  end if;
+  delete from streaming_connections where club_id = p_club;
+end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.streaming_status(p_club uuid)
+ RETURNS json
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_row streaming_connections;
+begin
+  if not public.is_club_member(p_club) then
+    raise exception 'Not a club member';
+  end if;
+  select * into v_row from streaming_connections where club_id = p_club;
+  if not found then
+    return json_build_object('connected', false);
+  end if;
+  return json_build_object(
+    'connected', true,
+    'provider', v_row.provider,
+    'display_name', v_row.display_name,
+    'spotify_user_id', v_row.spotify_user_id,
+    'status', v_row.status,
+    'connected_by', v_row.connected_by
+  );
+end;
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.wheel_pool(p_club uuid)
  RETURNS SETOF uuid
  LANGUAGE plpgsql
@@ -1072,3 +1231,5 @@ $function$
 -- =====================================================
 -- TRIGGERS
 -- =====================================================
+
+CREATE TRIGGER feed_posts_song_limit BEFORE INSERT ON public.feed_posts FOR EACH ROW EXECUTE FUNCTION enforce_song_limit();

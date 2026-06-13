@@ -57,8 +57,10 @@ export const clubs = {
       .order('joined_at'),
   get: (id: string) =>
     supabase.from('clubs').select('*').eq('id', id).single(),
-  update: (id: string, patch: { name?: string; emoji?: string }) =>
-    supabase.from('clubs').update(patch).eq('id', id).select().single(),
+  update: (
+    id: string,
+    patch: { name?: string; emoji?: string; song_limit_per_cycle?: number | null },
+  ) => supabase.from('clubs').update(patch).eq('id', id).select().single(),
   remove: (id: string) => supabase.from('clubs').delete().eq('id', id),
   // RPCs (security definer): atomic create-with-owner / invite-code join.
   // Both return a single clubs row (composite return, not SETOF).
@@ -67,6 +69,50 @@ export const clubs = {
   join: (code: string) => supabase.rpc('join_club', { p_code: code }),
   rotateInviteCode: (clubId: string) =>
     supabase.rpc('rotate_invite_code', { p_club: clubId }),
+  // My per-cycle song quota — see my_song_quota in the song-limit migration.
+  songQuota: (clubId: string) => supabase.rpc('my_song_quota', { p_club: clubId }),
+};
+
+// Shape of the my_song_quota RPC payload (json column, typed manually).
+export interface SongQuota {
+  limit: number | null; // null = unlimited
+  used: number;
+  has_open_cycle: boolean;
+}
+
+// Spotify connection status — from streaming_status (never includes tokens).
+export interface StreamingStatus {
+  connected: boolean;
+  provider?: string;
+  display_name?: string | null;
+  spotify_user_id?: string | null;
+  status?: 'active' | 'needs_reconnect';
+  connected_by?: string | null;
+}
+
+// Result of the spotify-sync Edge Function.
+export interface SyncResult {
+  ok: boolean;
+  added?: number;
+  playlist_url?: string | null;
+  reason?: string;
+  message?: string;
+}
+
+export const streaming = {
+  // Connection status (any member) — drives the connect UI + playlist surfacing.
+  status: (clubId: string) => supabase.rpc('streaming_status', { p_club: clubId }),
+  // Owner-only: drop stored tokens (playlists/links remain on Spotify).
+  disconnect: (clubId: string) => supabase.rpc('streaming_disconnect', { p_club: clubId }),
+  // Owner-only: finish OAuth — server exchanges the code and stores tokens.
+  connect: (clubId: string, code: string, redirectUri: string) =>
+    supabase.functions.invoke<{ ok: boolean; display_name?: string; message?: string }>(
+      'spotify-oauth',
+      { body: { club_id: clubId, code, redirect_uri: redirectUri } },
+    ),
+  // Push the open cycle's songs to its playlist (owner token, server-side).
+  sync: (clubId: string) =>
+    supabase.functions.invoke<SyncResult>('spotify-sync', { body: { club_id: clubId } }),
 };
 
 export const clubMembers = {
