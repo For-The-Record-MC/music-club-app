@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Avatar, Button, Card, InlineNote, Label, NoClubSelected, Screen, TextField } from '@/components/ui';
+import { Avatar, Button, Card, InlineNote, Label, ListenLinks, NoClubSelected, Screen, TextField } from '@/components/ui';
 import { useCycle } from '@/hooks/useCycle';
 import { useFeed, type FeedRow } from '@/hooks/useFeed';
 import { useFocusTarget, useGlow } from '@/hooks/useFocusTarget';
@@ -11,8 +11,8 @@ import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
 import { useCurrentClubStore } from '@/stores/currentClubStore';
-import { searchSongs as searchItunes } from '@/utils/itunes';
-import { searchSongs as searchSpotify } from '@/utils/spotify';
+import { resolveAppleTrack, searchSongs as searchItunes } from '@/utils/itunes';
+import { resolveSpotifyTrack, searchSongs as searchSpotify } from '@/utils/spotify';
 import { timeAgo } from '@/utils/activityTemplates';
 import { confirmAsync } from '@/utils/confirm';
 import {
@@ -29,25 +29,36 @@ import {
 import { fonts, radius } from '@/theme';
 
 type Platform = 'spotify' | 'apple' | 'other';
-type Kind = 'track' | 'album' | 'playlist';
-type SearchSource = 'spotify' | 'apple';
+type Kind = 'track' | 'album';
 
-// One source-agnostic search row for the composer list. spotifyUri is set only
-// for Spotify results — it's what the per-cycle playlist sync needs.
+// One search row for the composer list. Search is Spotify-first (best catalog),
+// falling back to iTunes; whichever source produced it, the *other* service's
+// link is resolved on pick so every post opens in both.
 interface SearchResult {
   key: string;
   trackName: string;
   artistName: string;
   artworkUrl: string;
-  url: string;
-  platform: Platform;
-  spotifyUri?: string;
+  spotifyUrl: string | null;
+  spotifyUri: string | null;
+  appleUrl: string | null;
 }
 
-// Artwork URL stored on a post's metadata jsonb (from iTunes search), if any.
+// Artwork URL stored on a post's metadata jsonb, if any.
 function artworkOf(post: FeedRow): string | null {
   const m = post.metadata as { artwork?: string } | null;
   return m?.artwork ?? null;
+}
+
+// The listen links to render on a post. New posts carry both in metadata; older
+// posts (or manual pastes) fall back to the legacy url+platform pair, with a
+// generic "Open link" for anything unrecognized.
+function linksOf(post: FeedRow): { apple: string | null; spotify: string | null; other: string | null } {
+  const meta = post.metadata as { apple_url?: string; spotify_url?: string } | null;
+  const apple = meta?.apple_url ?? (post.platform === 'apple' ? post.url : null);
+  const spotify = meta?.spotify_url ?? (post.platform === 'spotify' ? post.url : null);
+  const other = !apple && !spotify ? post.url : null;
+  return { apple, spotify, other };
 }
 
 // One social feed for the club. Posts flagged "album suggestion" also surface
@@ -68,14 +79,15 @@ export default function Feed() {
   const [url, setUrl] = useState('');
   const [note, setNote] = useState('');
   const [kind, setKind] = useState<Kind>('track');
-  const [platform, setPlatform] = useState<Platform>('spotify');
   const [suggestion, setSuggestion] = useState(false);
   const [artwork, setArtwork] = useState<string | null>(null);
   const [spotifyUri, setSpotifyUri] = useState<string | null>(null);
-  const [source, setSource] = useState<SearchSource>('spotify');
+  const [spotifyUrl, setSpotifyUrl] = useState<string | null>(null);
+  const [appleUrl, setAppleUrl] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const searchSeq = useRef(0);
+  const pickSeq = useRef(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [quota, setQuota] = useState<SongQuota | null>(null);
@@ -96,52 +108,62 @@ export default function Feed() {
   const remaining = capped ? Math.max(0, (quota!.limit as number) - quota!.used) : null;
   const songBlocked = kind === 'track' && remaining === 0;
 
-  const runSearch = async (term: string, src: SearchSource = source) => {
+  const runSearch = async (term: string) => {
     setSearch(term);
     const seq = ++searchSeq.current;
     if (term.trim().length < 3) {
       setResults([]);
       return;
     }
-    const found: SearchResult[] =
-      src === 'spotify'
-        ? (await searchSpotify(term)).map((s) => ({
-            key: s.id,
-            trackName: s.trackName,
-            artistName: s.artistName,
-            artworkUrl: s.artworkUrl,
-            url: s.spotifyUrl,
-            platform: 'spotify' as const,
-            spotifyUri: s.uri,
-          }))
-        : (await searchItunes(term)).map((s) => ({
-            key: String(s.trackId),
-            trackName: s.trackName,
-            artistName: s.artistName,
-            artworkUrl: s.artworkUrl,
-            url: s.appleUrl,
-            platform: 'apple' as const,
-          }));
+    // Spotify first (best catalog/search); fall back to iTunes if it's empty —
+    // e.g. app credentials unset, or a track Spotify simply doesn't have.
+    const spotifyHits = await searchSpotify(term);
+    const found: SearchResult[] = spotifyHits.length
+      ? spotifyHits.map((s) => ({
+          key: s.id,
+          trackName: s.trackName,
+          artistName: s.artistName,
+          artworkUrl: s.artworkUrl,
+          spotifyUrl: s.spotifyUrl,
+          spotifyUri: s.uri,
+          appleUrl: null,
+        }))
+      : (await searchItunes(term)).map((s) => ({
+          key: String(s.trackId),
+          trackName: s.trackName,
+          artistName: s.artistName,
+          artworkUrl: s.artworkUrl,
+          spotifyUrl: null,
+          spotifyUri: null,
+          appleUrl: s.appleUrl,
+        }));
     if (seq === searchSeq.current) setResults(found);
   };
 
-  // Switching source re-runs the active query against the new provider.
-  const switchSource = (src: SearchSource) => {
-    setSource(src);
-    if (search.trim().length >= 3) runSearch(search, src);
-    else setResults([]);
-  };
-
-  const pickSong = (s: SearchResult) => {
+  const pickSong = async (s: SearchResult) => {
+    const seq = ++pickSeq.current;
     setTitle(s.trackName);
     setArtist(s.artistName);
-    setUrl(s.url);
-    setPlatform(s.platform);
+    setUrl('');
     setArtwork(s.artworkUrl || null);
-    setSpotifyUri(s.spotifyUri ?? null);
+    setSpotifyUri(s.spotifyUri);
+    setSpotifyUrl(s.spotifyUrl);
+    setAppleUrl(s.appleUrl);
     setKind('track');
     setResults([]);
     setSearch('');
+    // Resolve the other service's link so the post opens in both. Keyless on the
+    // Apple side, app-token on the Spotify side; best-effort, guarded vs a stale pick.
+    if (s.spotifyUrl && !s.appleUrl) {
+      const apple = await resolveAppleTrack(s.trackName, s.artistName);
+      if (apple && seq === pickSeq.current) setAppleUrl(apple);
+    } else if (s.appleUrl && !s.spotifyUrl) {
+      const match = await resolveSpotifyTrack(s.trackName, s.artistName);
+      if (match && seq === pickSeq.current) {
+        setSpotifyUri(match.uri);
+        setSpotifyUrl(match.url);
+      }
+    }
   };
 
   const resetComposer = () => {
@@ -152,6 +174,8 @@ export default function Feed() {
     setSuggestion(false);
     setArtwork(null);
     setSpotifyUri(null);
+    setSpotifyUrl(null);
+    setAppleUrl(null);
     setSearch('');
     setResults([]);
     setOpen(false);
@@ -164,20 +188,38 @@ export default function Feed() {
     }
     setBusy(true);
     setError(null);
+    // Fold a manually pasted link into the right service slot (detected from the
+    // host), or treat it as a generic "other" link. Picked results already set
+    // appleUrl/spotifyUrl.
+    const manual = url.trim();
+    let aUrl = appleUrl;
+    let sUrl = spotifyUrl;
+    let otherUrl: string | null = null;
+    if (manual) {
+      if (/spotify\.com/i.test(manual)) sUrl = sUrl ?? manual;
+      else if (/apple\.com/i.test(manual)) aUrl = aUrl ?? manual;
+      else otherUrl = manual;
+    }
+    // url+platform stay populated as a single-link fallback for older clients.
+    const primaryUrl = sUrl ?? aUrl ?? otherUrl;
+    const platform: Platform = sUrl ? 'spotify' : aUrl ? 'apple' : 'other';
+    const meta = {
+      ...(artwork ? { artwork } : {}),
+      ...(spotifyUri ? { spotify_uri: spotifyUri } : {}),
+      ...(sUrl ? { spotify_url: sUrl } : {}),
+      ...(aUrl ? { apple_url: aUrl } : {}),
+    };
     const { data, error: err } = await feedDb.create({
       club_id: id,
       author_id: userId,
       kind,
       title: title.trim(),
       artist: artist.trim(),
-      url: url.trim() || null,
+      url: primaryUrl,
       platform,
       note: note.trim() || null,
       is_album_suggestion: suggestion,
-      metadata:
-        artwork || spotifyUri
-          ? { ...(artwork ? { artwork } : {}), ...(spotifyUri ? { spotify_uri: spotifyUri } : {}) }
-          : null,
+      metadata: Object.keys(meta).length ? meta : null,
     });
     if (!err && data) {
       await activity.publish(id, 'feed_post', {
@@ -225,29 +267,8 @@ export default function Feed() {
       ) : (
         <Card>
           <Label>Search a song</Label>
-          <View style={[styles.segRow, { marginBottom: 8 }]}>
-            {(['spotify', 'apple'] as SearchSource[]).map((src) => (
-              <Pressable
-                key={src}
-                onPress={() => switchSource(src)}
-                style={[
-                  styles.seg,
-                  { borderColor: palette.border, backgroundColor: palette.card2 },
-                  source === src && { borderColor: palette.teal, backgroundColor: palette.tealBg },
-                ]}
-              >
-                <Text style={[styles.segText, { color: source === src ? palette.teal : palette.text3 }]}>
-                  {src === 'spotify' ? 'Spotify' : 'Apple Music'}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
           <TextField
-            placeholder={
-              source === 'spotify'
-                ? 'Search Spotify… (e.g. Dreams Fleetwood Mac)'
-                : 'Search Apple Music… (e.g. Dreams Fleetwood Mac)'
-            }
+            placeholder="Search a song… (e.g. Dreams Fleetwood Mac)"
             value={search}
             onChangeText={(t) => runSearch(t)}
             autoCorrect={false}
@@ -277,15 +298,25 @@ export default function Feed() {
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text numberOfLines={1} style={[styles.resultTitle, { color: palette.text1 }]}>{title}</Text>
                 <Text numberOfLines={1} style={[styles.resultArtist, { color: palette.text2 }]}>{artist}</Text>
+                {spotifyUrl || appleUrl ? (
+                  <Text style={[styles.pickedHint, { color: palette.text3 }]}>
+                    Opens in {[spotifyUrl && 'Spotify', appleUrl && 'Apple Music'].filter(Boolean).join(' + ')}
+                  </Text>
+                ) : null}
               </View>
-              <Text onPress={() => { setArtwork(null); setUrl(''); setSpotifyUri(null); }} style={[styles.clearPick, { color: palette.text3 }]}>×</Text>
+              <Text
+                onPress={() => { setArtwork(null); setUrl(''); setSpotifyUri(null); setSpotifyUrl(null); setAppleUrl(null); }}
+                style={[styles.clearPick, { color: palette.text3 }]}
+              >
+                ×
+              </Text>
             </View>
           ) : null}
 
           <Text style={[styles.orNote, { color: palette.text3 }]}>or enter it manually</Text>
 
           <View style={styles.segRow}>
-            {(['track', 'album', 'playlist'] as Kind[]).map((k) => (
+            {(['track', 'album'] as Kind[]).map((k) => (
               <Pressable
                 key={k}
                 onPress={() => setKind(k)}
@@ -302,7 +333,7 @@ export default function Feed() {
             ))}
           </View>
           <View style={{ gap: 8, marginTop: 8 }}>
-            <TextField placeholder="Title (track / album / playlist)" value={title} onChangeText={setTitle} />
+            <TextField placeholder="Title (track / album)" value={title} onChangeText={setTitle} />
             <TextField placeholder="Artist (optional)" value={artist} onChangeText={setArtist} />
             <TextField placeholder="Paste a link… (optional)" value={url} onChangeText={setUrl} autoCapitalize="none" />
             <TextField
@@ -312,23 +343,6 @@ export default function Feed() {
               multiline
               style={{ minHeight: 60, textAlignVertical: 'top' }}
             />
-            <View style={styles.segRow}>
-              {(['spotify', 'apple', 'other'] as Platform[]).map((pl) => (
-                <Pressable
-                  key={pl}
-                  onPress={() => setPlatform(pl)}
-                  style={[
-                    styles.seg,
-                    { borderColor: palette.border, backgroundColor: palette.card2 },
-                    platform === pl && { borderColor: palette.teal, backgroundColor: palette.tealBg },
-                  ]}
-                >
-                  <Text style={[styles.segText, { color: platform === pl ? palette.teal : palette.text3 }]}>
-                    {pl}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
             <Pressable onPress={() => setSuggestion((s) => !s)} style={styles.checkRow}>
               <View
                 style={[
@@ -389,7 +403,7 @@ function PostCard({
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [commentRows, setCommentRows] = useState<
-    { id: string; text: string; author_id: string; profiles: { display_name: string | null; avatar_color: number } | null }[]
+    { id: string; text: string; author_id: string; profiles: { display_name: string | null; avatar_color: number; avatar_url: string | null } | null }[]
   >([]);
 
   const myReaction = post.post_reactions.find((r) => r.profile_id === userId)?.emoji as
@@ -438,7 +452,7 @@ function PostCard({
   return (
     <Card style={glow ? { borderColor: palette.amber } : undefined}>
       <View style={styles.postHead}>
-        <Avatar name={post.profiles?.display_name ?? null} colorIndex={post.profiles?.avatar_color ?? 0} size={32} />
+        <Avatar name={post.profiles?.display_name ?? null} colorIndex={post.profiles?.avatar_color ?? 0} imageUrl={post.profiles?.avatar_url} size={32} />
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={[styles.postAuthor, { color: palette.text1 }]}>
             {post.profiles?.display_name ?? '(no name)'}
@@ -467,11 +481,17 @@ function PostCard({
         </View>
       </View>
       {post.note ? <Text style={[styles.postNote, { color: palette.text2 }]}>{post.note}</Text> : null}
-      {post.url ? (
-        <Pressable onPress={() => Linking.openURL(post.url!)}>
-          <Text style={[styles.postLink, { color: palette.teal }]}>▶ Open link</Text>
-        </Pressable>
-      ) : null}
+      {(() => {
+        const links = linksOf(post);
+        return (
+          <ListenLinks
+            apple={links.apple}
+            spotify={links.spotify}
+            other={links.other}
+            style={styles.linkRow}
+          />
+        );
+      })()}
 
       <View style={styles.reactionRow}>
         {REACTION_EMOJIS.map((emoji) => {
@@ -505,7 +525,7 @@ function PostCard({
         <View style={[styles.commentSection, { borderTopColor: palette.border }]}>
           {commentRows.map((c) => (
             <View key={c.id} style={styles.commentRow}>
-              <Avatar name={c.profiles?.display_name ?? null} colorIndex={c.profiles?.avatar_color ?? 0} size={24} />
+              <Avatar name={c.profiles?.display_name ?? null} colorIndex={c.profiles?.avatar_color ?? 0} imageUrl={c.profiles?.avatar_url} size={24} />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={[styles.commentAuthor, { color: palette.text1 }]}>
                   {c.profiles?.display_name ?? '(no name)'}
@@ -580,13 +600,14 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
   },
   clearPick: { fontSize: 18, paddingHorizontal: 4 },
+  pickedHint: { fontFamily: fonts.monoMedium, fontSize: 10, marginTop: 3 },
   orNote: { fontFamily: fonts.mono, fontSize: 10, textAlign: 'center', marginVertical: 8 },
   postBody: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   postArt: { width: 44, height: 44, borderRadius: radius.sm },
   postTitle: { fontFamily: fonts.sansBold, fontSize: 15, marginBottom: 1 },
   postArtist: { fontFamily: fonts.sans, fontSize: 12, marginBottom: 4 },
   postNote: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 19, fontStyle: 'italic', marginBottom: 6 },
-  postLink: { fontFamily: fonts.monoMedium, fontSize: 11, marginBottom: 4 },
+  linkRow: { marginTop: 2, marginBottom: 4 },
   reactionRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, flexWrap: 'wrap' },
   reactBtn: {
     flexDirection: 'row',

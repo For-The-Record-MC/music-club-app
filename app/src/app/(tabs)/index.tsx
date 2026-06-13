@@ -43,6 +43,7 @@ export default function ClubsTab() {
             <Avatar
               name={profile?.display_name ?? null}
               colorIndex={profile?.avatar_color ?? 0}
+              imageUrl={profile?.avatar_url}
               size={38}
             />
           </Pressable>

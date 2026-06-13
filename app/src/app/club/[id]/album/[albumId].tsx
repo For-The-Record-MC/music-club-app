@@ -1,9 +1,9 @@
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Avatar, Button, Card, InlineNote, Label, Screen } from '@/components/ui';
+import { Avatar, Button, Card, InlineNote, Label, ListenLinks, Screen } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
@@ -19,7 +19,7 @@ import {
 } from '@/utils/supabase/db';
 
 interface RevealedRating extends Rating {
-  profiles: { display_name: string | null; avatar_color: number } | null;
+  profiles: { display_name: string | null; avatar_color: number; avatar_url: string | null } | null;
 }
 
 // Album detail — where the visibility ladder lives:
@@ -99,11 +99,7 @@ export default function AlbumDetail() {
               {album.artist}
               {album.year ? ` · ${album.year}` : ''}
             </Text>
-            {album.apple_url ? (
-              <Pressable onPress={() => Linking.openURL(album.apple_url!)}>
-                <Text style={[styles.listenLink, { color: palette.apple }]}>▶ Apple Music</Text>
-              </Pressable>
-            ) : null}
+            <ListenLinks apple={album.apple_url} spotify={album.spotify_url} style={styles.listenRow} />
           </View>
           {summary?.avg_score != null ? (
             <View style={[styles.avgBadge, { backgroundColor: palette.tealBg }]}>
@@ -135,6 +131,7 @@ export default function AlbumDetail() {
                 <Avatar
                   name={m.profiles?.display_name ?? null}
                   colorIndex={m.profiles?.avatar_color ?? 0}
+                  imageUrl={m.profiles?.avatar_url}
                   size={28}
                 />
                 <Text style={[styles.checkName, { color: palette.text1 }]}>
@@ -167,6 +164,7 @@ export default function AlbumDetail() {
                 <Avatar
                   name={r.profiles?.display_name ?? null}
                   colorIndex={r.profiles?.avatar_color ?? 0}
+                  imageUrl={r.profiles?.avatar_url}
                   size={32}
                 />
                 <Text style={[styles.revealName, { color: palette.text1 }]}>
@@ -211,7 +209,7 @@ const styles = StyleSheet.create({
   artFallback: { alignItems: 'center', justifyContent: 'center' },
   albumName: { fontFamily: fonts.sansBold, fontSize: 18, marginBottom: 2 },
   albumMeta: { fontFamily: fonts.sans, fontSize: 13, marginBottom: 4 },
-  listenLink: { fontFamily: fonts.monoMedium, fontSize: 11 },
+  listenRow: { marginTop: 6 },
   avgBadge: {
     alignItems: 'center',
     borderRadius: radius.md,

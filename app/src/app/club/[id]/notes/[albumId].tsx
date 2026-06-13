@@ -29,7 +29,7 @@ interface Draft {
 }
 
 interface OthersNote extends SongNote {
-  profiles: { display_name: string | null; avatar_color: number } | null;
+  profiles: { display_name: string | null; avatar_color: number; avatar_url: string | null } | null;
 }
 
 function parseTracks(json: unknown): Track[] {
@@ -290,6 +290,7 @@ export default function SongNotesEditor() {
                       <Avatar
                         name={o.profiles?.display_name ?? null}
                         colorIndex={o.profiles?.avatar_color ?? 0}
+                        imageUrl={o.profiles?.avatar_url}
                         size={22}
                       />
                       <Text style={[styles.otherName, { color: palette.text2 }]}>

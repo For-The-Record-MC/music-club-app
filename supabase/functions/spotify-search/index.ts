@@ -35,6 +35,18 @@ interface SpotifySong {
   spotifyUrl: string
 }
 
+interface SpotifyAlbum {
+  id: string
+  uri: string // spotify:album:<id>
+  collectionName: string
+  artistName: string
+  artworkUrl: string
+  spotifyUrl: string
+  year: number | null
+}
+
+type SearchType = 'track' | 'album'
+
 // Module-scoped client-credentials token cache. Edge Function instances are
 // reused across requests, so this avoids re-minting a token every search.
 let cachedToken: { value: string; expiresAt: number } | null = null
@@ -81,16 +93,20 @@ Deno.serve(async (req) => {
     }
 
     let term = ''
+    let type: SearchType = 'track'
     try {
       const body = await req.json()
       term = String(body?.term ?? '').trim()
+      // type defaults to 'track'; the album picker passes 'album'.
+      if (body?.type === 'album') type = 'album'
     } catch {
       return json({ ok: false, message: 'Invalid request body' }, 400)
     }
     if (term.length < 1) return json({ results: [] })
 
     const token = await getAppToken(clientId, clientSecret)
-    const url = `https://api.spotify.com/v1/search?type=track&limit=10&q=${encodeURIComponent(term)}`
+    const limit = type === 'album' ? 8 : 10
+    const url = `https://api.spotify.com/v1/search?type=${type}&limit=${limit}&q=${encodeURIComponent(term)}`
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
     if (res.status === 401) {
       // Token went stale unexpectedly — drop cache and retry once.
@@ -98,19 +114,34 @@ Deno.serve(async (req) => {
       const fresh = await getAppToken(clientId, clientSecret)
       const retry = await fetch(url, { headers: { Authorization: `Bearer ${fresh}` } })
       if (!retry.ok) return json({ ok: false, message: `Spotify search failed (${retry.status})` }, 502)
-      return json({ results: normalize(await retry.json()) })
+      return json({ results: normalize(await retry.json(), type) })
     }
     if (!res.ok) {
       const snippet = (await res.text().catch(() => '')).slice(0, 300)
       return json({ ok: false, message: `Spotify search failed (${res.status}): ${snippet}` }, 502)
     }
-    return json({ results: normalize(await res.json()) })
+    return json({ results: normalize(await res.json(), type) })
   } catch (e) {
     return json({ ok: false, message: e instanceof Error ? e.message : String(e) }, 500)
   }
 })
 
-function normalize(payload: any): SpotifySong[] {
+function normalize(payload: any, type: SearchType): SpotifySong[] | SpotifyAlbum[] {
+  if (type === 'album') {
+    const items = payload?.albums?.items ?? []
+    return items
+      .filter((a: any) => a?.id && a?.name)
+      .map((a: any): SpotifyAlbum => ({
+        id: a.id,
+        uri: a.uri ?? `spotify:album:${a.id}`,
+        collectionName: a.name,
+        artistName: (a.artists ?? []).map((ar: any) => ar.name).join(', '),
+        artworkUrl: pickArtwork(a.images),
+        spotifyUrl: a.external_urls?.spotify ?? '',
+        // release_date may be 'YYYY', 'YYYY-MM', or 'YYYY-MM-DD'.
+        year: a.release_date ? Number(String(a.release_date).slice(0, 4)) || null : null,
+      }))
+  }
   const items = payload?.tracks?.items ?? []
   return items
     .filter((t: any) => t?.id && t?.name)

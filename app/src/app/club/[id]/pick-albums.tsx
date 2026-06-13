@@ -8,12 +8,27 @@ import { useCycle } from '@/hooks/useCycle';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
 import { fonts, radius } from '@/theme';
-import { getAlbumTracks, searchAlbums, type ItunesAlbum } from '@/utils/itunes';
+import { getAlbumTracks, resolveAppleAlbum, searchAlbums as searchItunesAlbums } from '@/utils/itunes';
+import { resolveSpotifyAlbum, searchAlbums as searchSpotifyAlbums } from '@/utils/spotify';
 import { activity, albums as albumsDb } from '@/utils/supabase/db';
 
-// The picker (or an admin) sets the cycle's two albums. iTunes type-ahead is
-// the primary path (artwork, year, track list for Phase 3 song pickers);
-// manual entry is the fallback for obscure releases.
+// One source-agnostic album result for the picker list. Search is Spotify-first
+// (best catalog), falling back to iTunes; the Apple link + the iTunes track list
+// are resolved on pick (the track list drives the song-level rating/notes pickers).
+interface AlbumResult {
+  key: string;
+  title: string;
+  artist: string;
+  year: number | null;
+  artworkUrl: string;
+  spotifyUrl: string | null;
+  appleUrl: string | null;
+  itunesCollectionId: number | null;
+}
+
+// The picker (or an admin) sets the cycle's two albums. Spotify type-ahead is
+// the primary path; iTunes resolves the Apple Music link + track list so the
+// album opens in both services. Manual entry is the fallback for obscure releases.
 export default function PickAlbums() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -67,7 +82,7 @@ function SlotEditor({
   const userId = useAuthStore((s) => s.userId);
   const [editing, setEditing] = useState(false);
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<ItunesAlbum[]>([]);
+  const [results, setResults] = useState<AlbumResult[]>([]);
   const [manual, setManual] = useState(false);
   const [mTitle, setMTitle] = useState('');
   const [mArtist, setMArtist] = useState('');
@@ -82,7 +97,29 @@ function SlotEditor({
       setResults([]);
       return;
     }
-    const found = await searchAlbums(term);
+    // Spotify first (best catalog); fall back to iTunes when it's empty.
+    const spotifyHits = await searchSpotifyAlbums(term);
+    const found: AlbumResult[] = spotifyHits.length
+      ? spotifyHits.map((a) => ({
+          key: a.id,
+          title: a.collectionName,
+          artist: a.artistName,
+          year: a.year,
+          artworkUrl: a.artworkUrl,
+          spotifyUrl: a.spotifyUrl,
+          appleUrl: null,
+          itunesCollectionId: null,
+        }))
+      : (await searchItunesAlbums(term)).map((a) => ({
+          key: String(a.collectionId),
+          title: a.collectionName,
+          artist: a.artistName,
+          year: a.year,
+          artworkUrl: a.artworkUrl,
+          spotifyUrl: null,
+          appleUrl: a.appleUrl || null,
+          itunesCollectionId: a.collectionId,
+        }));
     if (seq === searchSeq.current) setResults(found);
   };
 
@@ -93,6 +130,7 @@ function SlotEditor({
     artwork_url: string | null;
     itunes_collection_id: number | null;
     apple_url: string | null;
+    spotify_url: string | null;
     tracks: { trackNumber: number; trackName: string }[] | null;
   }) => {
     if (!userId) return;
@@ -108,6 +146,7 @@ function SlotEditor({
       artwork_url: album.artwork_url,
       itunes_collection_id: album.itunes_collection_id,
       apple_url: album.apple_url,
+      spotify_url: album.spotify_url,
       tracks: album.tracks,
     });
     setBusy(false);
@@ -122,15 +161,33 @@ function SlotEditor({
     onSaved();
   };
 
-  const pickResult = async (r: ItunesAlbum) => {
-    const tracks = await getAlbumTracks(r.collectionId);
+  const pickResult = async (r: AlbumResult) => {
+    setBusy(true);
+    // Fill in whichever links/tracks the search source didn't provide, so the
+    // album opens in both services and carries an iTunes track list (for the
+    // song-level rating/notes pickers). All best-effort — a miss never blocks.
+    let appleUrl = r.appleUrl;
+    let spotifyUrl = r.spotifyUrl;
+    let collectionId = r.itunesCollectionId;
+
+    if (!appleUrl || collectionId == null) {
+      const apple = await resolveAppleAlbum(r.title, r.artist);
+      appleUrl = appleUrl ?? apple?.appleUrl ?? null;
+      collectionId = collectionId ?? apple?.collectionId ?? null;
+    }
+    if (!spotifyUrl) {
+      spotifyUrl = (await resolveSpotifyAlbum(r.title, r.artist))?.url ?? null;
+    }
+    const tracks = collectionId != null ? await getAlbumTracks(collectionId) : [];
+
     save({
-      title: r.collectionName,
-      artist: r.artistName,
+      title: r.title,
+      artist: r.artist,
       year: r.year,
       artwork_url: r.artworkUrl || null,
-      itunes_collection_id: r.collectionId,
-      apple_url: r.appleUrl || null,
+      itunes_collection_id: collectionId,
+      apple_url: appleUrl,
+      spotify_url: spotifyUrl,
       tracks: tracks.length ? tracks : null,
     });
   };
@@ -147,6 +204,7 @@ function SlotEditor({
       artwork_url: null,
       itunes_collection_id: null,
       apple_url: null,
+      spotify_url: null,
       tracks: null,
     });
   };
@@ -185,7 +243,7 @@ function SlotEditor({
                 />
                 {results.map((r) => (
                   <Pressable
-                    key={r.collectionId}
+                    key={r.key}
                     onPress={() => pickResult(r)}
                     disabled={busy}
                     style={({ pressed }) => [
@@ -196,10 +254,10 @@ function SlotEditor({
                     <Image source={{ uri: r.artworkUrl }} style={styles.resultArt} contentFit="cover" />
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text numberOfLines={1} style={[styles.resultTitle, { color: palette.text1 }]}>
-                        {r.collectionName}
+                        {r.title}
                       </Text>
                       <Text numberOfLines={1} style={[styles.resultArtist, { color: palette.text2 }]}>
-                        {r.artistName}
+                        {r.artist}
                         {r.year ? ` · ${r.year}` : ''}
                       </Text>
                     </View>

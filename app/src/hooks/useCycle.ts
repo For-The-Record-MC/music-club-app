@@ -14,7 +14,7 @@ import {
 } from '@/utils/supabase/db';
 
 export interface RsvpRow extends Rsvp {
-  profiles: { display_name: string | null; avatar_color: number } | null;
+  profiles: { display_name: string | null; avatar_color: number; avatar_url: string | null } | null;
 }
 
 // The club's current (open) cycle + its albums, RSVPs, and guests.

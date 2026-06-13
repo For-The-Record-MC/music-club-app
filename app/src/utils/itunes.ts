@@ -67,6 +67,30 @@ export async function searchSongs(term: string): Promise<ItunesSong[]> {
     }));
 }
 
+// The Apple Music equivalent of something already picked from Spotify, so the
+// post/album opens in either service. Keyless + client-side, so it always works
+// (no connection needed). Best-effort: returns null when nothing matches.
+export async function resolveAppleTrack(title: string, artist: string): Promise<string | null> {
+  const term = [title, artist].filter(Boolean).join(' ').trim();
+  if (!term) return null;
+  const hit = (await searchSongs(term))[0];
+  return hit?.appleUrl || null;
+}
+
+// Apple album match — returns the link plus the iTunes collectionId, which the
+// caller uses to pull the track list (getAlbumTracks) for the song-level
+// rating/notes pickers.
+export async function resolveAppleAlbum(
+  title: string,
+  artist: string,
+): Promise<{ appleUrl: string | null; collectionId: number | null; year: number | null } | null> {
+  const term = [title, artist].filter(Boolean).join(' ').trim();
+  if (!term) return null;
+  const hit = (await searchAlbums(term))[0];
+  if (!hit) return null;
+  return { appleUrl: hit.appleUrl || null, collectionId: hit.collectionId, year: hit.year };
+}
+
 export async function getAlbumTracks(collectionId: number): Promise<ItunesTrack[]> {
   const res = await fetch(
     `https://itunes.apple.com/lookup?id=${collectionId}&entity=song&limit=200`,

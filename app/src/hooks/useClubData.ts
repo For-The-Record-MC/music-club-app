@@ -10,7 +10,7 @@ import {
 } from '@/utils/supabase/db';
 
 export interface MemberRow extends ClubMember {
-  profiles: { display_name: string | null; avatar_color: number } | null;
+  profiles: { display_name: string | null; avatar_color: number; avatar_url: string | null } | null;
 }
 
 // Club + member list + my role, for the club home and members screens.

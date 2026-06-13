@@ -138,6 +138,7 @@ export default function RsvpScreen() {
                   <Avatar
                     name={m.profiles?.display_name ?? null}
                     colorIndex={m.profiles?.avatar_color ?? 0}
+                    imageUrl={m.profiles?.avatar_url}
                     size={30}
                   />
                   <Text style={[styles.memberName, { color: palette.text1 }]}>

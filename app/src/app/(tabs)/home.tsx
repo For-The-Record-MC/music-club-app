@@ -184,6 +184,7 @@ export default function HomeTab() {
                 key={m.id}
                 name={m.profiles?.display_name ?? null}
                 colorIndex={m.profiles?.avatar_color ?? 0}
+                imageUrl={m.profiles?.avatar_url}
                 size={30}
               />
             ))}
@@ -479,7 +480,6 @@ export default function HomeTab() {
 
       <Label>Invite members</Label>
       <Card>
-        <Text selectable style={[styles.inviteUrl, { color: palette.teal }]}>{url}</Text>
         <Button
           title={copied ? '✓ Copied!' : Platform.OS === 'web' ? '📋 Copy invite link' : 'Share invite link'}
           variant="ghost"
@@ -564,5 +564,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   quickText: { fontFamily: fonts.monoMedium, fontSize: 11 },
-  inviteUrl: { fontFamily: fonts.mono, fontSize: 12, marginBottom: 10 },
 });

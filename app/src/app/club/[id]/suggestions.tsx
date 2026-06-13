@@ -12,7 +12,7 @@ import { feed, type FeedPost } from '@/utils/supabase/db';
 import { fonts } from '@/theme';
 
 interface SuggestionRow extends FeedPost {
-  profiles: { display_name: string | null; avatar_color: number } | null;
+  profiles: { display_name: string | null; avatar_color: number; avatar_url: string | null } | null;
 }
 
 // The album-suggestion backlog — the picker draws from this when their spin
@@ -56,7 +56,7 @@ export default function Suggestions() {
         rows.map((s) => (
           <Card key={s.id}>
             <View style={styles.row}>
-              <Avatar name={s.profiles?.display_name ?? null} colorIndex={s.profiles?.avatar_color ?? 0} size={28} />
+              <Avatar name={s.profiles?.display_name ?? null} colorIndex={s.profiles?.avatar_color ?? 0} imageUrl={s.profiles?.avatar_url} size={28} />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={[styles.sTitle, { color: palette.text1 }]}>{s.title}</Text>
                 {s.artist ? <Text style={[styles.sArtist, { color: palette.text2 }]}>{s.artist}</Text> : null}

@@ -76,11 +76,15 @@ export default function Concerts() {
   // profile_id → name/color, so concert interest (which only stores ids) can show
   // who's interested/going, not just counts.
   const memberInfo = useMemo(() => {
-    const m = new Map<string, { display_name: string | null; avatar_color: number }>();
+    const m = new Map<
+      string,
+      { display_name: string | null; avatar_color: number; avatar_url: string | null }
+    >();
     members.forEach((mem) =>
       m.set(mem.profile_id, {
         display_name: mem.profiles?.display_name ?? null,
         avatar_color: mem.profiles?.avatar_color ?? 0,
+        avatar_url: mem.profiles?.avatar_url ?? null,
       }),
     );
     return m;
@@ -269,7 +273,7 @@ function InterestGroup({
 }: {
   label: string;
   people: { profile_id: string; status: ConcertStatus }[];
-  memberInfo: Map<string, { display_name: string | null; avatar_color: number }>;
+  memberInfo: Map<string, { display_name: string | null; avatar_color: number; avatar_url: string | null }>;
   color: string;
 }) {
   const { palette } = useTheme();
@@ -284,7 +288,7 @@ function InterestGroup({
           const info = memberInfo.get(p.profile_id);
           return (
             <View key={p.profile_id} style={styles.interestChip}>
-              <Avatar name={info?.display_name ?? null} colorIndex={info?.avatar_color ?? 0} size={18} />
+              <Avatar name={info?.display_name ?? null} colorIndex={info?.avatar_color ?? 0} imageUrl={info?.avatar_url} size={18} />
               <Text style={[styles.interestName, { color: palette.text2 }]}>
                 {info?.display_name ?? 'Someone'}
               </Text>
@@ -308,7 +312,7 @@ function ConcertCard({
   concert: ConcertRow;
   userId: string | null;
   isAdmin: boolean;
-  memberInfo: Map<string, { display_name: string | null; avatar_color: number }>;
+  memberInfo: Map<string, { display_name: string | null; avatar_color: number; avatar_url: string | null }>;
   onEdit: (c: ConcertRow) => void;
   onChange: () => void;
   highlight?: boolean;
@@ -366,7 +370,7 @@ function ConcertCard({
             {concert.price ? ` · ${concert.price}` : ''}
           </Text>
           <View style={styles.cByRow}>
-            <Avatar name={concert.profiles?.display_name ?? null} colorIndex={concert.profiles?.avatar_color ?? 0} size={16} />
+            <Avatar name={concert.profiles?.display_name ?? null} colorIndex={concert.profiles?.avatar_color ?? 0} imageUrl={concert.profiles?.avatar_url} size={16} />
             <Text style={[styles.cBy, { color: palette.text3 }]}>
               added by {concert.profiles?.display_name ?? 'someone'}
             </Text>
@@ -474,7 +478,7 @@ function ConcertCard({
 }
 
 interface CommentRow extends ConcertComment {
-  profiles: { display_name: string | null; avatar_color: number } | null;
+  profiles: { display_name: string | null; avatar_color: number; avatar_url: string | null } | null;
 }
 
 function ConcertComments({
@@ -522,7 +526,7 @@ function ConcertComments({
     <View style={[styles.comments, { borderTopColor: palette.border }]}>
       {rows.map((c) => (
         <View key={c.id} style={styles.commentRow}>
-          <Avatar name={c.profiles?.display_name ?? null} colorIndex={c.profiles?.avatar_color ?? 0} size={24} />
+          <Avatar name={c.profiles?.display_name ?? null} colorIndex={c.profiles?.avatar_color ?? 0} imageUrl={c.profiles?.avatar_url} size={24} />
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={[styles.commentName, { color: palette.text2 }]}>
               {c.profiles?.display_name ?? '(no name)'}

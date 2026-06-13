@@ -8,8 +8,9 @@ import { supabase } from '@/utils/supabase/client';
 
 // Email OTP sign-in: enter email → receive 6-digit code → verify.
 // Works identically on web (GitHub Pages) and native — no redirect URLs.
-// Accounts with a password set (admin/dev) can take the password path instead,
-// which sends no email at all (useful when the OTP email rate limit is hit).
+// First sign-in is always the emailed code; members can then set a password in
+// their profile (see profile-setup) and use the password path here afterwards,
+// which sends no email at all (also handy when the OTP rate limit is hit).
 // Session pickup happens via authStore's onAuthStateChange listener.
 export function AuthForm({ subtitle }: { subtitle?: string }) {
   const { palette } = useTheme();

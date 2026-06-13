@@ -198,6 +198,7 @@ export default function ClubSettings() {
               <Avatar
                 name={m.profiles?.display_name ?? null}
                 colorIndex={m.profiles?.avatar_color ?? 0}
+                imageUrl={m.profiles?.avatar_url}
                 size={38}
               />
               <View style={{ flex: 1, minWidth: 0 }}>

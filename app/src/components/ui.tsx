@@ -1,6 +1,8 @@
 import { type ReactNode, type RefObject } from 'react';
 import {
   ActivityIndicator,
+  Image,
+  Linking,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -131,6 +133,41 @@ export function Button({
   );
 }
 
+// Brand-colored "open in…" pill buttons. A post/album can carry an Apple Music
+// and/or Spotify link (the search picker resolves both); `other` is the generic
+// fallback for a manually pasted link. Renders nothing when all are absent.
+export function ListenLinks({
+  apple,
+  spotify,
+  other,
+  style,
+}: {
+  apple?: string | null;
+  spotify?: string | null;
+  other?: string | null;
+  style?: ViewStyle;
+}) {
+  const { palette } = useTheme();
+  const pills: { label: string; url: string; bg: string }[] = [];
+  if (spotify) pills.push({ label: 'Spotify', url: spotify, bg: palette.spotify });
+  if (apple) pills.push({ label: 'Apple Music', url: apple, bg: palette.apple });
+  if (other) pills.push({ label: 'Open link', url: other, bg: palette.text3 });
+  if (!pills.length) return null;
+  return (
+    <View style={[styles.listenRow, style]}>
+      {pills.map((p) => (
+        <Pressable
+          key={p.label}
+          onPress={() => Linking.openURL(p.url)}
+          style={({ pressed }) => [styles.listenPill, { backgroundColor: p.bg, opacity: pressed ? 0.8 : 1 }]}
+        >
+          <Text style={styles.listenPillText}>▶ {p.label}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
 export function TextField(props: TextInputProps) {
   const { palette } = useTheme();
   return (
@@ -154,12 +191,24 @@ export function Avatar({
   name,
   colorIndex,
   size = 36,
+  imageUrl,
 }: {
   name: string | null;
   colorIndex: number;
   size?: number;
+  // When set (e.g. an album cover the member chose), render the image instead
+  // of the initials-on-color fallback.
+  imageUrl?: string | null;
 }) {
   const c = avatarColors[((colorIndex % 7) + 7) % 7];
+  if (imageUrl) {
+    return (
+      <Image
+        source={{ uri: imageUrl }}
+        style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: c.bg }}
+      />
+    );
+  }
   const initials = (name ?? '?')
     .split(' ')
     .map((w) => w[0])
@@ -269,6 +318,17 @@ const styles = StyleSheet.create({
   btnText: {
     fontFamily: fonts.sansBold,
     fontSize: 13,
+  },
+  listenRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  listenPill: {
+    borderRadius: 20,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  listenPillText: {
+    fontFamily: fonts.sansBold,
+    fontSize: 11,
+    color: '#fff',
   },
   input: {
     borderWidth: StyleSheet.hairlineWidth,

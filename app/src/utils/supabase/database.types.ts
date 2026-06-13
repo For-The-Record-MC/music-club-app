@@ -705,18 +705,24 @@ export type Database = {
       profiles: {
         Row: {
           avatar_color: number
+          avatar_label: string | null
+          avatar_url: string | null
           created_at: string
           display_name: string | null
           id: string
         }
         Insert: {
           avatar_color?: number
+          avatar_label?: string | null
+          avatar_url?: string | null
           created_at?: string
           display_name?: string | null
           id: string
         }
         Update: {
           avatar_color?: number
+          avatar_label?: string | null
+          avatar_url?: string | null
           created_at?: string
           display_name?: string | null
           id?: string

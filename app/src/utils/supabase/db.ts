@@ -43,8 +43,15 @@ export interface AlbumSummary {
 export const profiles = {
   getById: (id: string) =>
     supabase.from('profiles').select('*').eq('id', id).single(),
-  update: (id: string, patch: { display_name?: string; avatar_color?: number }) =>
-    supabase.from('profiles').update(patch).eq('id', id).select().single(),
+  update: (
+    id: string,
+    patch: {
+      display_name?: string;
+      avatar_color?: number;
+      avatar_url?: string | null;
+      avatar_label?: string | null;
+    },
+  ) => supabase.from('profiles').update(patch).eq('id', id).select().single(),
 };
 
 export const clubs = {
@@ -119,7 +126,7 @@ export const clubMembers = {
   list: (clubId: string) =>
     supabase
       .from('club_members')
-      .select('*, profiles(display_name, avatar_color)')
+      .select('*, profiles(display_name, avatar_color, avatar_url)')
       .eq('club_id', clubId)
       .order('joined_at'),
   setRole: (memberId: string, role: Exclude<ClubRole, 'owner'>) =>
@@ -194,7 +201,7 @@ export const ratings = {
   listRevealed: (albumId: string) =>
     supabase
       .from('ratings')
-      .select('*, profiles(display_name, avatar_color)')
+      .select('*, profiles(display_name, avatar_color, avatar_url)')
       .eq('album_id', albumId)
       .order('score', { ascending: false }),
   // The visibility-gated aggregate (see context/database-schema.md).
@@ -225,7 +232,7 @@ export const songNotes = {
   listVisible: (albumId: string) =>
     supabase
       .from('song_notes')
-      .select('*, profiles(display_name, avatar_color)')
+      .select('*, profiles(display_name, avatar_color, avatar_url)')
       .eq('album_id', albumId)
       .order('track_number'),
   // Upsert a batch of touched tracks in one round-trip.
@@ -269,7 +276,7 @@ export const rsvps = {
   listByCycle: (cycleId: string) =>
     supabase
       .from('rsvps')
-      .select('*, profiles(display_name, avatar_color)')
+      .select('*, profiles(display_name, avatar_color, avatar_url)')
       .eq('cycle_id', cycleId),
   set: (cycleId: string, profileId: string, status: RsvpStatus) =>
     supabase
@@ -294,13 +301,13 @@ export const feed = {
   list: (clubId: string) =>
     supabase
       .from('feed_posts')
-      .select('*, profiles(display_name, avatar_color), post_reactions(emoji, profile_id), post_comments(count)')
+      .select('*, profiles(display_name, avatar_color, avatar_url), post_reactions(emoji, profile_id), post_comments(count)')
       .eq('club_id', clubId)
       .order('created_at', { ascending: false }),
   suggestions: (clubId: string) =>
     supabase
       .from('feed_posts')
-      .select('*, profiles(display_name, avatar_color)')
+      .select('*, profiles(display_name, avatar_color, avatar_url)')
       .eq('club_id', clubId)
       .eq('is_album_suggestion', true)
       .order('created_at', { ascending: false }),
@@ -322,7 +329,7 @@ export const comments = {
   listByPost: (postId: string) =>
     supabase
       .from('post_comments')
-      .select('*, profiles(display_name, avatar_color)')
+      .select('*, profiles(display_name, avatar_color, avatar_url)')
       .eq('post_id', postId)
       .order('created_at'),
   add: (postId: string, authorId: string, text: string) =>
@@ -335,7 +342,7 @@ export const concerts = {
     supabase
       .from('concerts')
       .select(
-        '*, profiles(display_name, avatar_color), concert_interest(profile_id, status), concert_comments(count)',
+        '*, profiles(display_name, avatar_color, avatar_url), concert_interest(profile_id, status), concert_comments(count)',
       )
       .eq('club_id', clubId)
       .order('concert_date', { nullsFirst: false }),
@@ -363,7 +370,7 @@ export const concertComments = {
   listByConcert: (concertId: string) =>
     supabase
       .from('concert_comments')
-      .select('*, profiles(display_name, avatar_color)')
+      .select('*, profiles(display_name, avatar_color, avatar_url)')
       .eq('concert_id', concertId)
       .order('created_at'),
   add: (concertId: string, authorId: string, text: string) =>
@@ -377,7 +384,7 @@ export const activity = {
   list: (clubId: string) =>
     supabase
       .from('activity_events')
-      .select('*, profiles(display_name, avatar_color)')
+      .select('*, profiles(display_name, avatar_color, avatar_url)')
       .eq('club_id', clubId)
       .order('created_at', { ascending: false })
       .limit(100),
