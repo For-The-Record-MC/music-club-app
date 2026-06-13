@@ -50,6 +50,10 @@ export default function RootLayout() {
           <Stack.Screen name="join/index" />
           <Stack.Screen name="club/[id]/index" />
           <Stack.Screen name="club/[id]/members" />
+          <Stack.Screen name="club/[id]/wheel" />
+          <Stack.Screen name="club/[id]/pick-albums" />
+          <Stack.Screen name="club/[id]/schedule" />
+          <Stack.Screen name="club/[id]/rsvp" />
         </Stack.Protected>
         <Stack.Protected guard={!userId}>
           <Stack.Screen name="sign-in" />

@@ -6,6 +6,22 @@
 -- TABLES
 -- =====================================================
 
+CREATE TABLE albums (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  cycle_id uuid NOT NULL,
+  slot integer NOT NULL,
+  title text NOT NULL,
+  artist text NOT NULL DEFAULT ''::text,
+  year integer,
+  artwork_url text,
+  itunes_collection_id bigint,
+  apple_url text,
+  spotify_url text,
+  tracks jsonb,
+  set_by uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE club_members (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   club_id uuid NOT NULL,
@@ -23,6 +39,29 @@ CREATE TABLE clubs (
   created_at timestamp with time zone NOT NULL DEFAULT now()
 );
 
+CREATE TABLE cycle_guests (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  cycle_id uuid NOT NULL,
+  name text NOT NULL,
+  status text NOT NULL DEFAULT 'yes'::text,
+  added_by uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE cycles (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  club_id uuid NOT NULL,
+  number integer NOT NULL,
+  picker_id uuid NOT NULL,
+  status text NOT NULL DEFAULT 'open'::text,
+  start_date date NOT NULL DEFAULT CURRENT_DATE,
+  meeting_date date,
+  meeting_time_location text,
+  revealed_at timestamp with time zone,
+  closed_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE profiles (
   id uuid NOT NULL,
   display_name text,
@@ -30,10 +69,30 @@ CREATE TABLE profiles (
   created_at timestamp with time zone NOT NULL DEFAULT now()
 );
 
+CREATE TABLE rsvps (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  cycle_id uuid NOT NULL,
+  profile_id uuid NOT NULL,
+  status text NOT NULL,
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
 
 -- =====================================================
 -- CONSTRAINTS
 -- =====================================================
+
+ALTER TABLE albums ADD CONSTRAINT albums_cycle_id_fkey FOREIGN KEY (cycle_id) REFERENCES cycles(id) ON DELETE CASCADE;
+
+ALTER TABLE albums ADD CONSTRAINT albums_cycle_id_slot_key UNIQUE (cycle_id, slot);
+
+ALTER TABLE albums ADD CONSTRAINT albums_pkey PRIMARY KEY (id);
+
+ALTER TABLE albums ADD CONSTRAINT albums_set_by_fkey FOREIGN KEY (set_by) REFERENCES profiles(id);
+
+ALTER TABLE albums ADD CONSTRAINT albums_slot_check CHECK ((slot = ANY (ARRAY[1, 2])));
+
+ALTER TABLE albums ADD CONSTRAINT albums_title_check CHECK (((char_length(TRIM(BOTH FROM title)) >= 1) AND (char_length(TRIM(BOTH FROM title)) <= 200)));
 
 ALTER TABLE club_members ADD CONSTRAINT club_members_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
 
@@ -53,6 +112,26 @@ ALTER TABLE clubs ADD CONSTRAINT clubs_owner_id_fkey FOREIGN KEY (owner_id) REFE
 
 ALTER TABLE clubs ADD CONSTRAINT clubs_pkey PRIMARY KEY (id);
 
+ALTER TABLE cycle_guests ADD CONSTRAINT cycle_guests_added_by_fkey FOREIGN KEY (added_by) REFERENCES profiles(id);
+
+ALTER TABLE cycle_guests ADD CONSTRAINT cycle_guests_cycle_id_fkey FOREIGN KEY (cycle_id) REFERENCES cycles(id) ON DELETE CASCADE;
+
+ALTER TABLE cycle_guests ADD CONSTRAINT cycle_guests_name_check CHECK (((char_length(TRIM(BOTH FROM name)) >= 1) AND (char_length(TRIM(BOTH FROM name)) <= 60)));
+
+ALTER TABLE cycle_guests ADD CONSTRAINT cycle_guests_pkey PRIMARY KEY (id);
+
+ALTER TABLE cycle_guests ADD CONSTRAINT cycle_guests_status_check CHECK ((status = ANY (ARRAY['yes'::text, 'maybe'::text, 'no'::text])));
+
+ALTER TABLE cycles ADD CONSTRAINT cycles_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+
+ALTER TABLE cycles ADD CONSTRAINT cycles_club_id_number_key UNIQUE (club_id, number);
+
+ALTER TABLE cycles ADD CONSTRAINT cycles_picker_id_fkey FOREIGN KEY (picker_id) REFERENCES profiles(id);
+
+ALTER TABLE cycles ADD CONSTRAINT cycles_pkey PRIMARY KEY (id);
+
+ALTER TABLE cycles ADD CONSTRAINT cycles_status_check CHECK ((status = ANY (ARRAY['open'::text, 'closed'::text])));
+
 ALTER TABLE profiles ADD CONSTRAINT profiles_avatar_color_check CHECK (((avatar_color >= 0) AND (avatar_color <= 6)));
 
 ALTER TABLE profiles ADD CONSTRAINT profiles_display_name_check CHECK (((display_name IS NULL) OR ((char_length(display_name) >= 1) AND (char_length(display_name) <= 40))));
@@ -61,10 +140,22 @@ ALTER TABLE profiles ADD CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES
 
 ALTER TABLE profiles ADD CONSTRAINT profiles_pkey PRIMARY KEY (id);
 
+ALTER TABLE rsvps ADD CONSTRAINT rsvps_cycle_id_fkey FOREIGN KEY (cycle_id) REFERENCES cycles(id) ON DELETE CASCADE;
+
+ALTER TABLE rsvps ADD CONSTRAINT rsvps_cycle_id_profile_id_key UNIQUE (cycle_id, profile_id);
+
+ALTER TABLE rsvps ADD CONSTRAINT rsvps_pkey PRIMARY KEY (id);
+
+ALTER TABLE rsvps ADD CONSTRAINT rsvps_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE rsvps ADD CONSTRAINT rsvps_status_check CHECK ((status = ANY (ARRAY['yes'::text, 'maybe'::text, 'no'::text])));
+
 
 -- =====================================================
 -- INDEXES
 -- =====================================================
+
+CREATE INDEX albums_cycle_idx ON public.albums USING btree (cycle_id);
 
 CREATE INDEX club_members_club_idx ON public.club_members USING btree (club_id);
 
@@ -72,10 +163,33 @@ CREATE UNIQUE INDEX club_members_one_owner_idx ON public.club_members USING btre
 
 CREATE INDEX club_members_profile_idx ON public.club_members USING btree (profile_id);
 
+CREATE INDEX cycle_guests_cycle_idx ON public.cycle_guests USING btree (cycle_id);
+
+CREATE INDEX cycles_club_idx ON public.cycles USING btree (club_id);
+
+CREATE UNIQUE INDEX cycles_one_open_idx ON public.cycles USING btree (club_id) WHERE (status = 'open'::text);
+
+CREATE INDEX rsvps_cycle_idx ON public.rsvps USING btree (cycle_id);
+
 
 -- =====================================================
 -- ROW LEVEL SECURITY
 -- =====================================================
+
+ALTER TABLE albums ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY albums_select ON albums AS PERMISSIVE FOR SELECT TO authenticated
+  USING ((EXISTS ( SELECT 1
+   FROM cycles c
+  WHERE ((c.id = albums.cycle_id) AND is_club_member(c.club_id)))));
+
+CREATE POLICY albums_write ON albums AS PERMISSIVE FOR ALL TO authenticated
+  USING ((EXISTS ( SELECT 1
+   FROM cycles c
+  WHERE ((c.id = albums.cycle_id) AND (c.status = 'open'::text) AND ((c.picker_id = auth.uid()) OR (club_role(c.club_id) = ANY (ARRAY['owner'::text, 'admin'::text])))))))
+  WITH CHECK (((set_by = auth.uid()) AND (EXISTS ( SELECT 1
+   FROM cycles c
+  WHERE ((c.id = albums.cycle_id) AND (c.status = 'open'::text) AND ((c.picker_id = auth.uid()) OR (club_role(c.club_id) = ANY (ARRAY['owner'::text, 'admin'::text]))))))));
 
 ALTER TABLE club_members ENABLE ROW LEVEL SECURITY;
 
@@ -101,6 +215,40 @@ CREATE POLICY clubs_update ON clubs AS PERMISSIVE FOR UPDATE TO authenticated
   USING ((club_role(id) = ANY (ARRAY['owner'::text, 'admin'::text])))
   WITH CHECK ((club_role(id) = ANY (ARRAY['owner'::text, 'admin'::text])));
 
+ALTER TABLE cycle_guests ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY cycle_guests_delete ON cycle_guests AS PERMISSIVE FOR DELETE TO authenticated
+  USING (((added_by = auth.uid()) OR (EXISTS ( SELECT 1
+   FROM cycles c
+  WHERE ((c.id = cycle_guests.cycle_id) AND (club_role(c.club_id) = ANY (ARRAY['owner'::text, 'admin'::text])))))));
+
+CREATE POLICY cycle_guests_insert ON cycle_guests AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (((added_by = auth.uid()) AND (EXISTS ( SELECT 1
+   FROM cycles c
+  WHERE ((c.id = cycle_guests.cycle_id) AND (c.status = 'open'::text) AND is_club_member(c.club_id))))));
+
+CREATE POLICY cycle_guests_select ON cycle_guests AS PERMISSIVE FOR SELECT TO authenticated
+  USING ((EXISTS ( SELECT 1
+   FROM cycles c
+  WHERE ((c.id = cycle_guests.cycle_id) AND is_club_member(c.club_id)))));
+
+CREATE POLICY cycle_guests_update ON cycle_guests AS PERMISSIVE FOR UPDATE TO authenticated
+  USING (((added_by = auth.uid()) OR (EXISTS ( SELECT 1
+   FROM cycles c
+  WHERE ((c.id = cycle_guests.cycle_id) AND (club_role(c.club_id) = ANY (ARRAY['owner'::text, 'admin'::text])))))));
+
+ALTER TABLE cycles ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY cycles_delete ON cycles AS PERMISSIVE FOR DELETE TO authenticated
+  USING ((club_role(club_id) = 'owner'::text));
+
+CREATE POLICY cycles_select ON cycles AS PERMISSIVE FOR SELECT TO authenticated
+  USING (is_club_member(club_id));
+
+CREATE POLICY cycles_update ON cycles AS PERMISSIVE FOR UPDATE TO authenticated
+  USING ((club_role(club_id) = ANY (ARRAY['owner'::text, 'admin'::text])))
+  WITH CHECK ((club_role(club_id) = ANY (ARRAY['owner'::text, 'admin'::text])));
+
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY profiles_select ON profiles AS PERMISSIVE FOR SELECT TO authenticated
@@ -110,10 +258,53 @@ CREATE POLICY profiles_update ON profiles AS PERMISSIVE FOR UPDATE TO authentica
   USING ((id = auth.uid()))
   WITH CHECK ((id = auth.uid()));
 
+ALTER TABLE rsvps ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY rsvps_select ON rsvps AS PERMISSIVE FOR SELECT TO authenticated
+  USING ((EXISTS ( SELECT 1
+   FROM cycles c
+  WHERE ((c.id = rsvps.cycle_id) AND is_club_member(c.club_id)))));
+
+CREATE POLICY rsvps_write ON rsvps AS PERMISSIVE FOR ALL TO authenticated
+  USING ((profile_id = auth.uid()))
+  WITH CHECK (((profile_id = auth.uid()) AND (EXISTS ( SELECT 1
+   FROM cycles c
+  WHERE ((c.id = rsvps.cycle_id) AND (c.status = 'open'::text) AND is_club_member(c.club_id))))));
+
 
 -- =====================================================
 -- FUNCTIONS & PROCEDURES
 -- =====================================================
+
+CREATE OR REPLACE FUNCTION public.close_cycle(p_cycle uuid)
+ RETURNS cycles
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_cycle public.cycles;
+begin
+  select * into v_cycle from cycles where id = p_cycle;
+  if not found then
+    raise exception 'Cycle not found';
+  end if;
+  if public.club_role(v_cycle.club_id) not in ('owner', 'admin') then
+    raise exception 'Admin access required';
+  end if;
+  if v_cycle.status <> 'open' then
+    raise exception 'Cycle is already closed';
+  end if;
+  update cycles
+  set status = 'closed',
+      closed_at = now(),
+      revealed_at = coalesce(revealed_at, now())
+  where id = p_cycle
+  returning * into v_cycle;
+  return v_cycle;
+end;
+$function$
+;
 
 CREATE OR REPLACE FUNCTION public.club_role(p_club uuid)
  RETURNS text
@@ -220,6 +411,30 @@ end;
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.reveal_cycle(p_cycle uuid)
+ RETURNS cycles
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_cycle public.cycles;
+begin
+  select * into v_cycle from cycles where id = p_cycle;
+  if not found then
+    raise exception 'Cycle not found';
+  end if;
+  if public.club_role(v_cycle.club_id) not in ('owner', 'admin') then
+    raise exception 'Admin access required';
+  end if;
+  update cycles set revealed_at = coalesce(revealed_at, now())
+  where id = p_cycle
+  returning * into v_cycle;
+  return v_cycle;
+end;
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.rotate_invite_code(p_club uuid)
  RETURNS text
  LANGUAGE plpgsql
@@ -236,6 +451,77 @@ begin
   where id = p_club
   returning invite_code into v_code;
   return v_code;
+end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.spin_wheel(p_club uuid)
+ RETURNS cycles
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_picker uuid;
+  v_cycle public.cycles;
+begin
+  if public.club_role(p_club) not in ('owner', 'admin') then
+    raise exception 'Admin access required';
+  end if;
+  if exists (select 1 from cycles where club_id = p_club and status = 'open') then
+    raise exception 'A cycle is already open';
+  end if;
+
+  select pool into v_picker
+  from public.wheel_pool(p_club) as pool
+  order by random()
+  limit 1;
+  if v_picker is null then
+    raise exception 'No eligible members to pick from';
+  end if;
+
+  insert into cycles (club_id, number, picker_id, status, start_date)
+  values (
+    p_club,
+    (select coalesce(max(number), 0) + 1 from cycles where club_id = p_club),
+    v_picker,
+    'open',
+    current_date
+  )
+  returning * into v_cycle;
+
+  return v_cycle;
+end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.wheel_pool(p_club uuid)
+ RETURNS SETOF uuid
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_excl integer;
+begin
+  if not public.is_club_member(p_club) then
+    raise exception 'Not a club member';
+  end if;
+  foreach v_excl in array array[3, 1, 0] loop
+    return query
+      select cm.profile_id
+      from club_members cm
+      where cm.club_id = p_club
+        and cm.profile_id not in (
+          select c.picker_id from cycles c
+          where c.club_id = p_club
+          order by c.number desc
+          limit v_excl
+        );
+    if found then
+      return;
+    end if;
+  end loop;
 end;
 $function$
 ;

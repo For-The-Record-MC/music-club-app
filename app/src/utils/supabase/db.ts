@@ -1,6 +1,6 @@
 import { supabase, supabaseAnonKey, supabaseUrl } from './client';
 
-import type { Tables } from './database.types';
+import type { Tables, TablesInsert } from './database.types';
 
 // ALL Supabase queries live in this file, grouped into typed query objects —
 // one object per domain. Screens and hooks must never call the raw supabase
@@ -10,6 +10,11 @@ export type Profile = Tables<'profiles'>;
 export type Club = Tables<'clubs'>;
 export type ClubMember = Tables<'club_members'>;
 export type ClubRole = 'owner' | 'admin' | 'member';
+export type Cycle = Tables<'cycles'>;
+export type Album = Tables<'albums'>;
+export type Rsvp = Tables<'rsvps'>;
+export type CycleGuest = Tables<'cycle_guests'>;
+export type RsvpStatus = 'yes' | 'maybe' | 'no';
 
 export const profiles = {
   getById: (id: string) =>
@@ -51,6 +56,68 @@ export const clubMembers = {
     supabase.from('club_members').update({ role }).eq('id', memberId),
   remove: (memberId: string) =>
     supabase.from('club_members').delete().eq('id', memberId),
+};
+
+export const cycles = {
+  // "Current cycle" is ALWAYS the status='open' row, never max(number).
+  current: (clubId: string) =>
+    supabase
+      .from('cycles')
+      .select('*')
+      .eq('club_id', clubId)
+      .eq('status', 'open')
+      .maybeSingle(),
+  listClosed: (clubId: string) =>
+    supabase
+      .from('cycles')
+      .select('*, albums(*)')
+      .eq('club_id', clubId)
+      .eq('status', 'closed')
+      .order('number', { ascending: false }),
+  scheduleMeeting: (id: string, date: string | null, timeLocation: string | null) =>
+    supabase
+      .from('cycles')
+      .update({ meeting_date: date, meeting_time_location: timeLocation })
+      .eq('id', id),
+  // RPCs — see context/database-schema.md for semantics.
+  spin: (clubId: string) => supabase.rpc('spin_wheel', { p_club: clubId }),
+  pool: (clubId: string) => supabase.rpc('wheel_pool', { p_club: clubId }),
+  reveal: (id: string) => supabase.rpc('reveal_cycle', { p_cycle: id }),
+  close: (id: string) => supabase.rpc('close_cycle', { p_cycle: id }),
+  remove: (id: string) => supabase.from('cycles').delete().eq('id', id),
+};
+
+export const albums = {
+  listByCycle: (cycleId: string) =>
+    supabase.from('albums').select('*').eq('cycle_id', cycleId).order('slot'),
+  upsert: (album: TablesInsert<'albums'>) =>
+    supabase.from('albums').upsert(album, { onConflict: 'cycle_id,slot' }).select().single(),
+  remove: (id: string) => supabase.from('albums').delete().eq('id', id),
+};
+
+export const rsvps = {
+  listByCycle: (cycleId: string) =>
+    supabase
+      .from('rsvps')
+      .select('*, profiles(display_name, avatar_color)')
+      .eq('cycle_id', cycleId),
+  set: (cycleId: string, profileId: string, status: RsvpStatus) =>
+    supabase
+      .from('rsvps')
+      .upsert(
+        { cycle_id: cycleId, profile_id: profileId, status, updated_at: new Date().toISOString() },
+        { onConflict: 'cycle_id,profile_id' },
+      ),
+};
+
+export const cycleGuests = {
+  listByCycle: (cycleId: string) =>
+    supabase.from('cycle_guests').select('*').eq('cycle_id', cycleId).order('created_at'),
+  add: (cycleId: string, name: string, status: RsvpStatus, addedBy: string) =>
+    supabase
+      .from('cycle_guests')
+      .insert({ cycle_id: cycleId, name: name.trim(), status, added_by: addedBy }),
+  remove: (id: string) => supabase.from('cycle_guests').delete().eq('id', id),
 };
 
 export const health = {

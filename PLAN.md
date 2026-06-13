@@ -67,8 +67,9 @@ matching `activity_events` rows transactionally.
 ## Status
 
 - **Phase 0** shipped 2026-06-12 (scaffold, Supabase link, theme, Pages deploy).
-- **Phase 1** shipped 2026-06-12 (identity & clubs: migration `20260612210000`, email-OTP auth, lobby, create/join club, invite links, member/role management).
-- Next: **Phase 2** (cycle engine: wheel, albums, meetings, RSVPs).
+- **Phase 1** shipped 2026-06-12 (identity & clubs: migration `20260612210000`, email-OTP auth + password path, lobby, create/join club, invite links, member/role management).
+- **Phase 2** shipped 2026-06-12 (cycle engine: migration `20260612230000`, wheel screen with server-side spin, album picks via iTunes search, meeting scheduling, RSVPs + guests, cycle close).
+- Next: **Phase 3** (ratings & reveal).
 
 ## Phases
 

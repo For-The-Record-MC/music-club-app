@@ -39,6 +39,69 @@ export type Database = {
   }
   public: {
     Tables: {
+      albums: {
+        Row: {
+          apple_url: string | null
+          artist: string
+          artwork_url: string | null
+          created_at: string
+          cycle_id: string
+          id: string
+          itunes_collection_id: number | null
+          set_by: string
+          slot: number
+          spotify_url: string | null
+          title: string
+          tracks: Json | null
+          year: number | null
+        }
+        Insert: {
+          apple_url?: string | null
+          artist?: string
+          artwork_url?: string | null
+          created_at?: string
+          cycle_id: string
+          id?: string
+          itunes_collection_id?: number | null
+          set_by: string
+          slot: number
+          spotify_url?: string | null
+          title: string
+          tracks?: Json | null
+          year?: number | null
+        }
+        Update: {
+          apple_url?: string | null
+          artist?: string
+          artwork_url?: string | null
+          created_at?: string
+          cycle_id?: string
+          id?: string
+          itunes_collection_id?: number | null
+          set_by?: string
+          slot?: number
+          spotify_url?: string | null
+          title?: string
+          tracks?: Json | null
+          year?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "albums_cycle_id_fkey"
+            columns: ["cycle_id"]
+            isOneToOne: false
+            referencedRelation: "cycles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "albums_set_by_fkey"
+            columns: ["set_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       club_members: {
         Row: {
           club_id: string
@@ -113,6 +176,105 @@ export type Database = {
           },
         ]
       }
+      cycle_guests: {
+        Row: {
+          added_by: string
+          created_at: string
+          cycle_id: string
+          id: string
+          name: string
+          status: string
+        }
+        Insert: {
+          added_by: string
+          created_at?: string
+          cycle_id: string
+          id?: string
+          name: string
+          status?: string
+        }
+        Update: {
+          added_by?: string
+          created_at?: string
+          cycle_id?: string
+          id?: string
+          name?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cycle_guests_added_by_fkey"
+            columns: ["added_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cycle_guests_cycle_id_fkey"
+            columns: ["cycle_id"]
+            isOneToOne: false
+            referencedRelation: "cycles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cycles: {
+        Row: {
+          closed_at: string | null
+          club_id: string
+          created_at: string
+          id: string
+          meeting_date: string | null
+          meeting_time_location: string | null
+          number: number
+          picker_id: string
+          revealed_at: string | null
+          start_date: string
+          status: string
+        }
+        Insert: {
+          closed_at?: string | null
+          club_id: string
+          created_at?: string
+          id?: string
+          meeting_date?: string | null
+          meeting_time_location?: string | null
+          number: number
+          picker_id: string
+          revealed_at?: string | null
+          start_date?: string
+          status?: string
+        }
+        Update: {
+          closed_at?: string | null
+          club_id?: string
+          created_at?: string
+          id?: string
+          meeting_date?: string | null
+          meeting_time_location?: string | null
+          number?: number
+          picker_id?: string
+          revealed_at?: string | null
+          start_date?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cycles_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cycles_picker_id_fkey"
+            columns: ["picker_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_color: number
@@ -134,11 +296,72 @@ export type Database = {
         }
         Relationships: []
       }
+      rsvps: {
+        Row: {
+          cycle_id: string
+          id: string
+          profile_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          cycle_id: string
+          id?: string
+          profile_id: string
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          cycle_id?: string
+          id?: string
+          profile_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rsvps_cycle_id_fkey"
+            columns: ["cycle_id"]
+            isOneToOne: false
+            referencedRelation: "cycles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rsvps_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      close_cycle: {
+        Args: { p_cycle: string }
+        Returns: {
+          closed_at: string | null
+          club_id: string
+          created_at: string
+          id: string
+          meeting_date: string | null
+          meeting_time_location: string | null
+          number: number
+          picker_id: string
+          revealed_at: string | null
+          start_date: string
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "cycles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       club_role: { Args: { p_club: string }; Returns: string }
       create_club: {
         Args: { p_emoji?: string; p_name: string }
@@ -176,7 +399,52 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      reveal_cycle: {
+        Args: { p_cycle: string }
+        Returns: {
+          closed_at: string | null
+          club_id: string
+          created_at: string
+          id: string
+          meeting_date: string | null
+          meeting_time_location: string | null
+          number: number
+          picker_id: string
+          revealed_at: string | null
+          start_date: string
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "cycles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       rotate_invite_code: { Args: { p_club: string }; Returns: string }
+      spin_wheel: {
+        Args: { p_club: string }
+        Returns: {
+          closed_at: string | null
+          club_id: string
+          created_at: string
+          id: string
+          meeting_date: string | null
+          meeting_time_location: string | null
+          number: number
+          picker_id: string
+          revealed_at: string | null
+          start_date: string
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "cycles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      wheel_pool: { Args: { p_club: string }; Returns: string[] }
     }
     Enums: {
       [_ in never]: never
