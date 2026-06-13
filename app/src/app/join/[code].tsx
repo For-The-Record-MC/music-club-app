@@ -6,6 +6,7 @@ import { AuthForm } from '@/components/AuthForm';
 import { Button, Card, InlineNote, Screen } from '@/components/ui';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
+import { useCurrentClubStore } from '@/stores/currentClubStore';
 import { fonts } from '@/theme';
 import { clubs } from '@/utils/supabase/db';
 
@@ -17,6 +18,7 @@ export default function JoinByLink() {
   const { palette } = useTheme();
   const router = useRouter();
   const userId = useAuthStore((s) => s.userId);
+  const setClub = useCurrentClubStore((s) => s.setClub);
   const [error, setError] = useState<string | null>(null);
   const attempted = useRef(false);
 
@@ -24,10 +26,14 @@ export default function JoinByLink() {
     if (!userId || !code || attempted.current) return;
     attempted.current = true;
     clubs.join(code).then(({ data, error: err }) => {
-      if (err || !data) setError(err?.message ?? 'Could not join.');
-      else router.replace(`/club/${data.id}`);
+      if (err || !data) {
+        setError(err?.message ?? 'Could not join.');
+      } else {
+        setClub(data.id);
+        router.replace('/home');
+      }
     });
-  }, [userId, code, router]);
+  }, [userId, code, router, setClub]);
 
   return (
     <Screen>

@@ -45,7 +45,7 @@ export default function PickAlbums() {
         <>
           <SlotEditor slot={1} cycleId={cycle.id} existing={albums.find((a) => a.slot === 1)} onSaved={handleSaved} />
           <SlotEditor slot={2} cycleId={cycle.id} existing={albums.find((a) => a.slot === 2)} onSaved={handleSaved} />
-          <Button title="Done — back to the club" variant="ghost" onPress={() => router.replace(`/club/${id}`)} />
+          <Button title="Done — back to the club" variant="ghost" onPress={() => router.replace('/home')} />
         </>
       )}
     </Screen>

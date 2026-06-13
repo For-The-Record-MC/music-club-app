@@ -1,12 +1,13 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Avatar, Button, Card, InlineNote, Label, Screen, TextField } from '@/components/ui';
+import { Avatar, Button, Card, InlineNote, Label, NoClubSelected, Screen, TextField } from '@/components/ui';
 import { useFeed, type FeedRow } from '@/hooks/useFeed';
 import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
+import { useCurrentClubStore } from '@/stores/currentClubStore';
 import { timeAgo } from '@/utils/activityTemplates';
 import { confirmAsync } from '@/utils/confirm';
 import {
@@ -25,7 +26,7 @@ type Kind = 'track' | 'album' | 'playlist';
 // One social feed for the club. Posts flagged "album suggestion" also surface
 // in the picker's backlog (/club/[id]/suggestions).
 export default function Feed() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const id = useCurrentClubStore((s) => s.clubId) ?? undefined;
   const router = useRouter();
   const { palette } = useTheme();
   const userId = useAuthStore((s) => s.userId);
@@ -81,12 +82,11 @@ export default function Feed() {
     refresh();
   };
 
+  if (!id) return <NoClubSelected what="feed" />;
+
   return (
     <Screen onRefresh={onRefresh} refreshing={refreshing}>
       <View style={styles.topbar}>
-        <Pressable onPress={() => router.back()}>
-          <Text style={[styles.back, { color: palette.text2 }]}>←</Text>
-        </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={[styles.eyebrow, { color: palette.text3 }]}>WHAT YOU'RE HEARING</Text>
           <Text style={[styles.title, { color: palette.text1 }]}>The Feed</Text>

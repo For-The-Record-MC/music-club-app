@@ -203,6 +203,33 @@ export function InlineNote({ text, tone = 'muted' }: { text: string; tone?: 'mut
   return <Text style={[styles.note, { color }]}>{text}</Text>;
 }
 
+// Shown on a club tab when no club is selected yet.
+export function NoClubSelected({ what }: { what: string }) {
+  const { palette } = useTheme();
+  return (
+    <Screen>
+      <View style={{ alignItems: 'center', paddingVertical: 60 }}>
+        <Text style={{ fontSize: 44, marginBottom: 14 }}>💿</Text>
+        <Text style={{ fontFamily: fonts.sansBold, fontSize: 18, color: palette.text1, marginBottom: 6 }}>
+          No club selected
+        </Text>
+        <Text
+          style={{
+            fontFamily: fonts.sans,
+            fontSize: 13,
+            lineHeight: 20,
+            color: palette.text2,
+            textAlign: 'center',
+            maxWidth: 280,
+          }}
+        >
+          Head to the Clubs tab and pick a club to see its {what}.
+        </Text>
+      </View>
+    </Screen>
+  );
+}
+
 const styles = StyleSheet.create({
   pageContent: {
     paddingHorizontal: 14,

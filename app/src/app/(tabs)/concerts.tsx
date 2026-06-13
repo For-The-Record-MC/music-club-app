@@ -1,18 +1,19 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Avatar, Button, Card, InlineNote, Label, Screen, TextField } from '@/components/ui';
+import { Avatar, Button, Card, InlineNote, Label, NoClubSelected, Screen, TextField } from '@/components/ui';
 import { useConcerts, type ConcertRow } from '@/hooks/useConcerts';
 import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
+import { useCurrentClubStore } from '@/stores/currentClubStore';
 import { confirmAsync } from '@/utils/confirm';
 import { activity, concerts as concertsDb } from '@/utils/supabase/db';
 import { fonts } from '@/theme';
 
 export default function Concerts() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const id = useCurrentClubStore((s) => s.clubId) ?? undefined;
   const router = useRouter();
   const { palette } = useTheme();
   const userId = useAuthStore((s) => s.userId);
@@ -66,12 +67,11 @@ export default function Concerts() {
     refresh();
   };
 
+  if (!id) return <NoClubSelected what="concerts" />;
+
   return (
     <Screen onRefresh={onRefresh} refreshing={refreshing}>
       <View style={styles.topbar}>
-        <Pressable onPress={() => router.back()}>
-          <Text style={[styles.back, { color: palette.text2 }]}>←</Text>
-        </Pressable>
         <View>
           <Text style={[styles.eyebrow, { color: palette.text3 }]}>SHOWS WORTH SEEING</Text>
           <Text style={[styles.title, { color: palette.text1 }]}>🎤 Concerts</Text>

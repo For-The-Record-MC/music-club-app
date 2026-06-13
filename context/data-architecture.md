@@ -13,15 +13,21 @@ The pattern, inherited from Pindejos: **screens consume hooks; hooks call `db.*`
 
 ## Routing & auth gating
 
-`src/app/_layout.tsx` wraps routes in `Stack.Protected`:
+Bottom-tab UX (v2). `src/app/_layout.tsx` is the root `Stack` wrapped in `Stack.Protected`:
 
-- guard `!!userId`: `index` (lobby), `profile-setup`, `create-club`, `join/index`, `club/[id]/*`.
+- guard `!!userId`: **`(tabs)`** (the tab navigator), `profile-setup`, `create-club`, `join/index`, and the club **detail/action** screens `club/[id]/{members,wheel,pick-albums,schedule,rsvp,suggestions,album/[albumId],rate/[albumId]}` (pushed on top of the tabs).
 - guard `!userId`: `sign-in`.
-- **`join/[code]` is deliberately unguarded** — invite links must survive sign-in, so that screen renders `AuthForm` inline when signed out and auto-joins when the session appears.
+- **`join/[code]` is deliberately unguarded** — invite links must survive sign-in (renders `AuthForm` inline, auto-joins on session).
 
-The lobby redirects to `/profile-setup` while `profile.display_name` is null (first sign-in).
+`src/app/(tabs)/_layout.tsx` is the `Tabs` navigator: **Clubs** (`index`), **Home** (`home`), **Feed** (`feed`), **Concerts** (`concerts`), **Activity** (`activity`, with an unread badge). The Clubs tab redirects to `/profile-setup` while `profile.display_name` is null (first sign-in).
 
-When adding a screen: create the route file, then **add a `Stack.Screen` entry to the correct guard group** — unlisted routes are NOT protected.
+### The selected-club model
+
+Tabs are persistent, so the four club tabs can't take a route param. The **selected club** lives in `stores/currentClubStore.ts` (zustand, persisted to AsyncStorage, hydrated in the root layout). The Clubs tab calls `setClub(id)` then routes to `/home`; the other tabs read `clubId` from the store and render `<NoClubSelected>` when it's null. create-club / join also `setClub` + go to `/home`; leaving or deleting a club calls `setClub(null)`.
+
+Detail/action screens still live at `club/[id]/*` and **do** take the `id` route param — the tabs push them with the explicit club id (`/club/${clubId}/wheel`). Their "back to club" actions use `router.replace('/home')`.
+
+When adding a **club browse view**, add a tab under `(tabs)/` reading the store. When adding a **detail/action screen**, add it under `club/[id]/` and register it in the root `_layout.tsx` protected group.
 
 ## UI primitives
 

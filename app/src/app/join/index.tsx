@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text } from 'react-native';
 
 import { Button, Card, InlineNote, Label, Screen, TextField } from '@/components/ui';
 import { useTheme } from '@/hooks/use-theme';
+import { useCurrentClubStore } from '@/stores/currentClubStore';
 import { fonts } from '@/theme';
 import { clubs } from '@/utils/supabase/db';
 
@@ -11,6 +12,7 @@ import { clubs } from '@/utils/supabase/db';
 export default function JoinClub() {
   const { palette } = useTheme();
   const router = useRouter();
+  const setClub = useCurrentClubStore((s) => s.setClub);
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +27,8 @@ export default function JoinClub() {
       setError(err?.message ?? 'Could not join.');
       return;
     }
-    router.replace(`/club/${data.id}`);
+    setClub(data.id);
+    router.replace('/home');
   };
 
   return (

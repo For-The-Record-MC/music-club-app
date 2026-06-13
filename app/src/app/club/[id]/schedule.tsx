@@ -51,7 +51,7 @@ export default function Schedule() {
       setError(err.message);
       return;
     }
-    router.replace(`/club/${id}`);
+    router.replace('/home');
   };
 
   return (

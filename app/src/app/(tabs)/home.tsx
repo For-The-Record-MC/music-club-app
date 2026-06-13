@@ -1,16 +1,16 @@
 import * as Clipboard from 'expo-clipboard';
 import { Image } from 'expo-image';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 
-import { Avatar, Button, Card, InlineNote, Label, Screen } from '@/components/ui';
-import { useActivity } from '@/hooks/useActivity';
+import { Avatar, Button, Card, InlineNote, Label, NoClubSelected, Screen } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
 import { useCycle } from '@/hooks/useCycle';
 import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
+import { useCurrentClubStore } from '@/stores/currentClubStore';
 import { inviteUrl } from '@/constants';
 import { fonts, radius } from '@/theme';
 import { confirmAsync } from '@/utils/confirm';
@@ -26,33 +26,31 @@ interface ClosedCycle extends Cycle {
   albums: Album[];
 }
 
-// Club home: the current cycle is the centerpiece — picker, two albums,
-// meeting, RSVP. No open cycle → the spin call-to-action.
-export default function ClubHome() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+// Home tab: the selected club's current cycle — picker, two albums, meeting, RSVP.
+export default function HomeTab() {
   const { palette } = useTheme();
   const router = useRouter();
   const userId = useAuthStore((s) => s.userId);
-  const { club, members, myRole, loading: clubLoading, refresh: refreshClub } = useClubData(id);
-  const { cycle, albums, rsvps, guests, loading: cycleLoading, refresh } = useCycle(id);
-  const { unread, refresh: refreshActivity } = useActivity(id);
+  const clubId = useCurrentClubStore((s) => s.clubId) ?? undefined;
+  const { club, members, myRole, loading: clubLoading, refresh: refreshClub } = useClubData(clubId);
+  const { cycle, albums, rsvps, guests, loading: cycleLoading, refresh } = useCycle(clubId);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pastCycles, setPastCycles] = useState<ClosedCycle[]>([]);
 
   const loadPast = useCallback(() => {
-    if (!id) return;
-    cycles.listClosed(id).then(({ data }) => setPastCycles((data ?? []) as ClosedCycle[]));
-  }, [id]);
+    if (!clubId) return;
+    cycles.listClosed(clubId).then(({ data }) => setPastCycles((data ?? []) as ClosedCycle[]));
+  }, [clubId]);
 
   useEffect(() => {
     loadPast();
   }, [loadPast, cycle]);
 
   const refreshAll = useCallback(async () => {
-    await Promise.all([refreshClub(), refresh(), refreshActivity()]);
+    await Promise.all([refreshClub(), refresh()]);
     loadPast();
-  }, [refreshClub, refresh, refreshActivity, loadPast]);
+  }, [refreshClub, refresh, loadPast]);
   const { refreshing, onRefresh } = useRefresh(refreshAll);
 
   const isAdmin = myRole === 'owner' || myRole === 'admin';
@@ -67,6 +65,8 @@ export default function ClubHome() {
     [rsvps, guests],
   );
   const myStatus = rsvps.find((r) => r.profile_id === userId)?.status as RsvpStatus | undefined;
+
+  if (!clubId) return <NoClubSelected what="cycle, albums, and meeting" />;
 
   if (clubLoading || cycleLoading || !club) {
     return (
@@ -127,23 +127,12 @@ export default function ClubHome() {
   return (
     <Screen onRefresh={onRefresh} refreshing={refreshing}>
       <View style={styles.topbar}>
-        <Pressable onPress={() => router.replace('/')}>
-          <Text style={[styles.back, { color: palette.text2 }]}>←</Text>
-        </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={[styles.eyebrow, { color: palette.text3 }]}>LISTENING CLUB</Text>
           <Text style={[styles.title, { color: palette.text1 }]}>
             {club.emoji} {club.name}
           </Text>
         </View>
-        <Pressable onPress={() => router.push(`/club/${club.id}/activity`)} style={styles.bell}>
-          <Text style={{ fontSize: 20 }}>🔔</Text>
-          {unread > 0 ? (
-            <View style={[styles.bellDot, { backgroundColor: palette.amber, borderColor: palette.bg }]}>
-              <Text style={styles.bellCount}>{unread > 9 ? '9+' : unread}</Text>
-            </View>
-          ) : null}
-        </Pressable>
         <Pressable onPress={() => router.push(`/club/${club.id}/members`)}>
           <View style={styles.avStack}>
             {members.slice(0, 3).map((m) => (
@@ -207,9 +196,7 @@ export default function ClubHome() {
                       {a.artist}
                       {a.year ? ` · ${a.year}` : ''}
                     </Text>
-                    <Text style={[styles.rateHint, { color: palette.purple }]}>
-                      ⭐ rate & reviews ›
-                    </Text>
+                    <Text style={[styles.rateHint, { color: palette.purple }]}>⭐ rate &amp; reviews ›</Text>
                   </View>
                 </Pressable>
               ))}
@@ -267,9 +254,7 @@ export default function ClubHome() {
                       active && { backgroundColor: bg, borderColor: color },
                     ]}
                   >
-                    <Text style={[styles.quickText, { color: active ? color : palette.text3 }]}>
-                      {label}
-                    </Text>
+                    <Text style={[styles.quickText, { color: active ? color : palette.text3 }]}>{label}</Text>
                   </Pressable>
                 );
               })}
@@ -307,12 +292,8 @@ export default function ClubHome() {
                   >
                     <Text style={[styles.pastCycleNum, { color: palette.text3 }]}>#{pc.number}</Text>
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text numberOfLines={1} style={[styles.pastTitle, { color: palette.text1 }]}>
-                        {a.title}
-                      </Text>
-                      <Text numberOfLines={1} style={[styles.pastArtist, { color: palette.text2 }]}>
-                        {a.artist}
-                      </Text>
+                      <Text numberOfLines={1} style={[styles.pastTitle, { color: palette.text1 }]}>{a.title}</Text>
+                      <Text numberOfLines={1} style={[styles.pastArtist, { color: palette.text2 }]}>{a.artist}</Text>
                     </View>
                     <Text style={{ color: palette.text3 }}>›</Text>
                   </Pressable>
@@ -321,31 +302,6 @@ export default function ClubHome() {
           </Card>
         </>
       ) : null}
-
-      <Label>Explore</Label>
-      <View style={styles.navRow}>
-        <Pressable
-          onPress={() => router.push(`/club/${club.id}/feed`)}
-          style={({ pressed }) => [styles.navTile, { backgroundColor: palette.card, borderColor: palette.border }, pressed && { borderColor: palette.teal }]}
-        >
-          <Text style={styles.navIcon}>🎧</Text>
-          <Text style={[styles.navLabel, { color: palette.text1 }]}>Feed</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => router.push(`/club/${club.id}/concerts`)}
-          style={({ pressed }) => [styles.navTile, { backgroundColor: palette.card, borderColor: palette.border }, pressed && { borderColor: palette.teal }]}
-        >
-          <Text style={styles.navIcon}>🎤</Text>
-          <Text style={[styles.navLabel, { color: palette.text1 }]}>Concerts</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => router.push(`/club/${club.id}/suggestions`)}
-          style={({ pressed }) => [styles.navTile, { backgroundColor: palette.card, borderColor: palette.border }, pressed && { borderColor: palette.teal }]}
-        >
-          <Text style={styles.navIcon}>💡</Text>
-          <Text style={[styles.navLabel, { color: palette.text1 }]}>Backlog</Text>
-        </Pressable>
-      </View>
 
       <Label>Invite members</Label>
       <Card>
@@ -364,35 +320,9 @@ export default function ClubHome() {
 
 const styles = StyleSheet.create({
   topbar: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 },
-  back: { fontSize: 22, paddingHorizontal: 4 },
   eyebrow: { fontFamily: fonts.monoMedium, fontSize: 9, letterSpacing: 3, marginBottom: 2 },
   title: { fontFamily: fonts.sansBold, fontSize: 19 },
   avStack: { flexDirection: 'row', marginLeft: 8 },
-  bell: { position: 'relative', padding: 2 },
-  bellDot: {
-    position: 'absolute',
-    top: -2,
-    right: -4,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 3,
-  },
-  bellCount: { color: '#000', fontFamily: fonts.monoMedium, fontSize: 9 },
-  navRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  navTile: {
-    flex: 1,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.lg,
-    paddingVertical: 16,
-    alignItems: 'center',
-    gap: 6,
-  },
-  navIcon: { fontSize: 22 },
-  navLabel: { fontFamily: fonts.sansMedium, fontSize: 12 },
   heroTitle: { fontFamily: fonts.sansBold, fontSize: 18, marginBottom: 6 },
   heroSub: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 19, textAlign: 'center' },
   albumRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 8 },

@@ -5,11 +5,13 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Button, Card, InlineNote, Label, Screen, TextField } from '@/components/ui';
 import { useTheme } from '@/hooks/use-theme';
 import { clubEmojis, fonts, radius } from '@/theme';
+import { useCurrentClubStore } from '@/stores/currentClubStore';
 import { clubs } from '@/utils/supabase/db';
 
 export default function CreateClub() {
   const { palette } = useTheme();
   const router = useRouter();
+  const setClub = useCurrentClubStore((s) => s.setClub);
   const [name, setName] = useState('');
   const [emoji, setEmoji] = useState<string>('🎵');
   const [busy, setBusy] = useState(false);
@@ -28,7 +30,8 @@ export default function CreateClub() {
       setError(err?.message ?? 'Could not create the club.');
       return;
     }
-    router.replace(`/club/${data.id}`);
+    setClub(data.id);
+    router.replace('/home');
   };
 
   return (

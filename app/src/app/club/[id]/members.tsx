@@ -6,6 +6,7 @@ import { Avatar, Badge, Button, Card, InlineNote, Label, Screen } from '@/compon
 import { useTheme } from '@/hooks/use-theme';
 import { useClubData, type MemberRow } from '@/hooks/useClubData';
 import { useAuthStore } from '@/stores/authStore';
+import { useCurrentClubStore } from '@/stores/currentClubStore';
 import { fonts } from '@/theme';
 import { confirmAsync } from '@/utils/confirm';
 import { clubMembers, clubs } from '@/utils/supabase/db';
@@ -19,6 +20,7 @@ export default function Members() {
   const { palette } = useTheme();
   const router = useRouter();
   const userId = useAuthStore((s) => s.userId);
+  const clearClub = useCurrentClubStore((s) => s.setClub);
   const { club, members, myRole, refresh } = useClubData(id);
   const [error, setError] = useState<string | null>(null);
   const [rotated, setRotated] = useState(false);
@@ -49,6 +51,7 @@ export default function Members() {
     if (!me) return;
     if (await confirmAsync('Leave club', `Leave "${club.name}"?`)) {
       await clubMembers.remove(me.id);
+      clearClub(null);
       router.replace('/');
     }
   };
@@ -73,6 +76,7 @@ export default function Members() {
       await confirmAsync('Delete club', `Delete "${club.name}" for everyone? This cannot be undone.`)
     ) {
       await clubs.remove(club.id);
+      clearClub(null);
       router.replace('/');
     }
   };

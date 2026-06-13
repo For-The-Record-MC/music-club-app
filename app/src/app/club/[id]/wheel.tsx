@@ -152,7 +152,7 @@ export default function Wheel() {
           {iAmWinner || isAdmin ? (
             <Button title="Choose the albums →" onPress={() => router.replace(`/club/${id}/pick-albums`)} />
           ) : null}
-          <Button title="Back to the club" variant="ghost" onPress={() => router.replace(`/club/${id}`)} />
+          <Button title="Back to the club" variant="ghost" onPress={() => router.replace('/home')} />
         </View>
       ) : null}
 

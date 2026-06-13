@@ -16,12 +16,14 @@ import { Platform } from 'react-native';
 
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
+import { useCurrentClubStore } from '@/stores/currentClubStore';
 import { useThemeStore } from '@/stores/themeStore';
 
 export default function RootLayout() {
   const { palette, isDark } = useTheme();
   const { userId, isHydrated, hydrate } = useAuthStore();
   const hydrateTheme = useThemeStore((s) => s.hydrate);
+  const hydrateClub = useCurrentClubStore((s) => s.hydrate);
   const [fontsLoaded] = useFonts({
     DMSans_400Regular,
     DMSans_500Medium,
@@ -34,8 +36,9 @@ export default function RootLayout() {
   useEffect(() => {
     hydrate();
     hydrateTheme();
+    hydrateClub();
     if (Platform.OS === 'web') document.title = 'Vinyl & Vino — Listening Clubs';
-  }, [hydrate, hydrateTheme]);
+  }, [hydrate, hydrateTheme, hydrateClub]);
 
   if (!fontsLoaded || !isHydrated) return null;
 
@@ -49,11 +52,10 @@ export default function RootLayout() {
         }}
       >
         <Stack.Protected guard={!!userId}>
-          <Stack.Screen name="index" />
+          <Stack.Screen name="(tabs)" />
           <Stack.Screen name="profile-setup" />
           <Stack.Screen name="create-club" />
           <Stack.Screen name="join/index" />
-          <Stack.Screen name="club/[id]/index" />
           <Stack.Screen name="club/[id]/members" />
           <Stack.Screen name="club/[id]/wheel" />
           <Stack.Screen name="club/[id]/pick-albums" />
@@ -61,10 +63,7 @@ export default function RootLayout() {
           <Stack.Screen name="club/[id]/rsvp" />
           <Stack.Screen name="club/[id]/album/[albumId]" />
           <Stack.Screen name="club/[id]/rate/[albumId]" />
-          <Stack.Screen name="club/[id]/feed" />
           <Stack.Screen name="club/[id]/suggestions" />
-          <Stack.Screen name="club/[id]/concerts" />
-          <Stack.Screen name="club/[id]/activity" />
         </Stack.Protected>
         <Stack.Protected guard={!userId}>
           <Stack.Screen name="sign-in" />

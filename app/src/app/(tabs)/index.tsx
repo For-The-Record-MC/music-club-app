@@ -7,20 +7,28 @@ import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { useMyClubs } from '@/hooks/useMyClubs';
 import { useAuthStore } from '@/stores/authStore';
+import { useCurrentClubStore } from '@/stores/currentClubStore';
 import { avatarColors, fonts, radius } from '@/theme';
 
-// The lobby: your clubs, create, join.
-export default function Lobby() {
+// The Clubs tab: pick your current club (drives the other tabs), create, join.
+export default function ClubsTab() {
   const { palette } = useTheme();
   const router = useRouter();
   const { profile, signOut } = useAuthStore();
   const { rows, loading, refresh } = useMyClubs();
   const { refreshing, onRefresh } = useRefresh(refresh);
+  const setClub = useCurrentClubStore((s) => s.setClub);
+  const currentClubId = useCurrentClubStore((s) => s.clubId);
 
   // First sign-in: get a display name before anything else.
   if (profile && !profile.display_name) {
     return <Redirect href="/profile-setup" />;
   }
+
+  const openClub = (id: string) => {
+    setClub(id);
+    router.push('/home');
+  };
 
   return (
     <Screen onRefresh={onRefresh} refreshing={refreshing}>
@@ -51,37 +59,40 @@ export default function Lobby() {
         </View>
       ) : null}
 
-      {rows.map(({ club, role }, i) => (
-        <Pressable
-          key={club.id}
-          onPress={() => router.push(`/club/${club.id}`)}
-          style={({ pressed }) => [
-            styles.tile,
-            {
-              backgroundColor: palette.card,
-              borderColor: pressed ? palette.border2 : palette.border,
-            },
-          ]}
-        >
-          <View style={[styles.tileEmoji, { backgroundColor: avatarColors[i % 7].bg }]}>
-            <Text style={{ fontSize: 26 }}>{club.emoji}</Text>
-          </View>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={[styles.tileName, { color: palette.text1 }]}>{club.name}</Text>
-            <Text style={[styles.tileMeta, { color: palette.text2 }]}>
-              Joined {new Date(club.created_at).toLocaleDateString()}
-            </Text>
-          </View>
-          {role !== 'member' ? (
-            <Badge
-              text={role}
-              color={role === 'owner' ? palette.teal : palette.purple}
-              bg={role === 'owner' ? palette.tealBg : palette.purpleBg}
-            />
-          ) : null}
-          <Text style={[styles.tileArrow, { color: palette.text3 }]}>›</Text>
-        </Pressable>
-      ))}
+      {rows.map(({ club, role }, i) => {
+        const isCurrent = club.id === currentClubId;
+        return (
+          <Pressable
+            key={club.id}
+            onPress={() => openClub(club.id)}
+            style={({ pressed }) => [
+              styles.tile,
+              {
+                backgroundColor: palette.card,
+                borderColor: isCurrent ? palette.teal : pressed ? palette.border2 : palette.border,
+              },
+            ]}
+          >
+            <View style={[styles.tileEmoji, { backgroundColor: avatarColors[i % 7].bg }]}>
+              <Text style={{ fontSize: 26 }}>{club.emoji}</Text>
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={[styles.tileName, { color: palette.text1 }]}>{club.name}</Text>
+              <Text style={[styles.tileMeta, { color: isCurrent ? palette.teal : palette.text2 }]}>
+                {isCurrent ? 'Current club ·' : ''} tap to open
+              </Text>
+            </View>
+            {role !== 'member' ? (
+              <Badge
+                text={role}
+                color={role === 'owner' ? palette.teal : palette.purple}
+                bg={role === 'owner' ? palette.tealBg : palette.purpleBg}
+              />
+            ) : null}
+            <Text style={[styles.tileArrow, { color: palette.text3 }]}>›</Text>
+          </Pressable>
+        );
+      })}
 
       <Pressable
         onPress={() => router.push('/create-club')}
@@ -131,7 +142,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   tileName: { fontFamily: fonts.sansBold, fontSize: 16, marginBottom: 3 },
-  tileMeta: { fontFamily: fonts.sans, fontSize: 12 },
+  tileMeta: { fontFamily: fonts.mono, fontSize: 11 },
   tileArrow: { fontSize: 20 },
   newClub: {
     borderWidth: 1,
