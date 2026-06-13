@@ -1,5 +1,6 @@
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar, Button, Card, InlineNote, Label, NoClubSelected, Screen, TextField } from '@/components/ui';
@@ -8,6 +9,7 @@ import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
 import { useCurrentClubStore } from '@/stores/currentClubStore';
+import { searchSongs, type ItunesSong } from '@/utils/itunes';
 import { timeAgo } from '@/utils/activityTemplates';
 import { confirmAsync } from '@/utils/confirm';
 import {
@@ -22,6 +24,12 @@ import { fonts, radius } from '@/theme';
 
 type Platform = 'spotify' | 'apple' | 'other';
 type Kind = 'track' | 'album' | 'playlist';
+
+// Artwork URL stored on a post's metadata jsonb (from iTunes search), if any.
+function artworkOf(post: FeedRow): string | null {
+  const m = post.metadata as { artwork?: string } | null;
+  return m?.artwork ?? null;
+}
 
 // One social feed for the club. Posts flagged "album suggestion" also surface
 // in the picker's backlog (/club/[id]/suggestions).
@@ -41,8 +49,46 @@ export default function Feed() {
   const [kind, setKind] = useState<Kind>('track');
   const [platform, setPlatform] = useState<Platform>('spotify');
   const [suggestion, setSuggestion] = useState(false);
+  const [artwork, setArtwork] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [results, setResults] = useState<ItunesSong[]>([]);
+  const searchSeq = useRef(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const runSearch = async (term: string) => {
+    setSearch(term);
+    const seq = ++searchSeq.current;
+    if (term.trim().length < 3) {
+      setResults([]);
+      return;
+    }
+    const found = await searchSongs(term);
+    if (seq === searchSeq.current) setResults(found);
+  };
+
+  const pickSong = (s: ItunesSong) => {
+    setTitle(s.trackName);
+    setArtist(s.artistName);
+    setUrl(s.appleUrl);
+    setPlatform('apple');
+    setArtwork(s.artworkUrl || null);
+    setKind('track');
+    setResults([]);
+    setSearch('');
+  };
+
+  const resetComposer = () => {
+    setTitle('');
+    setArtist('');
+    setUrl('');
+    setNote('');
+    setSuggestion(false);
+    setArtwork(null);
+    setSearch('');
+    setResults([]);
+    setOpen(false);
+  };
 
   const submit = async () => {
     if (!id || !userId || !title.trim()) {
@@ -61,6 +107,7 @@ export default function Feed() {
       platform,
       note: note.trim() || null,
       is_album_suggestion: suggestion,
+      metadata: artwork ? { artwork } : null,
     });
     if (!err && data) {
       await activity.publish(id, 'feed_post', {
@@ -73,12 +120,7 @@ export default function Feed() {
       setError(err.message);
       return;
     }
-    setTitle('');
-    setArtist('');
-    setUrl('');
-    setNote('');
-    setSuggestion(false);
-    setOpen(false);
+    resetComposer();
     refresh();
   };
 
@@ -100,7 +142,45 @@ export default function Feed() {
         <Button title="+ Share something" onPress={() => setOpen(true)} style={{ marginBottom: 14 }} />
       ) : (
         <Card>
-          <Label>Share with the club</Label>
+          <Label>Search a song</Label>
+          <TextField
+            placeholder="Search Apple Music… (e.g. Dreams Fleetwood Mac)"
+            value={search}
+            onChangeText={runSearch}
+            autoCorrect={false}
+          />
+          {results.map((s) => (
+            <Pressable
+              key={s.trackId}
+              onPress={() => pickSong(s)}
+              style={({ pressed }) => [
+                styles.resultRow,
+                { backgroundColor: pressed ? palette.card2 : 'transparent' },
+              ]}
+            >
+              {s.artworkUrl ? (
+                <Image source={{ uri: s.artworkUrl }} style={styles.resultArt} contentFit="cover" />
+              ) : null}
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text numberOfLines={1} style={[styles.resultTitle, { color: palette.text1 }]}>{s.trackName}</Text>
+                <Text numberOfLines={1} style={[styles.resultArtist, { color: palette.text2 }]}>{s.artistName}</Text>
+              </View>
+            </Pressable>
+          ))}
+
+          {artwork ? (
+            <View style={styles.pickedRow}>
+              <Image source={{ uri: artwork }} style={styles.resultArt} contentFit="cover" />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text numberOfLines={1} style={[styles.resultTitle, { color: palette.text1 }]}>{title}</Text>
+                <Text numberOfLines={1} style={[styles.resultArtist, { color: palette.text2 }]}>{artist}</Text>
+              </View>
+              <Text onPress={() => { setArtwork(null); setUrl(''); }} style={[styles.clearPick, { color: palette.text3 }]}>×</Text>
+            </View>
+          ) : null}
+
+          <Text style={[styles.orNote, { color: palette.text3 }]}>or enter it manually</Text>
+
           <View style={styles.segRow}>
             {(['track', 'album', 'playlist'] as Kind[]).map((k) => (
               <Pressable
@@ -161,7 +241,7 @@ export default function Feed() {
               </Text>
             </Pressable>
             <Button title="Post" onPress={submit} loading={busy} />
-            <Button title="Cancel" variant="ghost" onPress={() => setOpen(false)} />
+            <Button title="Cancel" variant="ghost" onPress={resetComposer} />
             {error ? <InlineNote text={error} tone="error" /> : null}
           </View>
         </Card>
@@ -259,8 +339,15 @@ function PostCard({
         ) : null}
       </View>
 
-      <Text style={[styles.postTitle, { color: palette.text1 }]}>{post.title}</Text>
-      {post.artist ? <Text style={[styles.postArtist, { color: palette.text2 }]}>{post.artist}</Text> : null}
+      <View style={styles.postBody}>
+        {artworkOf(post) ? (
+          <Image source={{ uri: artworkOf(post)! }} style={styles.postArt} contentFit="cover" />
+        ) : null}
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={[styles.postTitle, { color: palette.text1 }]}>{post.title}</Text>
+          {post.artist ? <Text style={[styles.postArtist, { color: palette.text2 }]}>{post.artist}</Text> : null}
+        </View>
+      </View>
       {post.note ? <Text style={[styles.postNote, { color: palette.text2 }]}>{post.note}</Text> : null}
       {post.url ? (
         <Pressable onPress={() => Linking.openURL(post.url!)}>
@@ -362,6 +449,22 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: 'hidden',
   },
+  resultRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 6, borderRadius: radius.md },
+  resultArt: { width: 40, height: 40, borderRadius: radius.sm },
+  resultTitle: { fontFamily: fonts.sansMedium, fontSize: 13 },
+  resultArtist: { fontFamily: fonts.sans, fontSize: 11 },
+  pickedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 6,
+    marginTop: 6,
+    borderRadius: radius.md,
+  },
+  clearPick: { fontSize: 18, paddingHorizontal: 4 },
+  orNote: { fontFamily: fonts.mono, fontSize: 10, textAlign: 'center', marginVertical: 8 },
+  postBody: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  postArt: { width: 44, height: 44, borderRadius: radius.sm },
   postTitle: { fontFamily: fonts.sansBold, fontSize: 15, marginBottom: 1 },
   postArtist: { fontFamily: fonts.sans, fontSize: 12, marginBottom: 4 },
   postNote: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 19, fontStyle: 'italic', marginBottom: 6 },

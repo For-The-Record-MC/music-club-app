@@ -72,7 +72,15 @@ matching `activity_events` rows transactionally.
 - **Phase 3** shipped 2026-06-12 (ratings & reveal: migration `20260613010000`, rate form with track pickers, album detail with checklist → club-average → full-reveal ladder, admin reveal, past-cycle history).
 - **Phase 4** shipped 2026-06-12 (social layer: migration `20260613030000`, club feed with reactions/comments + album-suggestion backlog, concerts board with interest, activity feed with client-side templates + unread bell wired into lifecycle RPCs and member actions).
 - **Phase 5** shipped 2026-06-13 (polish & launch: per-user theme toggle system/dark/light, pull-to-refresh on browse screens, web document title, launch/ops doc in [context/launch.md](context/launch.md)). Remaining pre-launch step is operational, not code: configure SMTP + the OTP email template (see launch.md).
-- **All six phases complete.** Follow-ups (non-blocking): SMTP config, bulk history import, Expo push, Spotify links, native TestFlight build.
+- **All six phases complete.** Follow-ups (non-blocking): bulk history import, Expo push, Spotify links, native TestFlight build.
+- Email/SMTP configured 2026-06-13 (Gmail App Password, port 587; see [context/launch.md](context/launch.md)).
+
+## v2 (2026-06-13)
+
+- **Bottom-tab navigation** (migration-free): persistent tabs Clubs / Home / Feed / Concerts / Activity (Pindejos-style), with a selected-club store (`currentClubStore`) replacing the `/club/[id]` route-param model for browse screens. Detail/action screens stay at `club/[id]/*`. Activity tab shows an unread badge.
+- **Real meeting date+time** (migration `20260613170000`): `cycles.meeting_at` timestamptz, cross-platform `DateTimeField` (native picker + web `datetime-local`), "Add to calendar" (Google Calendar template).
+- **Album preference** (migration `20260613190000`): `cycle_preferences` — each member picks which of the cycle's two albums they liked more; sealed until reveal, then a vote tally.
+- **iTunes song search in the feed** (`searchSongs`): members search Apple Music and pick a track (auto-fills title/artist/link/artwork) instead of pasting links; artwork shows on posts.
 
 ## Phases
 

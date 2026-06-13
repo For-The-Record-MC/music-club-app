@@ -34,6 +34,39 @@ export async function searchAlbums(term: string): Promise<ItunesAlbum[]> {
   }));
 }
 
+export interface ItunesSong {
+  trackId: number;
+  trackName: string;
+  artistName: string;
+  collectionName: string;
+  artworkUrl: string;
+  appleUrl: string;
+  kind: 'track' | 'album';
+}
+
+// Song/track search for the feed composer, so members pick a track instead of
+// pasting a link. Returns both songs and the albums they belong to.
+export async function searchSongs(term: string): Promise<ItunesSong[]> {
+  const q = term.trim();
+  if (!q) return [];
+  const res = await fetch(
+    `https://itunes.apple.com/search?media=music&entity=song&limit=10&term=${encodeURIComponent(q)}`,
+  );
+  if (!res.ok) return [];
+  const json = await res.json();
+  return (json.results ?? [])
+    .filter((r: any) => r.trackName)
+    .map((r: any) => ({
+      trackId: r.trackId,
+      trackName: r.trackName,
+      artistName: r.artistName,
+      collectionName: r.collectionName ?? '',
+      artworkUrl: (r.artworkUrl100 ?? '').replace('100x100', '200x200'),
+      appleUrl: r.trackViewUrl ?? r.collectionViewUrl ?? '',
+      kind: 'track' as const,
+    }));
+}
+
 export async function getAlbumTracks(collectionId: number): Promise<ItunesTrack[]> {
   const res = await fetch(
     `https://itunes.apple.com/lookup?id=${collectionId}&entity=song&limit=200`,
