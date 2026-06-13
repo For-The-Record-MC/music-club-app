@@ -6,6 +6,21 @@
 -- TABLES
 -- =====================================================
 
+CREATE TABLE activity_events (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  club_id uuid NOT NULL,
+  actor_id uuid,
+  event_type text NOT NULL,
+  payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE activity_reads (
+  club_id uuid NOT NULL,
+  profile_id uuid NOT NULL,
+  last_read_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE albums (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   cycle_id uuid NOT NULL,
@@ -39,6 +54,26 @@ CREATE TABLE clubs (
   created_at timestamp with time zone NOT NULL DEFAULT now()
 );
 
+CREATE TABLE concert_interest (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  concert_id uuid NOT NULL,
+  profile_id uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE concerts (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  club_id uuid NOT NULL,
+  added_by uuid NOT NULL,
+  artist text NOT NULL,
+  concert_date date,
+  venue text,
+  price text,
+  ticket_url text,
+  note text,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE cycle_guests (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   cycle_id uuid NOT NULL,
@@ -59,6 +94,37 @@ CREATE TABLE cycles (
   meeting_time_location text,
   revealed_at timestamp with time zone,
   closed_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE feed_posts (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  club_id uuid NOT NULL,
+  author_id uuid NOT NULL,
+  kind text NOT NULL DEFAULT 'track'::text,
+  title text NOT NULL,
+  artist text NOT NULL DEFAULT ''::text,
+  url text,
+  platform text NOT NULL DEFAULT 'other'::text,
+  note text,
+  is_album_suggestion boolean NOT NULL DEFAULT false,
+  metadata jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE post_comments (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  post_id uuid NOT NULL,
+  author_id uuid NOT NULL,
+  text text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE post_reactions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  post_id uuid NOT NULL,
+  profile_id uuid NOT NULL,
+  emoji text NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now()
 );
 
@@ -96,6 +162,18 @@ CREATE TABLE rsvps (
 -- CONSTRAINTS
 -- =====================================================
 
+ALTER TABLE activity_events ADD CONSTRAINT activity_events_actor_id_fkey FOREIGN KEY (actor_id) REFERENCES profiles(id) ON DELETE SET NULL;
+
+ALTER TABLE activity_events ADD CONSTRAINT activity_events_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+
+ALTER TABLE activity_events ADD CONSTRAINT activity_events_pkey PRIMARY KEY (id);
+
+ALTER TABLE activity_reads ADD CONSTRAINT activity_reads_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+
+ALTER TABLE activity_reads ADD CONSTRAINT activity_reads_pkey PRIMARY KEY (club_id, profile_id);
+
+ALTER TABLE activity_reads ADD CONSTRAINT activity_reads_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
 ALTER TABLE albums ADD CONSTRAINT albums_cycle_id_fkey FOREIGN KEY (cycle_id) REFERENCES cycles(id) ON DELETE CASCADE;
 
 ALTER TABLE albums ADD CONSTRAINT albums_cycle_id_slot_key UNIQUE (cycle_id, slot);
@@ -126,6 +204,24 @@ ALTER TABLE clubs ADD CONSTRAINT clubs_owner_id_fkey FOREIGN KEY (owner_id) REFE
 
 ALTER TABLE clubs ADD CONSTRAINT clubs_pkey PRIMARY KEY (id);
 
+ALTER TABLE concert_interest ADD CONSTRAINT concert_interest_concert_id_fkey FOREIGN KEY (concert_id) REFERENCES concerts(id) ON DELETE CASCADE;
+
+ALTER TABLE concert_interest ADD CONSTRAINT concert_interest_concert_id_profile_id_key UNIQUE (concert_id, profile_id);
+
+ALTER TABLE concert_interest ADD CONSTRAINT concert_interest_pkey PRIMARY KEY (id);
+
+ALTER TABLE concert_interest ADD CONSTRAINT concert_interest_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE concerts ADD CONSTRAINT concerts_added_by_fkey FOREIGN KEY (added_by) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE concerts ADD CONSTRAINT concerts_artist_check CHECK (((char_length(TRIM(BOTH FROM artist)) >= 1) AND (char_length(TRIM(BOTH FROM artist)) <= 200)));
+
+ALTER TABLE concerts ADD CONSTRAINT concerts_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+
+ALTER TABLE concerts ADD CONSTRAINT concerts_note_check CHECK (((note IS NULL) OR (char_length(note) <= 1000)));
+
+ALTER TABLE concerts ADD CONSTRAINT concerts_pkey PRIMARY KEY (id);
+
 ALTER TABLE cycle_guests ADD CONSTRAINT cycle_guests_added_by_fkey FOREIGN KEY (added_by) REFERENCES profiles(id);
 
 ALTER TABLE cycle_guests ADD CONSTRAINT cycle_guests_cycle_id_fkey FOREIGN KEY (cycle_id) REFERENCES cycles(id) ON DELETE CASCADE;
@@ -145,6 +241,38 @@ ALTER TABLE cycles ADD CONSTRAINT cycles_picker_id_fkey FOREIGN KEY (picker_id) 
 ALTER TABLE cycles ADD CONSTRAINT cycles_pkey PRIMARY KEY (id);
 
 ALTER TABLE cycles ADD CONSTRAINT cycles_status_check CHECK ((status = ANY (ARRAY['open'::text, 'closed'::text])));
+
+ALTER TABLE feed_posts ADD CONSTRAINT feed_posts_author_id_fkey FOREIGN KEY (author_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE feed_posts ADD CONSTRAINT feed_posts_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+
+ALTER TABLE feed_posts ADD CONSTRAINT feed_posts_kind_check CHECK ((kind = ANY (ARRAY['track'::text, 'album'::text, 'playlist'::text])));
+
+ALTER TABLE feed_posts ADD CONSTRAINT feed_posts_note_check CHECK (((note IS NULL) OR (char_length(note) <= 2000)));
+
+ALTER TABLE feed_posts ADD CONSTRAINT feed_posts_pkey PRIMARY KEY (id);
+
+ALTER TABLE feed_posts ADD CONSTRAINT feed_posts_platform_check CHECK ((platform = ANY (ARRAY['spotify'::text, 'apple'::text, 'other'::text])));
+
+ALTER TABLE feed_posts ADD CONSTRAINT feed_posts_title_check CHECK (((char_length(TRIM(BOTH FROM title)) >= 1) AND (char_length(TRIM(BOTH FROM title)) <= 300)));
+
+ALTER TABLE post_comments ADD CONSTRAINT post_comments_author_id_fkey FOREIGN KEY (author_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE post_comments ADD CONSTRAINT post_comments_pkey PRIMARY KEY (id);
+
+ALTER TABLE post_comments ADD CONSTRAINT post_comments_post_id_fkey FOREIGN KEY (post_id) REFERENCES feed_posts(id) ON DELETE CASCADE;
+
+ALTER TABLE post_comments ADD CONSTRAINT post_comments_text_check CHECK (((char_length(TRIM(BOTH FROM text)) >= 1) AND (char_length(TRIM(BOTH FROM text)) <= 2000)));
+
+ALTER TABLE post_reactions ADD CONSTRAINT post_reactions_emoji_check CHECK ((emoji = ANY (ARRAY['👍'::text, '❤️'::text, '🔥'::text, '😂'::text, '🤔'::text])));
+
+ALTER TABLE post_reactions ADD CONSTRAINT post_reactions_pkey PRIMARY KEY (id);
+
+ALTER TABLE post_reactions ADD CONSTRAINT post_reactions_post_id_fkey FOREIGN KEY (post_id) REFERENCES feed_posts(id) ON DELETE CASCADE;
+
+ALTER TABLE post_reactions ADD CONSTRAINT post_reactions_post_id_profile_id_key UNIQUE (post_id, profile_id);
+
+ALTER TABLE post_reactions ADD CONSTRAINT post_reactions_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
 
 ALTER TABLE profiles ADD CONSTRAINT profiles_avatar_color_check CHECK (((avatar_color >= 0) AND (avatar_color <= 6)));
 
@@ -185,6 +313,8 @@ ALTER TABLE rsvps ADD CONSTRAINT rsvps_status_check CHECK ((status = ANY (ARRAY[
 -- INDEXES
 -- =====================================================
 
+CREATE INDEX activity_events_club_idx ON public.activity_events USING btree (club_id, created_at DESC);
+
 CREATE INDEX albums_cycle_idx ON public.albums USING btree (cycle_id);
 
 CREATE INDEX club_members_club_idx ON public.club_members USING btree (club_id);
@@ -193,11 +323,23 @@ CREATE UNIQUE INDEX club_members_one_owner_idx ON public.club_members USING btre
 
 CREATE INDEX club_members_profile_idx ON public.club_members USING btree (profile_id);
 
+CREATE INDEX concert_interest_concert_idx ON public.concert_interest USING btree (concert_id);
+
+CREATE INDEX concerts_club_idx ON public.concerts USING btree (club_id, concert_date);
+
 CREATE INDEX cycle_guests_cycle_idx ON public.cycle_guests USING btree (cycle_id);
 
 CREATE INDEX cycles_club_idx ON public.cycles USING btree (club_id);
 
 CREATE UNIQUE INDEX cycles_one_open_idx ON public.cycles USING btree (club_id) WHERE (status = 'open'::text);
+
+CREATE INDEX feed_posts_club_idx ON public.feed_posts USING btree (club_id, created_at DESC);
+
+CREATE INDEX feed_posts_suggestion_idx ON public.feed_posts USING btree (club_id) WHERE is_album_suggestion;
+
+CREATE INDEX post_comments_post_idx ON public.post_comments USING btree (post_id, created_at);
+
+CREATE INDEX post_reactions_post_idx ON public.post_reactions USING btree (post_id);
 
 CREATE INDEX ratings_album_idx ON public.ratings USING btree (album_id);
 
@@ -207,6 +349,16 @@ CREATE INDEX rsvps_cycle_idx ON public.rsvps USING btree (cycle_id);
 -- =====================================================
 -- ROW LEVEL SECURITY
 -- =====================================================
+
+ALTER TABLE activity_events ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY activity_events_select ON activity_events AS PERMISSIVE FOR SELECT TO authenticated
+  USING (is_club_member(club_id));
+
+ALTER TABLE activity_reads ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY activity_reads_select ON activity_reads AS PERMISSIVE FOR SELECT TO authenticated
+  USING ((profile_id = auth.uid()));
 
 ALTER TABLE albums ENABLE ROW LEVEL SECURITY;
 
@@ -247,6 +399,30 @@ CREATE POLICY clubs_update ON clubs AS PERMISSIVE FOR UPDATE TO authenticated
   USING ((club_role(id) = ANY (ARRAY['owner'::text, 'admin'::text])))
   WITH CHECK ((club_role(id) = ANY (ARRAY['owner'::text, 'admin'::text])));
 
+ALTER TABLE concert_interest ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY concert_interest_select ON concert_interest AS PERMISSIVE FOR SELECT TO authenticated
+  USING ((EXISTS ( SELECT 1
+   FROM concerts c
+  WHERE ((c.id = concert_interest.concert_id) AND is_club_member(c.club_id)))));
+
+CREATE POLICY concert_interest_write ON concert_interest AS PERMISSIVE FOR ALL TO authenticated
+  USING ((profile_id = auth.uid()))
+  WITH CHECK (((profile_id = auth.uid()) AND (EXISTS ( SELECT 1
+   FROM concerts c
+  WHERE ((c.id = concert_interest.concert_id) AND is_club_member(c.club_id))))));
+
+ALTER TABLE concerts ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY concerts_delete ON concerts AS PERMISSIVE FOR DELETE TO authenticated
+  USING (((added_by = auth.uid()) OR (club_role(club_id) = ANY (ARRAY['owner'::text, 'admin'::text]))));
+
+CREATE POLICY concerts_insert ON concerts AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (((added_by = auth.uid()) AND is_club_member(club_id)));
+
+CREATE POLICY concerts_select ON concerts AS PERMISSIVE FOR SELECT TO authenticated
+  USING (is_club_member(club_id));
+
 ALTER TABLE cycle_guests ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY cycle_guests_delete ON cycle_guests AS PERMISSIVE FOR DELETE TO authenticated
@@ -280,6 +456,47 @@ CREATE POLICY cycles_select ON cycles AS PERMISSIVE FOR SELECT TO authenticated
 CREATE POLICY cycles_update ON cycles AS PERMISSIVE FOR UPDATE TO authenticated
   USING ((club_role(club_id) = ANY (ARRAY['owner'::text, 'admin'::text])))
   WITH CHECK ((club_role(club_id) = ANY (ARRAY['owner'::text, 'admin'::text])));
+
+ALTER TABLE feed_posts ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY feed_posts_delete ON feed_posts AS PERMISSIVE FOR DELETE TO authenticated
+  USING (((author_id = auth.uid()) OR (club_role(club_id) = ANY (ARRAY['owner'::text, 'admin'::text]))));
+
+CREATE POLICY feed_posts_insert ON feed_posts AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (((author_id = auth.uid()) AND is_club_member(club_id)));
+
+CREATE POLICY feed_posts_select ON feed_posts AS PERMISSIVE FOR SELECT TO authenticated
+  USING (is_club_member(club_id));
+
+ALTER TABLE post_comments ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY post_comments_delete ON post_comments AS PERMISSIVE FOR DELETE TO authenticated
+  USING (((author_id = auth.uid()) OR (EXISTS ( SELECT 1
+   FROM feed_posts p
+  WHERE ((p.id = post_comments.post_id) AND (club_role(p.club_id) = ANY (ARRAY['owner'::text, 'admin'::text])))))));
+
+CREATE POLICY post_comments_insert ON post_comments AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (((author_id = auth.uid()) AND (EXISTS ( SELECT 1
+   FROM feed_posts p
+  WHERE ((p.id = post_comments.post_id) AND is_club_member(p.club_id))))));
+
+CREATE POLICY post_comments_select ON post_comments AS PERMISSIVE FOR SELECT TO authenticated
+  USING ((EXISTS ( SELECT 1
+   FROM feed_posts p
+  WHERE ((p.id = post_comments.post_id) AND is_club_member(p.club_id)))));
+
+ALTER TABLE post_reactions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY post_reactions_select ON post_reactions AS PERMISSIVE FOR SELECT TO authenticated
+  USING ((EXISTS ( SELECT 1
+   FROM feed_posts p
+  WHERE ((p.id = post_reactions.post_id) AND is_club_member(p.club_id)))));
+
+CREATE POLICY post_reactions_write ON post_reactions AS PERMISSIVE FOR ALL TO authenticated
+  USING ((profile_id = auth.uid()))
+  WITH CHECK (((profile_id = auth.uid()) AND (EXISTS ( SELECT 1
+   FROM feed_posts p
+  WHERE ((p.id = post_reactions.post_id) AND is_club_member(p.club_id))))));
 
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
@@ -519,6 +736,36 @@ end;
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.mark_activity_read(p_club uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not public.is_club_member(p_club) then
+    raise exception 'Not a club member';
+  end if;
+  insert into activity_reads (club_id, profile_id, last_read_at)
+  values (p_club, auth.uid(), now())
+  on conflict (club_id, profile_id) do update set last_read_at = now();
+end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.publish_activity_event(p_club uuid, p_type text, p_payload jsonb DEFAULT '{}'::jsonb)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  insert into activity_events (club_id, actor_id, event_type, payload)
+  values (p_club, auth.uid(), p_type, coalesce(p_payload, '{}'::jsonb));
+end;
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.reveal_cycle(p_cycle uuid)
  RETURNS cycles
  LANGUAGE plpgsql
@@ -527,6 +774,7 @@ CREATE OR REPLACE FUNCTION public.reveal_cycle(p_cycle uuid)
 AS $function$
 declare
   v_cycle public.cycles;
+  v_was timestamptz;
 begin
   select * into v_cycle from cycles where id = p_cycle;
   if not found then
@@ -535,9 +783,17 @@ begin
   if public.club_role(v_cycle.club_id) not in ('owner', 'admin') then
     raise exception 'Admin access required';
   end if;
+  v_was := v_cycle.revealed_at;
   update cycles set revealed_at = coalesce(revealed_at, now())
   where id = p_cycle
   returning * into v_cycle;
+
+  if v_was is null then
+    perform public.publish_activity_event(
+      v_cycle.club_id, 'ratings_revealed',
+      jsonb_build_object('cycle_number', v_cycle.number)
+    );
+  end if;
   return v_cycle;
 end;
 $function$
@@ -572,6 +828,7 @@ AS $function$
 declare
   v_picker uuid;
   v_cycle public.cycles;
+  v_name text;
 begin
   if public.club_role(p_club) not in ('owner', 'admin') then
     raise exception 'Admin access required';
@@ -597,6 +854,12 @@ begin
     current_date
   )
   returning * into v_cycle;
+
+  select display_name into v_name from profiles where id = v_picker;
+  perform public.publish_activity_event(
+    p_club, 'wheel_spun',
+    jsonb_build_object('cycle_number', v_cycle.number, 'picker_id', v_picker, 'picker_name', v_name)
+  );
 
   return v_cycle;
 end;

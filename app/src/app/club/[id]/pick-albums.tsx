@@ -9,7 +9,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
 import { fonts, radius } from '@/theme';
 import { getAlbumTracks, searchAlbums, type ItunesAlbum } from '@/utils/itunes';
-import { albums as albumsDb } from '@/utils/supabase/db';
+import { activity, albums as albumsDb } from '@/utils/supabase/db';
 
 // The picker (or an admin) sets the cycle's two albums. iTunes type-ahead is
 // the primary path (artwork, year, track list for Phase 3 song pickers);
@@ -19,6 +19,12 @@ export default function PickAlbums() {
   const router = useRouter();
   const { cycle, albums, refresh } = useCycle(id);
   const { palette } = useTheme();
+
+  // Announce album picks once saved (max two events per cycle — fine for the feed).
+  const handleSaved = async () => {
+    if (cycle && id) await activity.publish(id, 'albums_set', { cycle_number: cycle.number });
+    refresh();
+  };
 
   return (
     <Screen>
@@ -37,8 +43,8 @@ export default function PickAlbums() {
         <InlineNote text="No open cycle — spin the wheel first." />
       ) : (
         <>
-          <SlotEditor slot={1} cycleId={cycle.id} existing={albums.find((a) => a.slot === 1)} onSaved={refresh} />
-          <SlotEditor slot={2} cycleId={cycle.id} existing={albums.find((a) => a.slot === 2)} onSaved={refresh} />
+          <SlotEditor slot={1} cycleId={cycle.id} existing={albums.find((a) => a.slot === 1)} onSaved={handleSaved} />
+          <SlotEditor slot={2} cycleId={cycle.id} existing={albums.find((a) => a.slot === 2)} onSaved={handleSaved} />
           <Button title="Done — back to the club" variant="ghost" onPress={() => router.replace(`/club/${id}`)} />
         </>
       )}

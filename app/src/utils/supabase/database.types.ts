@@ -39,6 +39,81 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_events: {
+        Row: {
+          actor_id: string | null
+          club_id: string
+          created_at: string
+          event_type: string
+          id: string
+          payload: Json
+        }
+        Insert: {
+          actor_id?: string | null
+          club_id: string
+          created_at?: string
+          event_type: string
+          id?: string
+          payload?: Json
+        }
+        Update: {
+          actor_id?: string | null
+          club_id?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          payload?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_events_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      activity_reads: {
+        Row: {
+          club_id: string
+          last_read_at: string
+          profile_id: string
+        }
+        Insert: {
+          club_id: string
+          last_read_at?: string
+          profile_id: string
+        }
+        Update: {
+          club_id?: string
+          last_read_at?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_reads_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_reads_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       albums: {
         Row: {
           apple_url: string | null
@@ -176,6 +251,96 @@ export type Database = {
           },
         ]
       }
+      concert_interest: {
+        Row: {
+          concert_id: string
+          created_at: string
+          id: string
+          profile_id: string
+        }
+        Insert: {
+          concert_id: string
+          created_at?: string
+          id?: string
+          profile_id: string
+        }
+        Update: {
+          concert_id?: string
+          created_at?: string
+          id?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "concert_interest_concert_id_fkey"
+            columns: ["concert_id"]
+            isOneToOne: false
+            referencedRelation: "concerts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "concert_interest_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      concerts: {
+        Row: {
+          added_by: string
+          artist: string
+          club_id: string
+          concert_date: string | null
+          created_at: string
+          id: string
+          note: string | null
+          price: string | null
+          ticket_url: string | null
+          venue: string | null
+        }
+        Insert: {
+          added_by: string
+          artist: string
+          club_id: string
+          concert_date?: string | null
+          created_at?: string
+          id?: string
+          note?: string | null
+          price?: string | null
+          ticket_url?: string | null
+          venue?: string | null
+        }
+        Update: {
+          added_by?: string
+          artist?: string
+          club_id?: string
+          concert_date?: string | null
+          created_at?: string
+          id?: string
+          note?: string | null
+          price?: string | null
+          ticket_url?: string | null
+          venue?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "concerts_added_by_fkey"
+            columns: ["added_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "concerts_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cycle_guests: {
         Row: {
           added_by: string
@@ -269,6 +434,144 @@ export type Database = {
           {
             foreignKeyName: "cycles_picker_id_fkey"
             columns: ["picker_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feed_posts: {
+        Row: {
+          artist: string
+          author_id: string
+          club_id: string
+          created_at: string
+          id: string
+          is_album_suggestion: boolean
+          kind: string
+          metadata: Json | null
+          note: string | null
+          platform: string
+          title: string
+          url: string | null
+        }
+        Insert: {
+          artist?: string
+          author_id: string
+          club_id: string
+          created_at?: string
+          id?: string
+          is_album_suggestion?: boolean
+          kind?: string
+          metadata?: Json | null
+          note?: string | null
+          platform?: string
+          title: string
+          url?: string | null
+        }
+        Update: {
+          artist?: string
+          author_id?: string
+          club_id?: string
+          created_at?: string
+          id?: string
+          is_album_suggestion?: boolean
+          kind?: string
+          metadata?: Json | null
+          note?: string | null
+          platform?: string
+          title?: string
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feed_posts_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feed_posts_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      post_comments: {
+        Row: {
+          author_id: string
+          created_at: string
+          id: string
+          post_id: string
+          text: string
+        }
+        Insert: {
+          author_id: string
+          created_at?: string
+          id?: string
+          post_id: string
+          text: string
+        }
+        Update: {
+          author_id?: string
+          created_at?: string
+          id?: string
+          post_id?: string
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_comments_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "feed_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      post_reactions: {
+        Row: {
+          created_at: string
+          emoji: string
+          id: string
+          post_id: string
+          profile_id: string
+        }
+        Insert: {
+          created_at?: string
+          emoji: string
+          id?: string
+          post_id: string
+          profile_id: string
+        }
+        Update: {
+          created_at?: string
+          emoji?: string
+          id?: string
+          post_id?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_reactions_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "feed_posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_reactions_profile_id_fkey"
+            columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -456,6 +759,11 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      mark_activity_read: { Args: { p_club: string }; Returns: undefined }
+      publish_activity_event: {
+        Args: { p_club: string; p_payload?: Json; p_type: string }
+        Returns: undefined
       }
       reveal_cycle: {
         Args: { p_cycle: string }

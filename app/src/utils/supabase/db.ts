@@ -1,6 +1,6 @@
 import { supabase, supabaseAnonKey, supabaseUrl } from './client';
 
-import type { Tables, TablesInsert } from './database.types';
+import type { Json, Tables, TablesInsert } from './database.types';
 
 // ALL Supabase queries live in this file, grouped into typed query objects —
 // one object per domain. Screens and hooks must never call the raw supabase
@@ -16,6 +16,14 @@ export type Rsvp = Tables<'rsvps'>;
 export type CycleGuest = Tables<'cycle_guests'>;
 export type RsvpStatus = 'yes' | 'maybe' | 'no';
 export type Rating = Tables<'ratings'>;
+export type FeedPost = Tables<'feed_posts'>;
+export type PostReaction = Tables<'post_reactions'>;
+export type PostComment = Tables<'post_comments'>;
+export type Concert = Tables<'concerts'>;
+export type ConcertInterest = Tables<'concert_interest'>;
+export type ActivityEvent = Tables<'activity_events'>;
+export type ReactionEmoji = '👍' | '❤️' | '🔥' | '😂' | '🤔';
+export const REACTION_EMOJIS: ReactionEmoji[] = ['👍', '❤️', '🔥', '😂', '🤔'];
 
 // Shape of the get_album_summary RPC payload (json column, typed manually).
 export interface AlbumSummary {
@@ -157,6 +165,85 @@ export const cycleGuests = {
       .from('cycle_guests')
       .insert({ cycle_id: cycleId, name: name.trim(), status, added_by: addedBy }),
   remove: (id: string) => supabase.from('cycle_guests').delete().eq('id', id),
+};
+
+export const feed = {
+  list: (clubId: string) =>
+    supabase
+      .from('feed_posts')
+      .select('*, profiles(display_name, avatar_color), post_reactions(emoji, profile_id), post_comments(count)')
+      .eq('club_id', clubId)
+      .order('created_at', { ascending: false }),
+  suggestions: (clubId: string) =>
+    supabase
+      .from('feed_posts')
+      .select('*, profiles(display_name, avatar_color)')
+      .eq('club_id', clubId)
+      .eq('is_album_suggestion', true)
+      .order('created_at', { ascending: false }),
+  create: (post: TablesInsert<'feed_posts'>) =>
+    supabase.from('feed_posts').insert(post).select().single(),
+  remove: (id: string) => supabase.from('feed_posts').delete().eq('id', id),
+};
+
+export const reactions = {
+  set: (postId: string, profileId: string, emoji: ReactionEmoji) =>
+    supabase
+      .from('post_reactions')
+      .upsert({ post_id: postId, profile_id: profileId, emoji }, { onConflict: 'post_id,profile_id' }),
+  clear: (postId: string, profileId: string) =>
+    supabase.from('post_reactions').delete().eq('post_id', postId).eq('profile_id', profileId),
+};
+
+export const comments = {
+  listByPost: (postId: string) =>
+    supabase
+      .from('post_comments')
+      .select('*, profiles(display_name, avatar_color)')
+      .eq('post_id', postId)
+      .order('created_at'),
+  add: (postId: string, authorId: string, text: string) =>
+    supabase.from('post_comments').insert({ post_id: postId, author_id: authorId, text: text.trim() }),
+  remove: (id: string) => supabase.from('post_comments').delete().eq('id', id),
+};
+
+export const concerts = {
+  list: (clubId: string) =>
+    supabase
+      .from('concerts')
+      .select('*, profiles(display_name, avatar_color), concert_interest(profile_id)')
+      .eq('club_id', clubId)
+      .order('concert_date', { nullsFirst: false }),
+  create: (concert: TablesInsert<'concerts'>) =>
+    supabase.from('concerts').insert(concert).select().single(),
+  remove: (id: string) => supabase.from('concerts').delete().eq('id', id),
+  setInterest: (concertId: string, profileId: string, interested: boolean) =>
+    interested
+      ? supabase.from('concert_interest').upsert(
+          { concert_id: concertId, profile_id: profileId },
+          { onConflict: 'concert_id,profile_id' },
+        )
+      : supabase.from('concert_interest').delete().eq('concert_id', concertId).eq('profile_id', profileId),
+};
+
+export const activity = {
+  list: (clubId: string) =>
+    supabase
+      .from('activity_events')
+      .select('*, profiles(display_name, avatar_color)')
+      .eq('club_id', clubId)
+      .order('created_at', { ascending: false })
+      .limit(100),
+  lastRead: (clubId: string, profileId: string) =>
+    supabase
+      .from('activity_reads')
+      .select('last_read_at')
+      .eq('club_id', clubId)
+      .eq('profile_id', profileId)
+      .maybeSingle(),
+  publish: (clubId: string, type: string, payload: Record<string, Json>) =>
+    supabase.rpc('publish_activity_event', { p_club: clubId, p_type: type, p_payload: payload }),
+  markRead: (clubId: string) => supabase.rpc('mark_activity_read', { p_club: clubId }),
 };
 
 export const health = {

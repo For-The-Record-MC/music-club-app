@@ -6,7 +6,7 @@ import { Button, Card, InlineNote, Label, Screen, TextField } from '@/components
 import { useCycle } from '@/hooks/useCycle';
 import { useTheme } from '@/hooks/use-theme';
 import { fonts } from '@/theme';
-import { cycles } from '@/utils/supabase/db';
+import { activity, cycles } from '@/utils/supabase/db';
 
 // Admin sets the cycle's meeting (one meeting per cycle, host-set dates).
 export default function Schedule() {
@@ -40,6 +40,12 @@ export default function Schedule() {
       trimmed || null,
       timeLocation.trim() || null,
     );
+    if (!err && id) {
+      await activity.publish(id, 'meeting_scheduled', {
+        cycle_number: cycle.number,
+        meeting_date: trimmed || null,
+      });
+    }
     setBusy(false);
     if (err) {
       setError(err.message);
