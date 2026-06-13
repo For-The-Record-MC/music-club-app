@@ -441,6 +441,7 @@ export type Database = {
           meeting_at: string | null
           meeting_date: string | null
           meeting_time_location: string | null
+          meeting_url: string | null
           number: number
           picker_id: string
           revealed_at: string | null
@@ -455,6 +456,7 @@ export type Database = {
           meeting_at?: string | null
           meeting_date?: string | null
           meeting_time_location?: string | null
+          meeting_url?: string | null
           number: number
           picker_id: string
           revealed_at?: string | null
@@ -469,6 +471,7 @@ export type Database = {
           meeting_at?: string | null
           meeting_date?: string | null
           meeting_time_location?: string | null
+          meeting_url?: string | null
           number?: number
           picker_id?: string
           revealed_at?: string | null
@@ -762,6 +765,7 @@ export type Database = {
           meeting_at: string | null
           meeting_date: string | null
           meeting_time_location: string | null
+          meeting_url: string | null
           number: number
           picker_id: string
           revealed_at: string | null
@@ -828,6 +832,7 @@ export type Database = {
           meeting_at: string | null
           meeting_date: string | null
           meeting_time_location: string | null
+          meeting_url: string | null
           number: number
           picker_id: string
           revealed_at: string | null
@@ -852,6 +857,7 @@ export type Database = {
           meeting_at: string | null
           meeting_date: string | null
           meeting_time_location: string | null
+          meeting_url: string | null
           number: number
           picker_id: string
           revealed_at: string | null

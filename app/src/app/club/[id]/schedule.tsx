@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { DateTimeField } from '@/components/DateTimeField';
 import { Button, Card, InlineNote, Label, Screen, TextField } from '@/components/ui';
@@ -18,6 +18,7 @@ export default function Schedule() {
   const { cycle, loading } = useCycle(id);
   const [when, setWhen] = useState<Date | null>(null);
   const [location, setLocation] = useState('');
+  const [meetingUrl, setMeetingUrl] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,6 +26,7 @@ export default function Schedule() {
     if (cycle) {
       setWhen(cycle.meeting_at ? new Date(cycle.meeting_at) : null);
       setLocation(cycle.meeting_time_location ?? '');
+      setMeetingUrl(cycle.meeting_url ?? '');
     }
   }, [cycle]);
 
@@ -36,6 +38,7 @@ export default function Schedule() {
       cycle.id,
       when ? when.toISOString() : null,
       location.trim() || null,
+      meetingUrl.trim() || null,
     );
     if (!err && id) {
       await activity.publish(id, 'meeting_scheduled', {
@@ -77,8 +80,21 @@ export default function Schedule() {
             placeholder="e.g. Mia's place · 123 Main St"
             value={location}
             onChangeText={setLocation}
+          />
+          <Label>{'\n'}Video call link (optional)</Label>
+          <TextField
+            placeholder="Paste a Meet/Zoom link…"
+            value={meetingUrl}
+            onChangeText={setMeetingUrl}
+            autoCapitalize="none"
+            autoCorrect={false}
             onSubmitEditing={save}
           />
+          <Pressable onPress={() => Linking.openURL('https://meet.new')}>
+            <Text style={[styles.meetHelp, { color: palette.teal }]}>
+              + Create a Google Meet (opens meet.new — copy the link back here)
+            </Text>
+          </Pressable>
           <Button title="Save meeting" onPress={save} loading={busy} style={{ marginTop: 16 }} />
           {when ? (
             <Text style={[styles.preview, { color: palette.text3 }]}>
@@ -104,4 +120,5 @@ const styles = StyleSheet.create({
   eyebrow: { fontFamily: fonts.monoMedium, fontSize: 9, letterSpacing: 3, marginBottom: 2 },
   title: { fontFamily: fonts.sansBold, fontSize: 19 },
   preview: { fontFamily: fonts.mono, fontSize: 11, marginTop: 10, textAlign: 'center' },
+  meetHelp: { fontFamily: fonts.monoMedium, fontSize: 11, marginTop: 8 },
 });

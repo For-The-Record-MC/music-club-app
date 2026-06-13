@@ -2,7 +2,7 @@ import * as Clipboard from 'expo-clipboard';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Platform, Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import { Linking, Platform, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar, Button, Card, InlineNote, Label, NoClubSelected, Screen } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
@@ -304,6 +304,14 @@ export default function HomeTab() {
               })}
             </View>
 
+            {cycle.meeting_url ? (
+              <Button
+                title="🎥 Join call"
+                onPress={() => Linking.openURL(cycle.meeting_url!)}
+                style={{ marginTop: 12 }}
+              />
+            ) : null}
+
             <View style={[styles.cardDivider, { borderTopColor: palette.border }]} />
             <View style={styles.meetingActions}>
               <Button
@@ -321,7 +329,12 @@ export default function HomeTab() {
                       title: `${club.name} — Cycle ${cycle.number}`,
                       start: new Date(cycle.meeting_at!),
                       location: cycle.meeting_time_location,
-                      details: albums.map((a) => `${a.title} — ${a.artist}`).join('\n'),
+                      details: [
+                        ...albums.map((a) => `${a.title} — ${a.artist}`),
+                        cycle.meeting_url ? `\nVideo call: ${cycle.meeting_url}` : '',
+                      ]
+                        .filter(Boolean)
+                        .join('\n'),
                     })
                   }
                   style={styles.actionFlex}

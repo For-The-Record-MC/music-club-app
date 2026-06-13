@@ -95,11 +95,16 @@ export const cycles = {
       .eq('status', 'closed')
       .order('number', { ascending: false }),
   // meeting_at is a full timestamp (calendar-ready); meeting_time_location is
-  // the free-text location.
-  scheduleMeeting: (id: string, meetingAt: string | null, location: string | null) =>
+  // the free-text location; meeting_url is an optional video-call link.
+  scheduleMeeting: (
+    id: string,
+    meetingAt: string | null,
+    location: string | null,
+    meetingUrl: string | null,
+  ) =>
     supabase
       .from('cycles')
-      .update({ meeting_at: meetingAt, meeting_time_location: location })
+      .update({ meeting_at: meetingAt, meeting_time_location: location, meeting_url: meetingUrl })
       .eq('id', id),
   // RPCs — see context/database-schema.md for semantics.
   spin: (clubId: string) => supabase.rpc('spin_wheel', { p_club: clubId }),
