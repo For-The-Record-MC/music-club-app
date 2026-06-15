@@ -47,6 +47,7 @@ export type Database = {
           event_type: string
           id: string
           payload: Json
+          recipient_id: string | null
         }
         Insert: {
           actor_id?: string | null
@@ -55,6 +56,7 @@ export type Database = {
           event_type: string
           id?: string
           payload?: Json
+          recipient_id?: string | null
         }
         Update: {
           actor_id?: string | null
@@ -63,11 +65,19 @@ export type Database = {
           event_type?: string
           id?: string
           payload?: Json
+          recipient_id?: string | null
         }
         Relationships: [
           {
             foreignKeyName: "activity_events_actor_id_fkey"
             columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_events_recipient_id_fkey"
+            columns: ["recipient_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -222,6 +232,7 @@ export type Database = {
           emoji: string
           id: string
           invite_code: string
+          leaderboard_weights: Json
           name: string
           owner_id: string
           song_limit_per_cycle: number | null
@@ -231,6 +242,7 @@ export type Database = {
           emoji?: string
           id?: string
           invite_code?: string
+          leaderboard_weights?: Json
           name: string
           owner_id: string
           song_limit_per_cycle?: number | null
@@ -240,6 +252,7 @@ export type Database = {
           emoji?: string
           id?: string
           invite_code?: string
+          leaderboard_weights?: Json
           name?: string
           owner_id?: string
           song_limit_per_cycle?: number | null
@@ -624,6 +637,45 @@ export type Database = {
           },
         ]
       }
+      meeting_posts: {
+        Row: {
+          author_id: string
+          created_at: string
+          cycle_id: string
+          id: string
+          text: string
+        }
+        Insert: {
+          author_id: string
+          created_at?: string
+          cycle_id: string
+          id?: string
+          text: string
+        }
+        Update: {
+          author_id?: string
+          created_at?: string
+          cycle_id?: string
+          id?: string
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_posts_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_posts_cycle_id_fkey"
+            columns: ["cycle_id"]
+            isOneToOne: false
+            referencedRelation: "cycles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       post_comments: {
         Row: {
           author_id: string
@@ -704,6 +756,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_album_url: string | null
           avatar_color: number
           avatar_label: string | null
           avatar_url: string | null
@@ -712,6 +765,7 @@ export type Database = {
           id: string
         }
         Insert: {
+          avatar_album_url?: string | null
           avatar_color?: number
           avatar_label?: string | null
           avatar_url?: string | null
@@ -720,6 +774,7 @@ export type Database = {
           id: string
         }
         Update: {
+          avatar_album_url?: string | null
           avatar_color?: number
           avatar_label?: string | null
           avatar_url?: string | null
@@ -728,6 +783,53 @@ export type Database = {
           id?: string
         }
         Relationships: []
+      }
+      profile_tracks: {
+        Row: {
+          album_name: string
+          artist_name: string
+          artwork_url: string | null
+          caption: string | null
+          profile_id: string
+          slot: string
+          spotify_uri: string | null
+          spotify_url: string | null
+          track_name: string
+          updated_at: string
+        }
+        Insert: {
+          album_name?: string
+          artist_name?: string
+          artwork_url?: string | null
+          caption?: string | null
+          profile_id: string
+          slot: string
+          spotify_uri?: string | null
+          spotify_url?: string | null
+          track_name: string
+          updated_at?: string
+        }
+        Update: {
+          album_name?: string
+          artist_name?: string
+          artwork_url?: string | null
+          caption?: string | null
+          profile_id?: string
+          slot?: string
+          spotify_uri?: string | null
+          spotify_url?: string | null
+          track_name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_tracks_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ratings: {
         Row: {
@@ -1003,6 +1105,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      club_leaderboard: { Args: { p_club: string }; Returns: Json }
       club_role: { Args: { p_club: string }; Returns: string }
       create_club: {
         Args: { p_emoji?: string; p_name: string }
@@ -1045,6 +1148,10 @@ export type Database = {
       }
       mark_activity_read: { Args: { p_club: string }; Returns: undefined }
       my_song_quota: { Args: { p_club: string }; Returns: Json }
+      notify_comment_mentions: {
+        Args: { p_club: string; p_payload?: Json; p_recipients: string[] }
+        Returns: undefined
+      }
       publish_activity_event: {
         Args: { p_club: string; p_payload?: Json; p_type: string }
         Returns: undefined

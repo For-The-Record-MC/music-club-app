@@ -57,6 +57,7 @@ export default function RootLayout() {
           <Stack.Screen name="create-club" />
           <Stack.Screen name="join/index" />
           <Stack.Screen name="club/[id]/members" />
+          <Stack.Screen name="club/[id]/member/[profileId]" />
           <Stack.Screen name="club/[id]/wheel" />
           <Stack.Screen name="club/[id]/pick-albums" />
           <Stack.Screen name="club/[id]/schedule" />

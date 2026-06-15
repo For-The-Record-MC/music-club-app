@@ -172,7 +172,7 @@ export default function Streaming() {
 const styles = StyleSheet.create({
   topbar: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 },
   back: { fontSize: 22, paddingHorizontal: 4 },
-  eyebrow: { fontFamily: fonts.monoMedium, fontSize: 9, letterSpacing: 3, marginBottom: 2 },
+  eyebrow: { fontFamily: fonts.sansMedium, fontSize: 9, letterSpacing: 3, marginBottom: 2 },
   title: { fontFamily: fonts.sansBold, fontSize: 19 },
   body: { fontFamily: fonts.sansBold, fontSize: 15, marginBottom: 6 },
   help: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 19, marginBottom: 4 },

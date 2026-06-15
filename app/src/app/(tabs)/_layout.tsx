@@ -25,7 +25,7 @@ export default function TabsLayout() {
           backgroundColor: palette.surface,
           borderTopColor: palette.border,
         },
-        tabBarLabelStyle: { fontFamily: fonts.monoMedium, fontSize: 9, letterSpacing: 0.5 },
+        tabBarLabelStyle: { fontFamily: fonts.sansBold, fontSize: 11, letterSpacing: 0.2 },
         sceneStyle: { backgroundColor: palette.bg },
       }}
     >

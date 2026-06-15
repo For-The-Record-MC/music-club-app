@@ -25,7 +25,7 @@ export default function SignIn() {
 const styles = StyleSheet.create({
   header: { alignItems: 'center', marginTop: 40, marginBottom: 24 },
   logo: { fontSize: 42, marginBottom: 12 },
-  eyebrow: { fontFamily: fonts.monoMedium, fontSize: 10, letterSpacing: 3, marginBottom: 4 },
+  eyebrow: { fontFamily: fonts.sansMedium, fontSize: 10, letterSpacing: 3, marginBottom: 4 },
   title: { fontFamily: fonts.sansBold, fontSize: 28, marginBottom: 8 },
   sub: { fontFamily: fonts.sans, fontSize: 14, lineHeight: 21, textAlign: 'center', maxWidth: 300 },
 });

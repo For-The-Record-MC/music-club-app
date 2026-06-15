@@ -164,7 +164,7 @@ export default function Wheel() {
 const styles = StyleSheet.create({
   topbar: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 },
   back: { fontSize: 22, paddingHorizontal: 4 },
-  eyebrow: { fontFamily: fonts.monoMedium, fontSize: 9, letterSpacing: 3, marginBottom: 2 },
+  eyebrow: { fontFamily: fonts.sansMedium, fontSize: 9, letterSpacing: 3, marginBottom: 2 },
   title: { fontFamily: fonts.sansBold, fontSize: 19 },
   bigEmoji: { fontSize: 54, marginBottom: 14 },
   spinTitle: { fontFamily: fonts.sansBold, fontSize: 18, marginBottom: 8, textAlign: 'center' },

@@ -54,6 +54,23 @@ export function renderActivity(event: ActivityEvent, actorName: string | null): 
         text: `${who} added a concert: ${p.artist ?? ''}.`,
         target: { pathname: '/concerts', params: p.concert_id ? { focus: String(p.concert_id) } : undefined },
       };
+    case 'comment_mention': {
+      const where =
+        p.context === 'concert'
+          ? 'a concert comment'
+          : p.context === 'meeting'
+            ? 'the meeting board'
+            : 'a feed comment';
+      const snippet = p.snippet ? `: “${p.snippet}”` : '';
+      let target: ActivityTarget | undefined;
+      if (p.context === 'concert')
+        target = { pathname: '/concerts', params: p.concert_id ? { focus: String(p.concert_id) } : undefined };
+      else if (p.context === 'meeting')
+        target = { pathname: '/club/[id]/rsvp', params: { id: String(event.club_id) } };
+      else
+        target = { pathname: '/feed', params: p.post_id ? { focus: String(p.post_id) } : undefined };
+      return { icon: '💬', text: `${who} mentioned you in ${where}${snippet}`, target };
+    }
     default:
       return { icon: '•', text: `${who} did something.` };
   }

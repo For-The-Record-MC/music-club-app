@@ -2,13 +2,19 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { MentionInput, MentionText, resolveMentions, type MentionMember } from '@/components/Mentions';
 import { Avatar, Badge, Button, Card, InlineNote, Label, Screen, TextField } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
 import { useCycle } from '@/hooks/useCycle';
+import { useMeetingPosts } from '@/hooks/useMeetingPosts';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
 import { fonts, radius } from '@/theme';
-import { cycleGuests, rsvps as rsvpsDb, type RsvpStatus } from '@/utils/supabase/db';
+import { timeAgo } from '@/utils/activityTemplates';
+import { activity, cycleGuests, rsvps as rsvpsDb, type RsvpStatus } from '@/utils/supabase/db';
+
+// First ~80 chars of a comment, for the mention notification preview.
+const snippetOf = (text: string) => text.trim().replace(/\s+/g, ' ').slice(0, 80);
 
 const STATUS_LABEL: Record<RsvpStatus, string> = { yes: '✓ Going', maybe: '? Maybe', no: '✕ No' };
 
@@ -19,10 +25,22 @@ export default function RsvpScreen() {
   const userId = useAuthStore((s) => s.userId);
   const { members, myRole } = useClubData(id);
   const { cycle, rsvps, guests, refresh } = useCycle(id);
+  const board = useMeetingPosts(cycle?.id);
   const [guestName, setGuestName] = useState('');
+  const [postText, setPostText] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const isAdmin = myRole === 'owner' || myRole === 'admin';
+  const mentionMembers = useMemo<MentionMember[]>(
+    () =>
+      members.map((m) => ({
+        profile_id: m.profile_id,
+        display_name: m.profiles?.display_name ?? null,
+        avatar_color: m.profiles?.avatar_color ?? 0,
+        avatar_url: m.profiles?.avatar_url ?? null,
+      })),
+    [members],
+  );
   const byProfile = useMemo(
     () => new Map(rsvps.map((r) => [r.profile_id, r])),
     [rsvps],
@@ -60,6 +78,24 @@ export default function RsvpScreen() {
     const { error: err } = await cycleGuests.remove(gid);
     if (err) setError(err.message);
     refresh();
+  };
+
+  const submitPost = async () => {
+    if (!postText.trim()) return;
+    setError(null);
+    const text = postText;
+    const err = await board.add(text);
+    if (err) {
+      setError(err.message);
+      return;
+    }
+    setPostText('');
+    const tagged = resolveMentions(text, mentionMembers).filter((pid) => pid !== userId);
+    if (tagged.length) {
+      void activity
+        .notifyMentions(id, tagged, { context: 'meeting', snippet: snippetOf(text) })
+        .then(undefined, () => {});
+    }
   };
 
   const myStatus = userId ? (byProfile.get(userId)?.status as RsvpStatus | undefined) : undefined;
@@ -183,6 +219,57 @@ export default function RsvpScreen() {
               <Button title="+ Add" onPress={addGuest} disabled={!guestName.trim()} />
             </View>
           </Card>
+
+          <Label>Meeting Board</Label>
+          <Card>
+            {board.posts.length === 0 ? (
+              <InlineNote text="No notes yet — suggest a time, or say what you'll bring." />
+            ) : (
+              board.posts.map((p) => {
+                const canRemove = p.author_id === userId || isAdmin;
+                return (
+                  <View key={p.id} style={styles.boardRow}>
+                    <Avatar
+                      name={p.profiles?.display_name ?? null}
+                      colorIndex={p.profiles?.avatar_color ?? 0}
+                      imageUrl={p.profiles?.avatar_url}
+                      size={28}
+                    />
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <View style={styles.boardMeta}>
+                        <Text style={[styles.boardAuthor, { color: palette.text1 }]}>
+                          {p.profiles?.display_name ?? '(no name)'}
+                        </Text>
+                        <Text style={[styles.boardTime, { color: palette.text3 }]}>
+                          {timeAgo(p.created_at)}
+                        </Text>
+                      </View>
+                      <MentionText
+                        text={p.text}
+                        members={mentionMembers}
+                        style={[styles.boardText, { color: palette.text1 }]}
+                      />
+                    </View>
+                    {canRemove ? (
+                      <Pressable onPress={() => board.remove(p.id)} hitSlop={8}>
+                        <Text style={{ color: palette.text3, fontSize: 16 }}>×</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                );
+              })
+            )}
+            <View style={styles.boardForm}>
+              <MentionInput
+                placeholder="Suggest a time, offer to bring something… (@ to tag)"
+                value={postText}
+                onChangeText={setPostText}
+                members={mentionMembers}
+                multiline
+              />
+              <Button title="Post" onPress={submitPost} disabled={!postText.trim()} />
+            </View>
+          </Card>
           {error ? <InlineNote text={error} tone="error" /> : null}
         </>
       )}
@@ -193,7 +280,7 @@ export default function RsvpScreen() {
 const styles = StyleSheet.create({
   topbar: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 },
   back: { fontSize: 22, paddingHorizontal: 4 },
-  eyebrow: { fontFamily: fonts.monoMedium, fontSize: 9, letterSpacing: 3, marginBottom: 2 },
+  eyebrow: { fontFamily: fonts.sansMedium, fontSize: 9, letterSpacing: 3, marginBottom: 2 },
   title: { fontFamily: fonts.sansBold, fontSize: 19 },
   quickRow: { flexDirection: 'row', gap: 6 },
   quickBtn: {
@@ -210,4 +297,10 @@ const styles = StyleSheet.create({
   memberName: { flex: 1, fontFamily: fonts.sansMedium, fontSize: 13 },
   noReply: { fontFamily: fonts.mono, fontSize: 10 },
   guestAdd: { flexDirection: 'row', gap: 8, marginTop: 8, alignItems: 'center' },
+  boardRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 8 },
+  boardMeta: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
+  boardAuthor: { fontFamily: fonts.sansBold, fontSize: 12 },
+  boardTime: { fontFamily: fonts.mono, fontSize: 10 },
+  boardText: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 19, marginTop: 2 },
+  boardForm: { flexDirection: 'row', gap: 8, marginTop: 8, alignItems: 'flex-start' },
 });
