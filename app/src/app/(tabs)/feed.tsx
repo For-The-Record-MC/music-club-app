@@ -11,8 +11,8 @@ import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
 import { useCurrentClubStore } from '@/stores/currentClubStore';
-import { resolveAppleTrack, searchSongs as searchItunes } from '@/utils/itunes';
-import { resolveSpotifyTrack, searchSongs as searchSpotify } from '@/utils/spotify';
+import { resolveAppleAlbum, resolveAppleTrack, searchAlbums as searchItunesAlbums, searchSongs as searchItunes } from '@/utils/itunes';
+import { resolveSpotifyAlbum, resolveSpotifyTrack, searchAlbums as searchSpotifyAlbums, searchSongs as searchSpotify } from '@/utils/spotify';
 import { timeAgo } from '@/utils/activityTemplates';
 import { confirmAsync } from '@/utils/confirm';
 import {
@@ -36,6 +36,8 @@ type Kind = 'track' | 'album';
 // link is resolved on pick so every post opens in both.
 interface SearchResult {
   key: string;
+  kind: Kind;
+  // For album results, trackName carries the album title.
   trackName: string;
   artistName: string;
   artworkUrl: string;
@@ -108,36 +110,75 @@ export default function Feed() {
   const remaining = capped ? Math.max(0, (quota!.limit as number) - quota!.used) : null;
   const songBlocked = kind === 'track' && remaining === 0;
 
-  const runSearch = async (term: string) => {
+  // Search the catalog for the active kind. searchKind is passed explicitly so
+  // the track/album toggle can re-run immediately without a stale `kind` closure.
+  // Spotify first (best catalog/search); fall back to iTunes if it's empty —
+  // e.g. app credentials unset, or something Spotify simply doesn't have.
+  const runSearch = async (term: string, searchKind: Kind = kind) => {
     setSearch(term);
     const seq = ++searchSeq.current;
     if (term.trim().length < 3) {
       setResults([]);
       return;
     }
-    // Spotify first (best catalog/search); fall back to iTunes if it's empty —
-    // e.g. app credentials unset, or a track Spotify simply doesn't have.
-    const spotifyHits = await searchSpotify(term);
-    const found: SearchResult[] = spotifyHits.length
-      ? spotifyHits.map((s) => ({
-          key: s.id,
-          trackName: s.trackName,
-          artistName: s.artistName,
-          artworkUrl: s.artworkUrl,
-          spotifyUrl: s.spotifyUrl,
-          spotifyUri: s.uri,
-          appleUrl: null,
-        }))
-      : (await searchItunes(term)).map((s) => ({
-          key: String(s.trackId),
-          trackName: s.trackName,
-          artistName: s.artistName,
-          artworkUrl: s.artworkUrl,
-          spotifyUrl: null,
-          spotifyUri: null,
-          appleUrl: s.appleUrl,
-        }));
+    let found: SearchResult[];
+    if (searchKind === 'album') {
+      const spotifyHits = await searchSpotifyAlbums(term);
+      found = spotifyHits.length
+        ? spotifyHits.map((a) => ({
+            key: a.id,
+            kind: 'album' as const,
+            trackName: a.collectionName,
+            artistName: a.artistName,
+            artworkUrl: a.artworkUrl,
+            spotifyUrl: a.spotifyUrl,
+            spotifyUri: a.uri,
+            appleUrl: null,
+          }))
+        : (await searchItunesAlbums(term)).map((a) => ({
+            key: String(a.collectionId),
+            kind: 'album' as const,
+            trackName: a.collectionName,
+            artistName: a.artistName,
+            artworkUrl: a.artworkUrl,
+            spotifyUrl: null,
+            spotifyUri: null,
+            appleUrl: a.appleUrl || null,
+          }));
+    } else {
+      const spotifyHits = await searchSpotify(term);
+      found = spotifyHits.length
+        ? spotifyHits.map((s) => ({
+            key: s.id,
+            kind: 'track' as const,
+            trackName: s.trackName,
+            artistName: s.artistName,
+            artworkUrl: s.artworkUrl,
+            spotifyUrl: s.spotifyUrl,
+            spotifyUri: s.uri,
+            appleUrl: null,
+          }))
+        : (await searchItunes(term)).map((s) => ({
+            key: String(s.trackId),
+            kind: 'track' as const,
+            trackName: s.trackName,
+            artistName: s.artistName,
+            artworkUrl: s.artworkUrl,
+            spotifyUrl: null,
+            spotifyUri: null,
+            appleUrl: s.appleUrl,
+          }));
+    }
     if (seq === searchSeq.current) setResults(found);
+  };
+
+  // Switching the search kind clears stale results and re-runs against the new
+  // catalog, so the dropdown matches what the toggle says it's searching.
+  const changeKind = (k: Kind) => {
+    if (k === kind) return;
+    setKind(k);
+    setResults([]);
+    if (search.trim().length >= 3) runSearch(search, k);
   };
 
   const pickSong = async (s: SearchResult) => {
@@ -149,16 +190,25 @@ export default function Feed() {
     setSpotifyUri(s.spotifyUri);
     setSpotifyUrl(s.spotifyUrl);
     setAppleUrl(s.appleUrl);
-    setKind('track');
+    setKind(s.kind);
+    // Picking an album defaults the "future album pick" flag on — that's the
+    // common intent; the member can still uncheck it before posting.
+    if (s.kind === 'album') setSuggestion(true);
     setResults([]);
     setSearch('');
     // Resolve the other service's link so the post opens in both. Keyless on the
     // Apple side, app-token on the Spotify side; best-effort, guarded vs a stale pick.
     if (s.spotifyUrl && !s.appleUrl) {
-      const apple = await resolveAppleTrack(s.trackName, s.artistName);
+      const apple =
+        s.kind === 'album'
+          ? (await resolveAppleAlbum(s.trackName, s.artistName))?.appleUrl ?? null
+          : await resolveAppleTrack(s.trackName, s.artistName);
       if (apple && seq === pickSeq.current) setAppleUrl(apple);
     } else if (s.appleUrl && !s.spotifyUrl) {
-      const match = await resolveSpotifyTrack(s.trackName, s.artistName);
+      const match =
+        s.kind === 'album'
+          ? await resolveSpotifyAlbum(s.trackName, s.artistName)
+          : await resolveSpotifyTrack(s.trackName, s.artistName);
       if (match && seq === pickSeq.current) {
         setSpotifyUri(match.uri);
         setSpotifyUrl(match.url);
@@ -171,6 +221,7 @@ export default function Feed() {
     setArtist('');
     setUrl('');
     setNote('');
+    setKind('track');
     setSuggestion(false);
     setArtwork(null);
     setSpotifyUri(null);
@@ -266,9 +317,32 @@ export default function Feed() {
         <Button title="+ Share something" onPress={() => setOpen(true)} style={{ marginBottom: 14 }} />
       ) : (
         <Card>
-          <Label>Search a song</Label>
+          <View style={styles.segRow}>
+            {(['track', 'album'] as Kind[]).map((k) => (
+              <Pressable
+                key={k}
+                onPress={() => changeKind(k)}
+                style={[
+                  styles.seg,
+                  { borderColor: palette.border, backgroundColor: palette.card2 },
+                  kind === k && { borderColor: palette.teal, backgroundColor: palette.tealBg },
+                ]}
+              >
+                <Text style={[styles.segText, { color: kind === k ? palette.teal : palette.text3 }]}>
+                  {k}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          <View style={{ marginTop: 10 }}>
+            <Label>{kind === 'album' ? 'Search an album' : 'Search a song'}</Label>
+          </View>
           <TextField
-            placeholder="Search a song… (e.g. Dreams Fleetwood Mac)"
+            placeholder={
+              kind === 'album'
+                ? 'Search an album… (e.g. Rumours)'
+                : 'Search a song… (e.g. Dreams Fleetwood Mac)'
+            }
             value={search}
             onChangeText={(t) => runSearch(t)}
             autoCorrect={false}
@@ -313,25 +387,10 @@ export default function Feed() {
             </View>
           ) : null}
 
-          <Text style={[styles.orNote, { color: palette.text3 }]}>or enter it manually</Text>
+          <Text style={[styles.orNote, { color: palette.text3 }]}>
+            or enter {kind === 'album' ? 'an album' : 'it'} manually
+          </Text>
 
-          <View style={styles.segRow}>
-            {(['track', 'album'] as Kind[]).map((k) => (
-              <Pressable
-                key={k}
-                onPress={() => setKind(k)}
-                style={[
-                  styles.seg,
-                  { borderColor: palette.border, backgroundColor: palette.card2 },
-                  kind === k && { borderColor: palette.teal, backgroundColor: palette.tealBg },
-                ]}
-              >
-                <Text style={[styles.segText, { color: kind === k ? palette.teal : palette.text3 }]}>
-                  {k}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
           <View style={{ gap: 8, marginTop: 8 }}>
             <TextField placeholder="Title (track / album)" value={title} onChangeText={setTitle} />
             <TextField placeholder="Artist (optional)" value={artist} onChangeText={setArtist} />
@@ -439,6 +498,12 @@ function PostCard({
 
   const deletePost = async () => {
     if (await confirmAsync('Delete post', 'Remove this post?')) {
+      // Pull the track from the cycle's Spotify playlist first, while the row
+      // still exists for the server to resolve it. Best-effort + no-op when the
+      // club isn't connected or it wasn't a synced track.
+      if (post.kind === 'track') {
+        await streamingDb.removePost(post.club_id, post.id).catch(() => {});
+      }
       await feedDb.remove(post.id);
       onChange();
     }

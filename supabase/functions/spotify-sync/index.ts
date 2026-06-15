@@ -16,7 +16,7 @@
 // errors.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { addTracks, createPlaylist, refreshTokens, searchTrackUri } from '../_shared/spotify.ts'
+import { addTracks, createPlaylist, refreshTokens, removeTracks, searchTrackUri } from '../_shared/spotify.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -45,9 +45,13 @@ Deno.serve(async (req) => {
     }
 
     let clubId = ''
+    let removePostId = ''
     try {
       const body = await req.json()
       clubId = String(body?.club_id ?? '').trim()
+      // When set, this is a removal request (a deleted feed post) rather than the
+      // default append-the-cycle's-songs sync.
+      removePostId = String(body?.remove_post_id ?? '').trim()
     } catch {
       return json({ ok: false, message: 'Invalid request body' }, 400)
     }
@@ -108,6 +112,53 @@ Deno.serve(async (req) => {
 
     let playlistId: string | null = cycle.spotify_playlist_id
     let playlistUrl: string | null = cycle.spotify_playlist_url
+
+    // ── Removal path: a deleted feed post → drop its track from the playlist ────
+    // Runs before lazy playlist creation (a delete should never create one). The
+    // post row still exists here (the client deletes it after this returns), so
+    // we can resolve its URI and check whether any sibling post still needs it.
+    if (removePostId) {
+      if (!playlistId) return json({ ok: true, removed: 0 })
+      const { data: post } = await admin
+        .from('feed_posts')
+        .select('id, club_id, kind, title, artist, metadata, playlist_synced_at, created_at')
+        .eq('id', removePostId)
+        .maybeSingle()
+      // Only a synced track from this club's open cycle has anything in the playlist.
+      if (
+        !post ||
+        post.club_id !== clubId ||
+        post.kind !== 'track' ||
+        !post.playlist_synced_at ||
+        new Date(post.created_at).getTime() < new Date(cycle.created_at).getTime()
+      ) {
+        return json({ ok: true, removed: 0 })
+      }
+      const meta = (post.metadata ?? {}) as { spotify_uri?: string }
+      let uri = meta.spotify_uri ?? null
+      if (!uri) uri = await searchTrackUri(accessToken, post.title ?? '', post.artist ?? '')
+      if (!uri) return json({ ok: true, removed: 0, reason: 'no_match' })
+      // Leave it if another post in this cycle still references the same track —
+      // removing by URI drops every occurrence from the playlist.
+      const { data: others } = await admin
+        .from('feed_posts')
+        .select('id')
+        .eq('club_id', clubId)
+        .eq('kind', 'track')
+        .gte('created_at', cycle.created_at)
+        .neq('id', removePostId)
+        .eq('metadata->>spotify_uri', uri)
+        .limit(1)
+      if (others && others.length) return json({ ok: true, removed: 0, reason: 'still_referenced' })
+      try {
+        await removeTracks(accessToken, playlistId, [uri])
+      } catch (e) {
+        if (isAuthError(e)) { await markReconnect(); return json({ ok: false, reason: 'needs_reconnect' }) }
+        return json({ ok: false, reason: 'playlist_error', message: String(e) })
+      }
+      return json({ ok: true, removed: 1, playlist_url: playlistUrl })
+    }
+
     if (!playlistId) {
       const clubName = (cycle as any).clubs?.name ?? 'Music club'
       try {

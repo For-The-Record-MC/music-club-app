@@ -112,6 +112,29 @@ export async function addTracks(
   }
 }
 
+/** Remove every occurrence of the given track URIs from a playlist (max 100 per
+ * call). Uses the /items DELETE endpoint — the classic /tracks path is
+ * deprecated and 403s, the same migration addTracks made for POST. Note /items
+ * takes an `items` array (not `tracks`) of { uri } objects. */
+export async function removeTracks(
+  accessToken: string,
+  playlistId: string,
+  uris: string[],
+): Promise<void> {
+  for (let i = 0; i < uris.length; i += 100) {
+    const batch = uris.slice(i, i + 100);
+    const res = await fetch(`https://api.spotify.com/v1/playlists/${playlistId}/items`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: batch.map((uri) => ({ uri })) }),
+    });
+    if (!res.ok) {
+      const snippet = (await res.text().catch(() => '')).slice(0, 300);
+      throw new Error(`Remove tracks failed (${res.status}): ${snippet}`);
+    }
+  }
+}
+
 /** Best-effort track lookup for posts that lack a stored Spotify URI. */
 export async function searchTrackUri(
   accessToken: string,

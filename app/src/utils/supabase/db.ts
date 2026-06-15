@@ -101,6 +101,7 @@ export interface StreamingStatus {
 export interface SyncResult {
   ok: boolean;
   added?: number;
+  removed?: number;
   playlist_url?: string | null;
   reason?: string;
   message?: string;
@@ -120,6 +121,12 @@ export const streaming = {
   // Push the open cycle's songs to its playlist (owner token, server-side).
   sync: (clubId: string) =>
     supabase.functions.invoke<SyncResult>('spotify-sync', { body: { club_id: clubId } }),
+  // Drop a deleted post's track from the open cycle's playlist (owner token,
+  // server-side). Best-effort; no-op when not connected or it wasn't a synced track.
+  removePost: (clubId: string, postId: string) =>
+    supabase.functions.invoke<SyncResult>('spotify-sync', {
+      body: { club_id: clubId, remove_post_id: postId },
+    }),
 };
 
 export const clubMembers = {
