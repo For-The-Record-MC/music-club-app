@@ -8,11 +8,9 @@
 
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
+import { Platform } from 'react-native';
 
 import { streaming } from './supabase/db';
-
-// Required for the web popup to hand the redirect back to the opener.
-WebBrowser.maybeCompleteAuthSession();
 
 const SCOPES = 'playlist-modify-public';
 const clientId = process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_ID as string | undefined;
@@ -21,6 +19,14 @@ const clientId = process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_ID as string | undefined
 // register the EXACT value in the Spotify dashboard (no guesswork across
 // web/native/dev).
 export function spotifyRedirectUri(): string {
+  if (Platform.OS === 'web') {
+    // expo-linking's createURL drops the expo-router baseUrl on web, which would
+    // send Spotify to a path outside the deploy base (e.g. /spotify-callback
+    // instead of /music-club-app/spotify-callback) — a hard GitHub Pages 404
+    // that strands the auth code. Build the URL from the origin + base path.
+    const base = (process.env.EXPO_BASE_URL ?? '').replace(/\/$/, '');
+    return `${window.location.origin}${base}/spotify-callback`;
+  }
   return Linking.createURL('spotify-callback');
 }
 

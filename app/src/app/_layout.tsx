@@ -11,6 +11,7 @@ import {
 } from '@expo-google-fonts/dm-sans';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import * as WebBrowser from 'expo-web-browser';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 
@@ -18,6 +19,11 @@ import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
 import { useCurrentClubStore } from '@/stores/currentClubStore';
 import { useThemeStore } from '@/stores/themeStore';
+
+// Runs on every web page load — including the Spotify OAuth callback popup,
+// which boots from this layout (not from spotifyAuth.ts) — so the popup hands
+// the redirect back to the opener and closes.
+WebBrowser.maybeCompleteAuthSession();
 
 export default function RootLayout() {
   const { palette, isDark } = useTheme();
