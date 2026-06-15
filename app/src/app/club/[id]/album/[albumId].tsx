@@ -203,7 +203,7 @@ export default function AlbumDetail() {
 const styles = StyleSheet.create({
   topbar: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
   back: { fontSize: 22, paddingHorizontal: 4 },
-  eyebrow: { fontFamily: fonts.monoMedium, fontSize: 9, letterSpacing: 3 },
+  eyebrow: { fontFamily: fonts.sansMedium, fontSize: 9, letterSpacing: 3 },
   heroRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   art: { width: 72, height: 72, borderRadius: radius.md },
   artFallback: { alignItems: 'center', justifyContent: 'center' },

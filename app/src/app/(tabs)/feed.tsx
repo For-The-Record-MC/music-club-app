@@ -1,9 +1,11 @@
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { MentionInput, MentionText, resolveMentions, type MentionMember } from '@/components/Mentions';
 import { Avatar, Button, Card, InlineNote, Label, ListenLinks, NoClubSelected, Screen, TextField } from '@/components/ui';
+import { useClubData } from '@/hooks/useClubData';
 import { useCycle } from '@/hooks/useCycle';
 import { useFeed, type FeedRow } from '@/hooks/useFeed';
 import { useFocusTarget, useGlow } from '@/hooks/useFocusTarget';
@@ -71,6 +73,17 @@ export default function Feed() {
   const { palette } = useTheme();
   const userId = useAuthStore((s) => s.userId);
   const { posts, refresh } = useFeed(id);
+  const { members } = useClubData(id);
+  const mentionMembers = useMemo<MentionMember[]>(
+    () =>
+      members.map((m) => ({
+        profile_id: m.profile_id,
+        display_name: m.profiles?.display_name ?? null,
+        avatar_color: m.profiles?.avatar_color ?? 0,
+        avatar_url: m.profiles?.avatar_url ?? null,
+      })),
+    [members],
+  );
   const { cycle } = useCycle(id);
   const { refreshing, onRefresh } = useRefresh(refresh);
   const { focus, scrollRef, onItemLayout } = useFocusTarget();
@@ -301,13 +314,27 @@ export default function Feed() {
           <Text style={[styles.eyebrow, { color: palette.text3 }]}>WHAT YOU'RE HEARING</Text>
           <Text style={[styles.title, { color: palette.text1 }]}>The Feed</Text>
         </View>
-        <View style={{ alignItems: 'flex-end', gap: 6 }}>
-          <Pressable onPress={() => router.push(`/club/${id}/suggestions`)}>
-            <Text style={[styles.link, { color: palette.purple }]}>💡 Backlog</Text>
+        <View style={{ alignItems: 'flex-end', gap: 8 }}>
+          <Pressable
+            onPress={() => router.push(`/club/${id}/suggestions`)}
+            style={({ pressed }) => [
+              styles.headerBtn,
+              { backgroundColor: palette.purpleBg, borderColor: palette.purple },
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            <Text style={[styles.headerBtnText, { color: palette.purple }]}>💡 Backlog</Text>
           </Pressable>
           {cycle?.spotify_playlist_url ? (
-            <Pressable onPress={() => Linking.openURL(cycle.spotify_playlist_url!)}>
-              <Text style={[styles.link, { color: palette.teal }]}>▶ Playlist</Text>
+            <Pressable
+              onPress={() => Linking.openURL(cycle.spotify_playlist_url!)}
+              style={({ pressed }) => [
+                styles.headerBtn,
+                { backgroundColor: palette.tealBg, borderColor: palette.teal },
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Text style={[styles.headerBtnText, { color: palette.teal }]}>▶ Playlist</Text>
             </Pressable>
           ) : null}
         </View>
@@ -438,7 +465,7 @@ export default function Feed() {
       ) : (
         posts.map((post) => (
           <View key={post.id} onLayout={onItemLayout(post.id)}>
-            <PostCard post={post} userId={userId} onChange={refresh} highlight={post.id === focus} />
+            <PostCard post={post} userId={userId} onChange={refresh} highlight={post.id === focus} mentionMembers={mentionMembers} />
           </View>
         ))
       )}
@@ -451,13 +478,16 @@ function PostCard({
   userId,
   onChange,
   highlight = false,
+  mentionMembers,
 }: {
   post: FeedRow;
   userId: string | null;
   onChange: () => void;
   highlight?: boolean;
+  mentionMembers: MentionMember[];
 }) {
   const { palette } = useTheme();
+  const router = useRouter();
   const glow = useGlow(highlight);
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState('');
@@ -489,11 +519,22 @@ function PostCard({
 
   const addComment = async () => {
     if (!userId || !commentText.trim()) return;
-    await commentsDb.add(post.id, userId, commentText);
+    const text = commentText;
+    await commentsDb.add(post.id, userId, text);
     setCommentText('');
     const { data } = await commentsDb.listByPost(post.id);
     setCommentRows((data ?? []) as typeof commentRows);
     onChange();
+    const tagged = resolveMentions(text, mentionMembers).filter((pid) => pid !== userId);
+    if (tagged.length) {
+      void activity
+        .notifyMentions(post.club_id, tagged, {
+          context: 'feed',
+          post_id: post.id,
+          snippet: text.trim().replace(/\s+/g, ' ').slice(0, 80),
+        })
+        .then(undefined, () => {});
+    }
   };
 
   const deletePost = async () => {
@@ -517,13 +558,19 @@ function PostCard({
   return (
     <Card style={glow ? { borderColor: palette.amber } : undefined}>
       <View style={styles.postHead}>
-        <Avatar name={post.profiles?.display_name ?? null} colorIndex={post.profiles?.avatar_color ?? 0} imageUrl={post.profiles?.avatar_url} size={32} />
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={[styles.postAuthor, { color: palette.text1 }]}>
-            {post.profiles?.display_name ?? '(no name)'}
-          </Text>
-          <Text style={[styles.postTime, { color: palette.text3 }]}>{timeAgo(post.created_at)}</Text>
-        </View>
+        <Pressable
+          onPress={() => router.push(`/club/${post.club_id}/member/${post.author_id}`)}
+          style={styles.postHeadAuthor}
+          hitSlop={4}
+        >
+          <Avatar name={post.profiles?.display_name ?? null} colorIndex={post.profiles?.avatar_color ?? 0} imageUrl={post.profiles?.avatar_url} size={32} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={[styles.postAuthor, { color: palette.text1 }]}>
+              {post.profiles?.display_name ?? '(no name)'}
+            </Text>
+            <Text style={[styles.postTime, { color: palette.text3 }]}>{timeAgo(post.created_at)}</Text>
+          </View>
+        </Pressable>
         {post.is_album_suggestion ? (
           <Text style={[styles.suggBadge, { color: palette.purple, backgroundColor: palette.purpleBg }]}>
             💡 suggestion
@@ -590,21 +637,35 @@ function PostCard({
         <View style={[styles.commentSection, { borderTopColor: palette.border }]}>
           {commentRows.map((c) => (
             <View key={c.id} style={styles.commentRow}>
-              <Avatar name={c.profiles?.display_name ?? null} colorIndex={c.profiles?.avatar_color ?? 0} imageUrl={c.profiles?.avatar_url} size={24} />
+              <Pressable
+                onPress={() => router.push(`/club/${post.club_id}/member/${c.author_id}`)}
+                hitSlop={4}
+              >
+                <Avatar name={c.profiles?.display_name ?? null} colorIndex={c.profiles?.avatar_color ?? 0} imageUrl={c.profiles?.avatar_url} size={24} />
+              </Pressable>
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={[styles.commentAuthor, { color: palette.text1 }]}>
-                  {c.profiles?.display_name ?? '(no name)'}
-                </Text>
-                <Text style={[styles.commentText, { color: palette.text1 }]}>{c.text}</Text>
+                <Pressable
+                  onPress={() => router.push(`/club/${post.club_id}/member/${c.author_id}`)}
+                  hitSlop={4}
+                >
+                  <Text style={[styles.commentAuthor, { color: palette.text1 }]}>
+                    {c.profiles?.display_name ?? '(no name)'}
+                  </Text>
+                </Pressable>
+                <MentionText
+                  text={c.text}
+                  members={mentionMembers}
+                  style={[styles.commentText, { color: palette.text1 }]}
+                />
               </View>
             </View>
           ))}
           <View style={styles.commentForm}>
-            <TextField
-              placeholder="Add a comment…"
+            <MentionInput
+              placeholder="Add a comment… (@ to tag)"
               value={commentText}
               onChangeText={setCommentText}
-              style={{ flex: 1 }}
+              members={mentionMembers}
               onSubmitEditing={addComment}
             />
             <Button title="Post" onPress={addComment} disabled={!commentText.trim()} />
@@ -618,9 +679,17 @@ function PostCard({
 const styles = StyleSheet.create({
   topbar: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 },
   back: { fontSize: 22, paddingHorizontal: 4 },
-  eyebrow: { fontFamily: fonts.monoMedium, fontSize: 9, letterSpacing: 3, marginBottom: 2 },
+  eyebrow: { fontFamily: fonts.sansMedium, fontSize: 9, letterSpacing: 3, marginBottom: 2 },
   title: { fontFamily: fonts.sansBold, fontSize: 19 },
-  link: { fontFamily: fonts.monoMedium, fontSize: 12 },
+  headerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 11,
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  headerBtnText: { fontFamily: fonts.sansBold, fontSize: 12 },
   segRow: { flexDirection: 'row', gap: 6 },
   seg: {
     flex: 1,
@@ -642,6 +711,7 @@ const styles = StyleSheet.create({
   checkmark: { color: '#fff', fontSize: 13, fontWeight: '700' },
   checkLabel: { flex: 1, fontFamily: fonts.sans, fontSize: 12, lineHeight: 17 },
   postHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
+  postHeadAuthor: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0 },
   postAuthor: { fontFamily: fonts.sansBold, fontSize: 13 },
   postTime: { fontFamily: fonts.mono, fontSize: 10 },
   suggBadge: {

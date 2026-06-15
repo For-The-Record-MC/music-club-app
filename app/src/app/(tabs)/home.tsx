@@ -286,7 +286,9 @@ export default function HomeTab() {
                   onPress={() => Linking.openURL(cycle.spotify_playlist_url!)}
                   style={({ pressed }) => [styles.playlistBtn, { opacity: pressed ? 0.85 : 1 }]}
                 >
-                  <Text style={styles.playlistBtnIcon}>▶</Text>
+                  <View style={styles.playlistPlay}>
+                    <Text style={styles.playlistPlayIcon}>▶</Text>
+                  </View>
                   <Text style={styles.playlistBtnText}>Current Cycle Playlist</Text>
                 </Pressable>
               ) : null}
@@ -494,7 +496,7 @@ export default function HomeTab() {
 
 const styles = StyleSheet.create({
   topbar: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 },
-  eyebrow: { fontFamily: fonts.monoMedium, fontSize: 9, letterSpacing: 3, marginBottom: 2 },
+  eyebrow: { fontFamily: fonts.sansMedium, fontSize: 9, letterSpacing: 3, marginBottom: 2 },
   title: { fontFamily: fonts.sansBold, fontSize: 19 },
   avStack: { flexDirection: 'row', marginLeft: 8 },
   heroTitle: { fontFamily: fonts.sansBold, fontSize: 18, marginBottom: 6 },
@@ -510,12 +512,20 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     marginTop: 14,
   },
-  playlistBtnIcon: { color: '#fff', fontSize: 13 },
+  playlistPlay: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playlistPlayIcon: { color: '#1DB954', fontSize: 11, marginLeft: 1 },
   playlistBtnText: { fontFamily: fonts.sansBold, fontSize: 14, color: '#fff', letterSpacing: 0.2 },
   pastPlaylistLink: { fontFamily: fonts.monoMedium, fontSize: 11, marginTop: 2, marginBottom: 10, marginLeft: 28 },
   featuredRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   featuredArt: { width: 50, height: 50, borderRadius: radius.sm },
-  featuredEyebrow: { fontFamily: fonts.monoMedium, fontSize: 9, letterSpacing: 1.5, marginBottom: 3 },
+  featuredEyebrow: { fontFamily: fonts.sansMedium, fontSize: 9, letterSpacing: 1.5, marginBottom: 3 },
   featuredTitle: { fontFamily: fonts.sansBold, fontSize: 15, marginBottom: 1 },
   featuredArtist: { fontFamily: fonts.sans, fontSize: 12 },
   albumMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 14 },

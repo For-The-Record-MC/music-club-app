@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { DateTimeField } from '@/components/DateTimeField';
+import { MentionInput, MentionText, resolveMentions, type MentionMember } from '@/components/Mentions';
 import { Avatar, Button, Card, InlineNote, Label, NoClubSelected, Screen, TextField } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
 import { useConcerts, type ConcertRow } from '@/hooks/useConcerts';
@@ -89,6 +90,16 @@ export default function Concerts() {
     );
     return m;
   }, [members]);
+  const mentionMembers = useMemo<MentionMember[]>(
+    () =>
+      members.map((mem) => ({
+        profile_id: mem.profile_id,
+        display_name: mem.profiles?.display_name ?? null,
+        avatar_color: mem.profiles?.avatar_color ?? 0,
+        avatar_url: mem.profiles?.avatar_url ?? null,
+      })),
+    [members],
+  );
   const { rows, refresh } = useConcerts(id);
   const { refreshing, onRefresh } = useRefresh(refresh);
   const { focus, scrollRef, onItemLayout } = useFocusTarget();
@@ -205,7 +216,7 @@ export default function Concerts() {
 
       {upcoming.map((c) => (
         <View key={c.id} onLayout={onItemLayout(c.id)}>
-          <ConcertCard concert={c} userId={userId} isAdmin={isAdmin} memberInfo={memberInfo} onEdit={startEdit} onChange={refresh} highlight={c.id === focus} />
+          <ConcertCard concert={c} userId={userId} isAdmin={isAdmin} memberInfo={memberInfo} mentionMembers={mentionMembers} onEdit={startEdit} onChange={refresh} highlight={c.id === focus} />
         </View>
       ))}
 
@@ -223,7 +234,7 @@ export default function Concerts() {
           {showCompleted
             ? completed.map((c) => (
                 <View key={c.id} onLayout={onItemLayout(c.id)}>
-                  <ConcertCard concert={c} userId={userId} isAdmin={isAdmin} memberInfo={memberInfo} onEdit={startEdit} onChange={refresh} highlight={c.id === focus} />
+                  <ConcertCard concert={c} userId={userId} isAdmin={isAdmin} memberInfo={memberInfo} mentionMembers={mentionMembers} onEdit={startEdit} onChange={refresh} highlight={c.id === focus} />
                 </View>
               ))
             : null}
@@ -305,6 +316,7 @@ function ConcertCard({
   userId,
   isAdmin,
   memberInfo,
+  mentionMembers,
   onEdit,
   onChange,
   highlight = false,
@@ -313,6 +325,7 @@ function ConcertCard({
   userId: string | null;
   isAdmin: boolean;
   memberInfo: Map<string, { display_name: string | null; avatar_color: number; avatar_url: string | null }>;
+  mentionMembers: MentionMember[];
   onEdit: (c: ConcertRow) => void;
   onChange: () => void;
   highlight?: boolean;
@@ -472,7 +485,16 @@ function ConcertCard({
         </View>
       ) : null}
 
-      {showComments ? <ConcertComments concertId={concert.id} userId={userId} isAdmin={isAdmin} onChange={onChange} /> : null}
+      {showComments ? (
+        <ConcertComments
+          concertId={concert.id}
+          clubId={concert.club_id}
+          userId={userId}
+          isAdmin={isAdmin}
+          mentionMembers={mentionMembers}
+          onChange={onChange}
+        />
+      ) : null}
     </Card>
   );
 }
@@ -483,13 +505,17 @@ interface CommentRow extends ConcertComment {
 
 function ConcertComments({
   concertId,
+  clubId,
   userId,
   isAdmin,
+  mentionMembers,
   onChange,
 }: {
   concertId: string;
+  clubId: string;
   userId: string | null;
   isAdmin: boolean;
+  mentionMembers: MentionMember[];
   onChange: () => void;
 }) {
   const { palette } = useTheme();
@@ -508,12 +534,23 @@ function ConcertComments({
 
   const add = async () => {
     if (!userId || !text.trim()) return;
+    const body = text;
     setBusy(true);
-    await commentsDb.add(concertId, userId, text);
+    await commentsDb.add(concertId, userId, body);
     setBusy(false);
     setText('');
     await load();
     onChange();
+    const tagged = resolveMentions(body, mentionMembers).filter((pid) => pid !== userId);
+    if (tagged.length) {
+      void activity
+        .notifyMentions(clubId, tagged, {
+          context: 'concert',
+          concert_id: concertId,
+          snippet: body.trim().replace(/\s+/g, ' ').slice(0, 80),
+        })
+        .then(undefined, () => {});
+    }
   };
 
   const remove = async (commentId: string) => {
@@ -531,7 +568,11 @@ function ConcertComments({
             <Text style={[styles.commentName, { color: palette.text2 }]}>
               {c.profiles?.display_name ?? '(no name)'}
             </Text>
-            <Text style={[styles.commentText, { color: palette.text1 }]}>{c.text}</Text>
+            <MentionText
+              text={c.text}
+              members={mentionMembers}
+              style={[styles.commentText, { color: palette.text1 }]}
+            />
           </View>
           {c.author_id === userId || isAdmin ? (
             <Pressable onPress={() => remove(c.id)} hitSlop={6}>
@@ -541,11 +582,11 @@ function ConcertComments({
         </View>
       ))}
       <View style={styles.commentCompose}>
-        <TextField
-          placeholder="Add a comment…"
+        <MentionInput
+          placeholder="Add a comment… (@ to tag)"
           value={text}
           onChangeText={setText}
-          style={{ flex: 1 }}
+          members={mentionMembers}
           onSubmitEditing={add}
         />
         <Button title="Post" onPress={add} loading={busy} disabled={!text.trim()} style={{ paddingHorizontal: 14 }} />
@@ -556,7 +597,7 @@ function ConcertComments({
 
 const styles = StyleSheet.create({
   topbar: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 },
-  eyebrow: { fontFamily: fonts.monoMedium, fontSize: 9, letterSpacing: 3, marginBottom: 2 },
+  eyebrow: { fontFamily: fonts.sansMedium, fontSize: 9, letterSpacing: 3, marginBottom: 2 },
   title: { fontFamily: fonts.sansBold, fontSize: 19 },
   cHead: { flexDirection: 'row', alignItems: 'flex-start' },
   cArtist: { fontFamily: fonts.sansBold, fontSize: 15, marginBottom: 2 },
@@ -619,5 +660,5 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  completedTitle: { fontFamily: fonts.monoMedium, fontSize: 12, letterSpacing: 0.5 },
+  completedTitle: { fontFamily: fonts.sansMedium, fontSize: 12, letterSpacing: 0.5 },
 });

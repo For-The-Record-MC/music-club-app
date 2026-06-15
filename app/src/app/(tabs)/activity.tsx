@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Card, InlineNote, NoClubSelected, Screen } from '@/components/ui';
+import { Avatar, Card, InlineNote, NoClubSelected, Screen } from '@/components/ui';
 import { useActivity } from '@/hooks/useActivity';
 import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
@@ -51,7 +51,26 @@ export default function Activity() {
                   pressed && r.target ? { opacity: 0.6 } : null,
                 ]}
               >
-                <Text style={styles.icon}>{r.icon}</Text>
+                {e.profiles ? (
+                  <View style={styles.avatarWrap}>
+                    <Avatar
+                      name={e.profiles.display_name}
+                      colorIndex={e.profiles.avatar_color}
+                      imageUrl={e.profiles.avatar_url}
+                      size={36}
+                    />
+                    <View
+                      style={[
+                        styles.emojiBadge,
+                        { backgroundColor: palette.surface, borderColor: palette.border },
+                      ]}
+                    >
+                      <Text style={styles.emojiBadgeText}>{r.icon}</Text>
+                    </View>
+                  </View>
+                ) : (
+                  <Text style={styles.icon}>{r.icon}</Text>
+                )}
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={[styles.text, { color: palette.text1 }]}>{r.text}</Text>
                   <Text style={[styles.time, { color: palette.text3 }]}>{timeAgo(e.created_at)}</Text>
@@ -69,10 +88,24 @@ export default function Activity() {
 const styles = StyleSheet.create({
   topbar: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 },
   back: { fontSize: 22, paddingHorizontal: 4 },
-  eyebrow: { fontFamily: fonts.monoMedium, fontSize: 9, letterSpacing: 3, marginBottom: 2 },
+  eyebrow: { fontFamily: fonts.sansMedium, fontSize: 9, letterSpacing: 3, marginBottom: 2 },
   title: { fontFamily: fonts.sansBold, fontSize: 19 },
   row: { flexDirection: 'row', gap: 12, alignItems: 'center', paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth },
   icon: { fontSize: 18, width: 24, textAlign: 'center' },
+  avatarWrap: { width: 36, height: 36 },
+  emojiBadge: {
+    position: 'absolute',
+    bottom: -3,
+    right: -5,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  emojiBadgeText: { fontSize: 10, lineHeight: 14, textAlign: 'center' },
   chevron: { fontFamily: fonts.sans, fontSize: 20 },
   text: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 19 },
   time: { fontFamily: fonts.mono, fontSize: 10, marginTop: 2 },

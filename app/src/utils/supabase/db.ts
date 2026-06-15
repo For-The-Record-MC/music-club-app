@@ -26,10 +26,66 @@ export type PostComment = Tables<'post_comments'>;
 export type Concert = Tables<'concerts'>;
 export type ConcertInterest = Tables<'concert_interest'>;
 export type ConcertComment = Tables<'concert_comments'>;
+export type MeetingPost = Tables<'meeting_posts'>;
 export type ConcertStatus = 'interested' | 'going';
 export type ActivityEvent = Tables<'activity_events'>;
+export type ProfileTrack = Tables<'profile_tracks'>;
+export type TrackSlot = 'new' | 'old' | 'obsession';
+export const TRACK_SLOTS: TrackSlot[] = ['new', 'old', 'obsession'];
+export const TRACK_SLOT_LABELS: Record<TrackSlot, string> = {
+  new: 'Something new',
+  old: 'Something old',
+  obsession: "Can't stop listening to",
+};
 export type ReactionEmoji = '👍' | '❤️' | '🔥' | '😂' | '🤔';
 export const REACTION_EMOJIS: ReactionEmoji[] = ['👍', '❤️', '🔥', '😂', '🤔'];
+
+// Per-club leaderboard weights (clubs.leaderboard_weights jsonb). Only these
+// keys are scored for the "Most Active" mode; missing keys count as 0.
+export interface LeaderboardWeights {
+  songs_shared: number;
+  interactions_given: number;
+  ratings_given: number;
+  concerts_added: number;
+  meetings_attended: number;
+  albums_chosen: number;
+}
+
+export const DEFAULT_LEADERBOARD_WEIGHTS: LeaderboardWeights = {
+  songs_shared: 3,
+  interactions_given: 1,
+  ratings_given: 2,
+  concerts_added: 2,
+  meetings_attended: 5,
+  albums_chosen: 4,
+};
+
+// Per-member stat block from the club_leaderboard RPC. avg_rating_received is
+// null when the member has no picks in a REVEALED cycle (the seal).
+export interface LeaderboardStats {
+  albums_chosen: number;
+  avg_rating_received: number | null;
+  ratings_given: number;
+  interactions_given: number;
+  interactions_received: number;
+  songs_shared: number;
+  concerts_added: number;
+  meetings_attended: number;
+}
+
+// One row of the club_leaderboard RPC payload (json array, typed manually).
+export interface LeaderboardRow {
+  profile_id: string;
+  display_name: string | null;
+  avatar_color: number;
+  avatar_url: string | null;
+  avatar_label: string | null;
+  role: ClubRole;
+  joined_at: string;
+  last_active_at: string | null;
+  stats: LeaderboardStats;
+  active_score: number;
+}
 
 // Shape of the get_album_summary RPC payload (json column, typed manually).
 export interface AlbumSummary {
@@ -50,8 +106,29 @@ export const profiles = {
       avatar_color?: number;
       avatar_url?: string | null;
       avatar_label?: string | null;
+      avatar_album_url?: string | null;
     },
   ) => supabase.from('profiles').update(patch).eq('id', id).select().single(),
+};
+
+// The three featured songs on a profile (global; same in every club). One row
+// per slot; RLS lets anyone signed in read, only the owner write.
+export const profileTracks = {
+  listByProfile: (profileId: string) =>
+    supabase.from('profile_tracks').select('*').eq('profile_id', profileId),
+  // Upsert one slot (search result + optional caption) for the signed-in user.
+  upsert: (track: TablesInsert<'profile_tracks'>) =>
+    supabase
+      .from('profile_tracks')
+      .upsert({ ...track, updated_at: new Date().toISOString() }, { onConflict: 'profile_id,slot' }),
+  clear: (profileId: string, slot: TrackSlot) =>
+    supabase.from('profile_tracks').delete().eq('profile_id', profileId).eq('slot', slot),
+};
+
+export const leaderboard = {
+  // The single source of truth for per-member stats + active score (security
+  // definer RPC, gated to club members). Returns a json array (LeaderboardRow[]).
+  get: (clubId: string) => supabase.rpc('club_leaderboard', { p_club: clubId }),
 };
 
 export const clubs = {
@@ -66,8 +143,19 @@ export const clubs = {
     supabase.from('clubs').select('*').eq('id', id).single(),
   update: (
     id: string,
-    patch: { name?: string; emoji?: string; song_limit_per_cycle?: number | null },
-  ) => supabase.from('clubs').update(patch).eq('id', id).select().single(),
+    patch: {
+      name?: string;
+      emoji?: string;
+      song_limit_per_cycle?: number | null;
+      leaderboard_weights?: LeaderboardWeights;
+    },
+  ) =>
+    supabase
+      .from('clubs')
+      .update(patch as TablesUpdate<'clubs'>)
+      .eq('id', id)
+      .select()
+      .single(),
   remove: (id: string) => supabase.from('clubs').delete().eq('id', id),
   // RPCs (security definer): atomic create-with-owner / invite-code join.
   // Both return a single clubs row (composite return, not SETOF).
@@ -186,6 +274,15 @@ export const albums = {
   upsert: (album: TablesInsert<'albums'>) =>
     supabase.from('albums').upsert(album, { onConflict: 'cycle_id,slot' }).select().single(),
   remove: (id: string) => supabase.from('albums').delete().eq('id', id),
+  // Albums a member has picked in a club (newest cycle first), with the cycle's
+  // number + reveal state so a profile can show avg rating only once revealed.
+  listByMember: (clubId: string, profileId: string) =>
+    supabase
+      .from('albums')
+      .select('*, cycles!inner(club_id, number, revealed_at, status)')
+      .eq('set_by', profileId)
+      .eq('cycles.club_id', clubId)
+      .order('created_at', { ascending: false }),
 };
 
 export const ratings = {
@@ -213,6 +310,10 @@ export const ratings = {
       .order('score', { ascending: false }),
   // The visibility-gated aggregate (see context/database-schema.md).
   summary: (albumId: string) => supabase.rpc('get_album_summary', { p_album: albumId }),
+  // Raw scores for a set of albums (RLS returns rows only for revealed cycles).
+  // Used to compute per-album averages on a member's profile.
+  scoresForAlbums: (albumIds: string[]) =>
+    supabase.from('ratings').select('album_id, score').in('album_id', albumIds),
 };
 
 // Personal per-track listening notes (rating 1–10, thumb, comment). Private by
@@ -321,6 +422,15 @@ export const feed = {
   create: (post: TablesInsert<'feed_posts'>) =>
     supabase.from('feed_posts').insert(post).select().single(),
   remove: (id: string) => supabase.from('feed_posts').delete().eq('id', id),
+  // A member's recent posts in a club — the "recently shared" strip on a profile.
+  listByAuthor: (clubId: string, profileId: string, limit = 8) =>
+    supabase
+      .from('feed_posts')
+      .select('*')
+      .eq('club_id', clubId)
+      .eq('author_id', profileId)
+      .order('created_at', { ascending: false })
+      .limit(limit),
 };
 
 export const reactions = {
@@ -342,6 +452,22 @@ export const comments = {
   add: (postId: string, authorId: string, text: string) =>
     supabase.from('post_comments').insert({ post_id: postId, author_id: authorId, text: text.trim() }),
   remove: (id: string) => supabase.from('post_comments').delete().eq('id', id),
+};
+
+// Per-cycle meeting board — short notes about the upcoming meeting (new times,
+// "I can bring wine", etc.). Lives on the RSVP screen; mirrors concertComments.
+export const meetingPosts = {
+  listByCycle: (cycleId: string) =>
+    supabase
+      .from('meeting_posts')
+      .select('*, profiles(display_name, avatar_color, avatar_url)')
+      .eq('cycle_id', cycleId)
+      .order('created_at'),
+  add: (cycleId: string, authorId: string, text: string) =>
+    supabase
+      .from('meeting_posts')
+      .insert({ cycle_id: cycleId, author_id: authorId, text: text.trim() }),
+  remove: (id: string) => supabase.from('meeting_posts').delete().eq('id', id),
 };
 
 export const concerts = {
@@ -391,7 +517,9 @@ export const activity = {
   list: (clubId: string) =>
     supabase
       .from('activity_events')
-      .select('*, profiles(display_name, avatar_color, avatar_url)')
+      // Hint the actor FK: activity_events now also FKs profiles via recipient_id,
+      // so the embed must say which relationship to follow (the actor).
+      .select('*, profiles!activity_events_actor_id_fkey(display_name, avatar_color, avatar_url)')
       .eq('club_id', clubId)
       .order('created_at', { ascending: false })
       .limit(100),
@@ -405,6 +533,14 @@ export const activity = {
   publish: (clubId: string, type: string, payload: Record<string, Json>) =>
     supabase.rpc('publish_activity_event', { p_club: clubId, p_type: type, p_payload: payload }),
   markRead: (clubId: string) => supabase.rpc('mark_activity_read', { p_club: clubId }),
+  // Notify each tagged member that they were @-mentioned in a comment. The RPC
+  // skips self-mentions and non-members; a no-op when recipients is empty.
+  notifyMentions: (clubId: string, recipientIds: string[], payload: Record<string, Json>) =>
+    supabase.rpc('notify_comment_mentions', {
+      p_club: clubId,
+      p_recipients: recipientIds,
+      p_payload: payload,
+    }),
 };
 
 export const health = {

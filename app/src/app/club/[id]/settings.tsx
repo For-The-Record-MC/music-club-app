@@ -9,7 +9,22 @@ import { useAuthStore } from '@/stores/authStore';
 import { useCurrentClubStore } from '@/stores/currentClubStore';
 import { clubEmojis, fonts, radius } from '@/theme';
 import { confirmAsync } from '@/utils/confirm';
-import { clubMembers, clubs } from '@/utils/supabase/db';
+import {
+  clubMembers,
+  clubs,
+  DEFAULT_LEADERBOARD_WEIGHTS,
+  type Club,
+  type LeaderboardWeights,
+} from '@/utils/supabase/db';
+
+const WEIGHT_FIELDS: { key: keyof LeaderboardWeights; label: string }[] = [
+  { key: 'meetings_attended', label: 'Meeting attended' },
+  { key: 'albums_chosen', label: 'Album picked' },
+  { key: 'songs_shared', label: 'Song shared' },
+  { key: 'ratings_given', label: 'Rating given' },
+  { key: 'concerts_added', label: 'Concert added' },
+  { key: 'interactions_given', label: 'Reaction / comment given' },
+];
 
 // The club admin hub (owner + admin). Edit club details, set the per-cycle song
 // limit, rotate the invite code, manage members, and (owner only) delete the
@@ -187,6 +202,9 @@ export default function ClubSettings() {
         {error ? <InlineNote text={error} tone="error" /> : null}
       </Card>
 
+      {/* Leaderboard scoring */}
+      <LeaderboardScoringCard club={club} onSaved={refresh} />
+
       {/* Members */}
       <Label>{'\n'}Members</Label>
       {members.map((m) => {
@@ -270,10 +288,73 @@ export default function ClubSettings() {
   );
 }
 
+// Owner/admin-tunable points for the "Most Active" leaderboard. Stored on
+// clubs.leaderboard_weights; the club_leaderboard RPC reads it. "Top Rated" and
+// "Most Loved" are intentionally not weighted, so they aren't shown here.
+function LeaderboardScoringCard({ club, onSaved }: { club: Club; onSaved: () => void }) {
+  const { palette } = useTheme();
+  const seed = (): LeaderboardWeights => ({
+    ...DEFAULT_LEADERBOARD_WEIGHTS,
+    ...((club.leaderboard_weights as Partial<LeaderboardWeights> | null) ?? {}),
+  });
+  const [weights, setWeights] = useState<LeaderboardWeights>(seed);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    setWeights(seed());
+  }, [club.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const setField = (key: keyof LeaderboardWeights, text: string) =>
+    setWeights((w) => ({ ...w, [key]: Math.min(99, parseInt(text.replace(/[^0-9]/g, ''), 10) || 0) }));
+
+  const save = async () => {
+    setSaving(true);
+    await clubs.update(club.id, { leaderboard_weights: weights });
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2200);
+    onSaved();
+  };
+
+  return (
+    <Card style={{ marginTop: 16 }}>
+      <Label>Leaderboard scoring</Label>
+      <Text style={[styles.limitDesc, { color: palette.text2, marginBottom: 6 }]}>
+        Points each action is worth in the “Most Active” ranking.
+      </Text>
+      {WEIGHT_FIELDS.map((f) => (
+        <View key={f.key} style={styles.weightRow}>
+          <Text style={[styles.weightLabel, { color: palette.text1 }]}>{f.label}</Text>
+          <TextField
+            value={String(weights[f.key])}
+            onChangeText={(t) => setField(f.key, t)}
+            keyboardType="number-pad"
+            maxLength={2}
+            style={{ width: 64, textAlign: 'center' }}
+          />
+        </View>
+      ))}
+      <Button
+        title="Reset to defaults"
+        variant="ghost"
+        onPress={() => setWeights({ ...DEFAULT_LEADERBOARD_WEIGHTS })}
+        style={{ marginTop: 12 }}
+      />
+      <Button
+        title={saved ? '✓ Saved' : 'Save scoring'}
+        onPress={save}
+        loading={saving}
+        style={{ marginTop: 8 }}
+      />
+    </Card>
+  );
+}
+
 const styles = StyleSheet.create({
   topbar: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 },
   back: { fontSize: 22, paddingHorizontal: 4 },
-  eyebrow: { fontFamily: fonts.monoMedium, fontSize: 9, letterSpacing: 3, marginBottom: 2 },
+  eyebrow: { fontFamily: fonts.sansMedium, fontSize: 9, letterSpacing: 3, marginBottom: 2 },
   title: { fontFamily: fonts.sansBold, fontSize: 19 },
   emojiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   emojiOpt: {
@@ -288,6 +369,8 @@ const styles = StyleSheet.create({
   limitDesc: { flex: 1, fontFamily: fonts.sans, fontSize: 13, lineHeight: 18 },
   limitInputRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10 },
   limitUnit: { fontFamily: fonts.mono, fontSize: 11, marginTop: 6 },
+  weightRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 },
+  weightLabel: { flex: 1, fontFamily: fonts.sansMedium, fontSize: 13 },
   memberRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   memberName: { fontFamily: fonts.sansBold, fontSize: 13, marginBottom: 2 },
   memberMeta: { fontFamily: fonts.mono, fontSize: 10 },

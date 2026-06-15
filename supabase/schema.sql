@@ -12,7 +12,8 @@ CREATE TABLE activity_events (
   actor_id uuid,
   event_type text NOT NULL,
   payload jsonb NOT NULL DEFAULT '{}'::jsonb,
-  created_at timestamp with time zone NOT NULL DEFAULT now()
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  recipient_id uuid
 );
 
 CREATE TABLE activity_reads (
@@ -52,7 +53,8 @@ CREATE TABLE clubs (
   owner_id uuid NOT NULL,
   invite_code text NOT NULL DEFAULT generate_invite_code(),
   created_at timestamp with time zone NOT NULL DEFAULT now(),
-  song_limit_per_cycle integer
+  song_limit_per_cycle integer,
+  leaderboard_weights jsonb NOT NULL DEFAULT jsonb_build_object('songs_shared', 3, 'interactions_given', 1, 'ratings_given', 2, 'concerts_added', 2, 'meetings_attended', 5, 'albums_chosen', 4)
 );
 
 CREATE TABLE concert_comments (
@@ -141,6 +143,14 @@ CREATE TABLE feed_posts (
   playlist_synced_at timestamp with time zone
 );
 
+CREATE TABLE meeting_posts (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  cycle_id uuid NOT NULL,
+  author_id uuid NOT NULL,
+  text text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE post_comments (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   post_id uuid NOT NULL,
@@ -157,11 +167,27 @@ CREATE TABLE post_reactions (
   created_at timestamp with time zone NOT NULL DEFAULT now()
 );
 
+CREATE TABLE profile_tracks (
+  profile_id uuid NOT NULL,
+  slot text NOT NULL,
+  track_name text NOT NULL,
+  artist_name text NOT NULL DEFAULT ''::text,
+  album_name text NOT NULL DEFAULT ''::text,
+  artwork_url text,
+  spotify_url text,
+  spotify_uri text,
+  caption text,
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE profiles (
   id uuid NOT NULL,
   display_name text,
   avatar_color integer NOT NULL DEFAULT 0,
-  created_at timestamp with time zone NOT NULL DEFAULT now()
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  avatar_url text,
+  avatar_label text,
+  avatar_album_url text
 );
 
 CREATE TABLE ratings (
@@ -230,6 +256,8 @@ ALTER TABLE activity_events ADD CONSTRAINT activity_events_actor_id_fkey FOREIGN
 ALTER TABLE activity_events ADD CONSTRAINT activity_events_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
 
 ALTER TABLE activity_events ADD CONSTRAINT activity_events_pkey PRIMARY KEY (id);
+
+ALTER TABLE activity_events ADD CONSTRAINT activity_events_recipient_id_fkey FOREIGN KEY (recipient_id) REFERENCES profiles(id) ON DELETE CASCADE;
 
 ALTER TABLE activity_reads ADD CONSTRAINT activity_reads_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
 
@@ -345,6 +373,14 @@ ALTER TABLE feed_posts ADD CONSTRAINT feed_posts_platform_check CHECK ((platform
 
 ALTER TABLE feed_posts ADD CONSTRAINT feed_posts_title_check CHECK (((char_length(TRIM(BOTH FROM title)) >= 1) AND (char_length(TRIM(BOTH FROM title)) <= 300)));
 
+ALTER TABLE meeting_posts ADD CONSTRAINT meeting_posts_author_id_fkey FOREIGN KEY (author_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE meeting_posts ADD CONSTRAINT meeting_posts_cycle_id_fkey FOREIGN KEY (cycle_id) REFERENCES cycles(id) ON DELETE CASCADE;
+
+ALTER TABLE meeting_posts ADD CONSTRAINT meeting_posts_pkey PRIMARY KEY (id);
+
+ALTER TABLE meeting_posts ADD CONSTRAINT meeting_posts_text_check CHECK (((char_length(TRIM(BOTH FROM text)) >= 1) AND (char_length(TRIM(BOTH FROM text)) <= 2000)));
+
 ALTER TABLE post_comments ADD CONSTRAINT post_comments_author_id_fkey FOREIGN KEY (author_id) REFERENCES profiles(id) ON DELETE CASCADE;
 
 ALTER TABLE post_comments ADD CONSTRAINT post_comments_pkey PRIMARY KEY (id);
@@ -363,7 +399,23 @@ ALTER TABLE post_reactions ADD CONSTRAINT post_reactions_post_id_profile_id_key 
 
 ALTER TABLE post_reactions ADD CONSTRAINT post_reactions_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
 
+ALTER TABLE profile_tracks ADD CONSTRAINT profile_tracks_caption_check CHECK (((caption IS NULL) OR (char_length(caption) <= 140)));
+
+ALTER TABLE profile_tracks ADD CONSTRAINT profile_tracks_pkey PRIMARY KEY (profile_id, slot);
+
+ALTER TABLE profile_tracks ADD CONSTRAINT profile_tracks_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE profile_tracks ADD CONSTRAINT profile_tracks_slot_check CHECK ((slot = ANY (ARRAY['new'::text, 'old'::text, 'obsession'::text])));
+
+ALTER TABLE profile_tracks ADD CONSTRAINT profile_tracks_track_name_check CHECK (((char_length(TRIM(BOTH FROM track_name)) >= 1) AND (char_length(TRIM(BOTH FROM track_name)) <= 300)));
+
+ALTER TABLE profiles ADD CONSTRAINT profiles_avatar_album_url_check CHECK (((avatar_album_url IS NULL) OR (char_length(avatar_album_url) <= 500)));
+
 ALTER TABLE profiles ADD CONSTRAINT profiles_avatar_color_check CHECK (((avatar_color >= 0) AND (avatar_color <= 6)));
+
+ALTER TABLE profiles ADD CONSTRAINT profiles_avatar_label_check CHECK (((avatar_label IS NULL) OR (char_length(avatar_label) <= 200)));
+
+ALTER TABLE profiles ADD CONSTRAINT profiles_avatar_url_check CHECK (((avatar_url IS NULL) OR (char_length(avatar_url) <= 500)));
 
 ALTER TABLE profiles ADD CONSTRAINT profiles_display_name_check CHECK (((display_name IS NULL) OR ((char_length(display_name) >= 1) AND (char_length(display_name) <= 40))));
 
@@ -432,6 +484,8 @@ ALTER TABLE streaming_connections ADD CONSTRAINT streaming_connections_status_ch
 
 CREATE INDEX activity_events_club_idx ON public.activity_events USING btree (club_id, created_at DESC);
 
+CREATE INDEX activity_events_recipient_idx ON public.activity_events USING btree (recipient_id, created_at DESC) WHERE (recipient_id IS NOT NULL);
+
 CREATE INDEX albums_cycle_idx ON public.albums USING btree (cycle_id);
 
 CREATE INDEX club_members_club_idx ON public.club_members USING btree (club_id);
@@ -458,6 +512,8 @@ CREATE INDEX feed_posts_club_idx ON public.feed_posts USING btree (club_id, crea
 
 CREATE INDEX feed_posts_suggestion_idx ON public.feed_posts USING btree (club_id) WHERE is_album_suggestion;
 
+CREATE INDEX meeting_posts_cycle_idx ON public.meeting_posts USING btree (cycle_id, created_at);
+
 CREATE INDEX post_comments_post_idx ON public.post_comments USING btree (post_id, created_at);
 
 CREATE INDEX post_reactions_post_idx ON public.post_reactions USING btree (post_id);
@@ -476,7 +532,7 @@ CREATE INDEX song_notes_album_profile_idx ON public.song_notes USING btree (albu
 ALTER TABLE activity_events ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY activity_events_select ON activity_events AS PERMISSIVE FOR SELECT TO authenticated
-  USING (is_club_member(club_id));
+  USING ((is_club_member(club_id) AND ((recipient_id IS NULL) OR (recipient_id = auth.uid()))));
 
 ALTER TABLE activity_reads ENABLE ROW LEVEL SECURITY;
 
@@ -626,6 +682,23 @@ CREATE POLICY feed_posts_insert ON feed_posts AS PERMISSIVE FOR INSERT TO authen
 CREATE POLICY feed_posts_select ON feed_posts AS PERMISSIVE FOR SELECT TO authenticated
   USING (is_club_member(club_id));
 
+ALTER TABLE meeting_posts ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY meeting_posts_delete ON meeting_posts AS PERMISSIVE FOR DELETE TO authenticated
+  USING (((author_id = auth.uid()) OR (EXISTS ( SELECT 1
+   FROM cycles c
+  WHERE ((c.id = meeting_posts.cycle_id) AND (club_role(c.club_id) = ANY (ARRAY['owner'::text, 'admin'::text])))))));
+
+CREATE POLICY meeting_posts_insert ON meeting_posts AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (((author_id = auth.uid()) AND (EXISTS ( SELECT 1
+   FROM cycles c
+  WHERE ((c.id = meeting_posts.cycle_id) AND is_club_member(c.club_id))))));
+
+CREATE POLICY meeting_posts_select ON meeting_posts AS PERMISSIVE FOR SELECT TO authenticated
+  USING ((EXISTS ( SELECT 1
+   FROM cycles c
+  WHERE ((c.id = meeting_posts.cycle_id) AND is_club_member(c.club_id)))));
+
 ALTER TABLE post_comments ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY post_comments_delete ON post_comments AS PERMISSIVE FOR DELETE TO authenticated
@@ -655,6 +728,15 @@ CREATE POLICY post_reactions_write ON post_reactions AS PERMISSIVE FOR ALL TO au
   WITH CHECK (((profile_id = auth.uid()) AND (EXISTS ( SELECT 1
    FROM feed_posts p
   WHERE ((p.id = post_reactions.post_id) AND is_club_member(p.club_id))))));
+
+ALTER TABLE profile_tracks ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY profile_tracks_select ON profile_tracks AS PERMISSIVE FOR SELECT TO authenticated
+  USING (true);
+
+CREATE POLICY profile_tracks_write ON profile_tracks AS PERMISSIVE FOR ALL TO authenticated
+  USING ((profile_id = auth.uid()))
+  WITH CHECK ((profile_id = auth.uid()));
 
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
@@ -780,6 +862,126 @@ begin
   where id = p_cycle
   returning * into v_cycle;
   return v_cycle;
+end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.club_leaderboard(p_club uuid)
+ RETURNS json
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_weights jsonb;
+  v_result json;
+begin
+  if not public.is_club_member(p_club) then
+    raise exception 'Not a club member';
+  end if;
+
+  select coalesce(leaderboard_weights, '{}'::jsonb) into v_weights
+  from clubs where id = p_club;
+
+  select coalesce(json_agg(r order by r.active_score desc), '[]'::json)
+  into v_result
+  from (
+    select
+      cm.profile_id,
+      p.display_name,
+      p.avatar_color,
+      p.avatar_url,
+      p.avatar_label,
+      cm.role,
+      cm.joined_at,
+      -- Most recent club activity, for client-side tie-breaking. GREATEST
+      -- ignores NULLs, returning NULL only when the member has done nothing.
+      greatest(
+        (select max(fp.created_at) from feed_posts fp
+           where fp.club_id = p_club and fp.author_id = cm.profile_id),
+        (select max(pr.created_at) from post_reactions pr
+           join feed_posts fp on fp.id = pr.post_id
+          where fp.club_id = p_club and pr.profile_id = cm.profile_id),
+        (select max(pc.created_at) from post_comments pc
+           join feed_posts fp on fp.id = pc.post_id
+          where fp.club_id = p_club and pc.author_id = cm.profile_id),
+        (select max(rt.updated_at) from ratings rt
+           join albums a on a.id = rt.album_id
+           join cycles c on c.id = a.cycle_id
+          where c.club_id = p_club and rt.profile_id = cm.profile_id),
+        (select max(co.created_at) from concerts co
+           where co.club_id = p_club and co.added_by = cm.profile_id)
+      ) as last_active_at,
+      jsonb_build_object(
+        'albums_chosen', stats.albums_chosen,
+        'avg_rating_received', stats.avg_rating_received,
+        'ratings_given', stats.ratings_given,
+        'interactions_given', stats.interactions_given,
+        'interactions_received', stats.interactions_received,
+        'songs_shared', stats.songs_shared,
+        'concerts_added', stats.concerts_added,
+        'meetings_attended', stats.meetings_attended
+      ) as stats,
+      ( stats.songs_shared        * coalesce((v_weights->>'songs_shared')::numeric, 0)
+      + stats.interactions_given  * coalesce((v_weights->>'interactions_given')::numeric, 0)
+      + stats.ratings_given       * coalesce((v_weights->>'ratings_given')::numeric, 0)
+      + stats.concerts_added      * coalesce((v_weights->>'concerts_added')::numeric, 0)
+      + stats.meetings_attended   * coalesce((v_weights->>'meetings_attended')::numeric, 0)
+      + stats.albums_chosen       * coalesce((v_weights->>'albums_chosen')::numeric, 0)
+      ) as active_score
+    from club_members cm
+    join profiles p on p.id = cm.profile_id
+    cross join lateral (
+      select
+        -- albums chosen: every album this member set in the club
+        (select count(*)::int from albums a
+           join cycles c on c.id = a.cycle_id
+          where c.club_id = p_club and a.set_by = cm.profile_id) as albums_chosen,
+        -- avg rating received on their picks — REVEALED cycles only (the seal)
+        (select round(avg(rt.score)::numeric, 1) from ratings rt
+           join albums a on a.id = rt.album_id
+           join cycles c on c.id = a.cycle_id
+          where c.club_id = p_club and a.set_by = cm.profile_id
+            and c.revealed_at is not null) as avg_rating_received,
+        -- ratings they submitted in the club
+        (select count(*)::int from ratings rt
+           join albums a on a.id = rt.album_id
+           join cycles c on c.id = a.cycle_id
+          where c.club_id = p_club and rt.profile_id = cm.profile_id) as ratings_given,
+        -- interactions given: reactions + comments on OTHERS' posts (no self)
+        ( (select count(*) from post_reactions pr
+             join feed_posts fp on fp.id = pr.post_id
+            where fp.club_id = p_club and pr.profile_id = cm.profile_id
+              and fp.author_id <> cm.profile_id)
+        + (select count(*) from post_comments pc
+             join feed_posts fp on fp.id = pc.post_id
+            where fp.club_id = p_club and pc.author_id = cm.profile_id
+              and fp.author_id <> cm.profile_id) )::int as interactions_given,
+        -- interactions received: OTHERS reacting/commenting on my posts (no self)
+        ( (select count(*) from post_reactions pr
+             join feed_posts fp on fp.id = pr.post_id
+            where fp.club_id = p_club and fp.author_id = cm.profile_id
+              and pr.profile_id <> cm.profile_id)
+        + (select count(*) from post_comments pc
+             join feed_posts fp on fp.id = pc.post_id
+            where fp.club_id = p_club and fp.author_id = cm.profile_id
+              and pc.author_id <> cm.profile_id) )::int as interactions_received,
+        -- songs shared: feed posts they authored
+        (select count(*)::int from feed_posts fp
+          where fp.club_id = p_club and fp.author_id = cm.profile_id) as songs_shared,
+        -- concerts added
+        (select count(*)::int from concerts co
+          where co.club_id = p_club and co.added_by = cm.profile_id) as concerts_added,
+        -- meetings attended: 'yes' RSVP on a closed cycle
+        (select count(*)::int from rsvps rv
+           join cycles c on c.id = rv.cycle_id
+          where c.club_id = p_club and rv.profile_id = cm.profile_id
+            and rv.status = 'yes' and c.status = 'closed') as meetings_attended
+    ) stats
+    where cm.club_id = p_club
+  ) r;
+
+  return v_result;
 end;
 $function$
 ;
@@ -1036,6 +1238,28 @@ begin
     'used', v_used,
     'has_open_cycle', v_cycle_start is not null
   );
+end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.notify_comment_mentions(p_club uuid, p_recipients uuid[], p_payload jsonb DEFAULT '{}'::jsonb)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not public.is_club_member(p_club) then
+    raise exception 'Not a club member';
+  end if;
+  insert into activity_events (club_id, actor_id, recipient_id, event_type, payload)
+  select p_club, auth.uid(), r, 'comment_mention', coalesce(p_payload, '{}'::jsonb)
+  from unnest(p_recipients) as r
+  where r <> auth.uid()
+    and exists (
+      select 1 from club_members m
+      where m.club_id = p_club and m.profile_id = r
+    );
 end;
 $function$
 ;

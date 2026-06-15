@@ -151,7 +151,7 @@ export function ListenLinks({
   const pills: { label: string; url: string; bg: string }[] = [];
   if (spotify) pills.push({ label: 'Spotify', url: spotify, bg: palette.spotify });
   if (apple) pills.push({ label: 'Apple Music', url: apple, bg: palette.apple });
-  if (other) pills.push({ label: 'Open link', url: other, bg: palette.text3 });
+  if (other) pills.push({ label: 'Open link', url: other, bg: palette.text2 });
   if (!pills.length) return null;
   return (
     <View style={[styles.listenRow, style]}>
@@ -159,9 +159,12 @@ export function ListenLinks({
         <Pressable
           key={p.label}
           onPress={() => Linking.openURL(p.url)}
-          style={({ pressed }) => [styles.listenPill, { backgroundColor: p.bg, opacity: pressed ? 0.8 : 1 }]}
+          style={({ pressed }) => [styles.listenPill, { backgroundColor: p.bg }, pressed && styles.listenPillPressed]}
         >
-          <Text style={styles.listenPillText}>▶ {p.label}</Text>
+          <View style={styles.listenPlay}>
+            <Text style={[styles.listenPlayIcon, { color: p.bg }]}>▶</Text>
+          </View>
+          <Text style={styles.listenPillText}>{p.label}</Text>
         </Pressable>
       ))}
     </View>
@@ -321,14 +324,29 @@ const styles = StyleSheet.create({
   },
   listenRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   listenPill: {
-    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    borderRadius: 22,
     paddingVertical: 6,
-    paddingHorizontal: 12,
+    paddingLeft: 6,
+    paddingRight: 14,
   },
+  listenPillPressed: { opacity: 0.85 },
+  listenPlay: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  listenPlayIcon: { fontSize: 9, marginLeft: 1 },
   listenPillText: {
     fontFamily: fonts.sansBold,
-    fontSize: 11,
+    fontSize: 12.5,
     color: '#fff',
+    letterSpacing: 0.2,
   },
   input: {
     borderWidth: StyleSheet.hairlineWidth,

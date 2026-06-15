@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   topbarRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  eyebrow: { fontFamily: fonts.monoMedium, fontSize: 10, letterSpacing: 2, marginBottom: 2 },
+  eyebrow: { fontFamily: fonts.sansMedium, fontSize: 10, letterSpacing: 2, marginBottom: 2 },
   wordmark: { fontFamily: fonts.sansBold, fontSize: 22 },
   empty: { alignItems: 'center', paddingVertical: 40, paddingHorizontal: 20 },
   emptyIcon: { fontSize: 48, marginBottom: 16 },
