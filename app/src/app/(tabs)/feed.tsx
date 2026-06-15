@@ -4,10 +4,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { MentionInput, MentionText, resolveMentions, type MentionMember } from '@/components/Mentions';
-import { Avatar, Button, Card, InlineNote, Label, ListenLinks, NoClubSelected, Screen, TextField } from '@/components/ui';
+import { Avatar, BottomSheet, Button, Card, InlineNote, Label, ListenLinks, NoClubSelected, Screen, TextField } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
 import { useCycle } from '@/hooks/useCycle';
 import { useFeed, type FeedRow } from '@/hooks/useFeed';
+import { useMyClubs } from '@/hooks/useMyClubs';
 import { useFocusTarget, useGlow } from '@/hooks/useFocusTarget';
 import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
@@ -65,6 +66,59 @@ function linksOf(post: FeedRow): { apple: string | null; spotify: string | null;
   return { apple, spotify, other };
 }
 
+// A club the current user belongs to, trimmed to what the share UI needs.
+interface ClubLite {
+  id: string;
+  name: string;
+  emoji: string;
+}
+
+// The original this post traces back to (itself, if it's not a copy).
+const rootPostId = (p: FeedRow) => p.origin_post_id ?? p.id;
+
+// The original poster to credit on a copy. Propagates through re-shares, and is
+// hidden when the original poster is the same person viewing/sharing.
+function sharedFromOf(post: FeedRow): { id: string; name: string | null } | null {
+  const m = post.metadata as { shared_from_id?: string; shared_from_name?: string | null } | null;
+  if (m?.shared_from_id && m.shared_from_id !== post.author_id) {
+    return { id: m.shared_from_id, name: m.shared_from_name ?? null };
+  }
+  return null;
+}
+
+// Cross-post a feed post into another club as the sharer (so it counts against
+// the sharer's cap there), crediting the original poster, then sync that club's
+// playlist for tracks. Returns an error (e.g. song cap hit) or null on success.
+async function sharePostTo(targetClubId: string, post: FeedRow, userId: string) {
+  const srcMeta = (post.metadata ?? {}) as Record<string, string | null | undefined>;
+  const originId = srcMeta.shared_from_id ?? post.author_id;
+  const originName = srcMeta.shared_from_name ?? post.profiles?.display_name ?? null;
+  const metadata = { ...srcMeta, shared_from_id: originId, shared_from_name: originName };
+  const { data, error } = await feedDb.create({
+    club_id: targetClubId,
+    author_id: userId,
+    kind: post.kind,
+    title: post.title,
+    artist: post.artist,
+    url: post.url,
+    platform: post.platform,
+    note: post.note,
+    is_album_suggestion: post.is_album_suggestion,
+    metadata,
+    origin_post_id: rootPostId(post),
+  });
+  if (error || !data) return error;
+  await activity.publish(targetClubId, 'feed_post', {
+    title: data.title,
+    is_album_suggestion: post.is_album_suggestion,
+    post_id: data.id,
+  });
+  // Push the new track onto the target club's cycle playlist (no-op if the club
+  // isn't connected). Fire-and-forget so a slow sync doesn't block the UI.
+  if (post.kind === 'track') streamingDb.sync(targetClubId).catch(() => {});
+  return null;
+}
+
 // One social feed for the club. Posts flagged "album suggestion" also surface
 // in the picker's backlog (/club/[id]/suggestions).
 export default function Feed() {
@@ -88,6 +142,16 @@ export default function Feed() {
   const { refreshing, onRefresh } = useRefresh(refresh);
   const { focus, scrollRef, onItemLayout } = useFocusTarget();
 
+  // Your other clubs — the candidates for cross-posting a song/album.
+  const { rows: myClubRows } = useMyClubs();
+  const otherClubs = useMemo<ClubLite[]>(
+    () =>
+      myClubRows
+        .filter((r) => r.club.id !== id)
+        .map((r) => ({ id: r.club.id, name: r.club.name, emoji: r.club.emoji })),
+    [myClubRows, id],
+  );
+
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [artist, setArtist] = useState('');
@@ -106,6 +170,9 @@ export default function Feed() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [quota, setQuota] = useState<SongQuota | null>(null);
+  const [shareTargets, setShareTargets] = useState<string[]>([]);
+  // Other clubs' remaining song slots; null = uncapped/no open cycle.
+  const [otherQuota, setOtherQuota] = useState<Record<string, number | null>>({});
 
   // My per-cycle song quota — drives the "X of N songs left" hint and disables
   // posting a song once the cap is hit. Only kind='track' counts.
@@ -119,9 +186,34 @@ export default function Feed() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  // While the composer is open, learn each other club's remaining song slots so
+  // "Also post to" can disable clubs where you're already at the cap (tracks).
+  useEffect(() => {
+    if (!open || otherClubs.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const quotas = await Promise.all(otherClubs.map((c) => clubsDb.songQuota(c.id)));
+      if (cancelled) return;
+      const map: Record<string, number | null> = {};
+      otherClubs.forEach((c, i) => {
+        const q = quotas[i].data as unknown as SongQuota | null;
+        map[c.id] = q && q.limit != null && q.has_open_cycle ? Math.max(0, q.limit - q.used) : null;
+      });
+      setOtherQuota(map);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, otherClubs]);
+
+  const toggleShareTarget = (clubId: string) =>
+    setShareTargets((t) => (t.includes(clubId) ? t.filter((x) => x !== clubId) : [...t, clubId]));
+
   const capped = quota?.limit != null && quota.has_open_cycle;
   const remaining = capped ? Math.max(0, (quota!.limit as number) - quota!.used) : null;
   const songBlocked = kind === 'track' && remaining === 0;
+  // Picked share targets that aren't capped-out for a song — what actually posts.
+  const activeShareCount = shareTargets.filter((t) => !(kind === 'track' && otherQuota[t] === 0)).length;
 
   // Search the catalog for the active kind. searchKind is passed explicitly so
   // the track/album toggle can re-run immediately without a stale `kind` closure.
@@ -242,6 +334,7 @@ export default function Feed() {
     setAppleUrl(null);
     setSearch('');
     setResults([]);
+    setShareTargets([]);
     setOpen(false);
   };
 
@@ -273,8 +366,8 @@ export default function Feed() {
       ...(sUrl ? { spotify_url: sUrl } : {}),
       ...(aUrl ? { apple_url: aUrl } : {}),
     };
-    const { data, error: err } = await feedDb.create({
-      club_id: id,
+    // Fields shared by the post in this club and any "Also post to" copies.
+    const basePost = {
       author_id: userId,
       kind,
       title: title.trim(),
@@ -284,24 +377,37 @@ export default function Feed() {
       note: note.trim() || null,
       is_album_suggestion: suggestion,
       metadata: Object.keys(meta).length ? meta : null,
-    });
-    if (!err && data) {
-      await activity.publish(id, 'feed_post', {
-        title: data.title,
-        is_album_suggestion: suggestion,
-        post_id: data.id,
-      });
-    }
-    setBusy(false);
-    if (err) {
-      setError(err.message);
+    };
+    const { data, error: err } = await feedDb.create({ ...basePost, club_id: id });
+    if (err || !data) {
+      setBusy(false);
+      setError(err?.message ?? 'Could not post.');
       return;
     }
+    await activity.publish(id, 'feed_post', {
+      title: data.title,
+      is_album_suggestion: suggestion,
+      post_id: data.id,
+    });
+    // Fan out to the picked clubs as copies linked to the original. Skip clubs
+    // where a song would bust the cap (server enforces too); albums are uncapped.
+    const targets = shareTargets.filter((t) => !(kind === 'track' && otherQuota[t] === 0));
+    for (const targetId of targets) {
+      const { data: copy } = await feedDb.create({ ...basePost, club_id: targetId, origin_post_id: data.id });
+      if (!copy) continue;
+      await activity.publish(targetId, 'feed_post', {
+        title: copy.title,
+        is_album_suggestion: suggestion,
+        post_id: copy.id,
+      });
+      if (kind === 'track') streamingDb.sync(targetId).catch(() => {});
+    }
+    setBusy(false);
     resetComposer();
     refresh();
     loadQuota();
-    // Push to the cycle's Spotify playlist if the club is connected. Fire-and-
-    // forget + no-ops server-side when not connected / not a track.
+    // Push to this club's cycle playlist if connected. Fire-and-forget + no-ops
+    // server-side when not connected / not a track.
     if (kind === 'track') streamingDb.sync(id).catch(() => {});
   };
 
@@ -341,7 +447,7 @@ export default function Feed() {
       </View>
 
       {!open ? (
-        <Button title="+ Share something" onPress={() => setOpen(true)} style={{ marginBottom: 14 }} />
+        <Button title="+ Share something" onPress={() => { setShareTargets([]); setOpen(true); }} style={{ marginBottom: 14 }} />
       ) : (
         <Card>
           <View style={styles.segRow}>
@@ -453,7 +559,46 @@ export default function Feed() {
                 tone={remaining === 0 ? 'error' : 'muted'}
               />
             ) : null}
-            <Button title="Post" onPress={submit} loading={busy} disabled={songBlocked} />
+            {otherClubs.length > 0 ? (
+              <View style={styles.sharePickBlock}>
+                <Text style={[styles.sharePickLabel, { color: palette.text3 }]}>ALSO POST TO (OPTIONAL)</Text>
+                <View style={styles.shareChips}>
+                  {otherClubs.map((c) => {
+                    const capReached = kind === 'track' && otherQuota[c.id] === 0;
+                    const on = shareTargets.includes(c.id) && !capReached;
+                    return (
+                      <Pressable
+                        key={c.id}
+                        onPress={capReached ? undefined : () => toggleShareTarget(c.id)}
+                        disabled={capReached}
+                        style={[
+                          styles.shareChip,
+                          { borderColor: palette.border, backgroundColor: palette.card2 },
+                          on && { borderColor: palette.teal, backgroundColor: palette.tealBg },
+                          capReached && { opacity: 0.5 },
+                        ]}
+                      >
+                        <Text style={{ fontSize: 14 }}>{c.emoji}</Text>
+                        <Text
+                          numberOfLines={1}
+                          style={[styles.shareChipText, { color: on ? palette.teal : palette.text2 }]}
+                        >
+                          {c.name}
+                          {capReached ? ' · capped' : ''}
+                        </Text>
+                        {on ? <Text style={[styles.shareChipCheck, { color: palette.teal }]}>✓</Text> : null}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : null}
+            <Button
+              title={activeShareCount > 0 ? `Post & share to ${activeShareCount}` : 'Post'}
+              onPress={submit}
+              loading={busy}
+              disabled={songBlocked}
+            />
             <Button title="Cancel" variant="ghost" onPress={resetComposer} />
             {error ? <InlineNote text={error} tone="error" /> : null}
           </View>
@@ -465,7 +610,7 @@ export default function Feed() {
       ) : (
         posts.map((post) => (
           <View key={post.id} onLayout={onItemLayout(post.id)}>
-            <PostCard post={post} userId={userId} onChange={refresh} highlight={post.id === focus} mentionMembers={mentionMembers} />
+            <PostCard post={post} userId={userId} onChange={refresh} highlight={post.id === focus} mentionMembers={mentionMembers} shareClubs={otherClubs} />
           </View>
         ))
       )}
@@ -479,17 +624,21 @@ function PostCard({
   onChange,
   highlight = false,
   mentionMembers,
+  shareClubs,
 }: {
   post: FeedRow;
   userId: string | null;
   onChange: () => void;
   highlight?: boolean;
   mentionMembers: MentionMember[];
+  shareClubs: ClubLite[];
 }) {
   const { palette } = useTheme();
   const router = useRouter();
   const glow = useGlow(highlight);
   const [showComments, setShowComments] = useState(false);
+  const [showShare, setShowShare] = useState(false);
+  const sharedFrom = sharedFromOf(post);
   const [commentText, setCommentText] = useState('');
   const [commentRows, setCommentRows] = useState<
     { id: string; text: string; author_id: string; profiles: { display_name: string | null; avatar_color: number; avatar_url: string | null } | null }[]
@@ -576,12 +725,23 @@ function PostCard({
             💡 suggestion
           </Text>
         ) : null}
+        {shareClubs.length > 0 ? (
+          <Pressable onPress={() => setShowShare(true)} hitSlop={6} accessibilityLabel="Share to another club">
+            <Text style={{ color: palette.text3, fontSize: 16 }}>↗</Text>
+          </Pressable>
+        ) : null}
         {canDelete ? (
           <Pressable onPress={deletePost}>
             <Text style={{ color: palette.text3, fontSize: 16 }}>×</Text>
           </Pressable>
         ) : null}
       </View>
+
+      {sharedFrom ? (
+        <Text style={[styles.sharedFrom, { color: palette.text3 }]}>
+          ↑ shared from {sharedFrom.name ?? 'another club'}
+        </Text>
+      ) : null}
 
       <View style={styles.postBody}>
         {artworkOf(post) ? (
@@ -672,7 +832,158 @@ function PostCard({
           </View>
         </View>
       ) : null}
+
+      {shareClubs.length > 0 ? (
+        <ShareFeedSheet
+          visible={showShare}
+          onClose={() => setShowShare(false)}
+          post={post}
+          clubs={shareClubs}
+          userId={userId}
+          onShared={onChange}
+        />
+      ) : null}
     </Card>
+  );
+}
+
+// Bottom sheet for cross-posting a feed post to your other clubs. Clubs that
+// already have it are shown as "Added"; for songs, clubs where you've hit the
+// per-cycle cap are shown as "Cap reached" and can't be picked.
+function ShareFeedSheet({
+  visible,
+  onClose,
+  post,
+  clubs,
+  userId,
+  onShared,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  post: FeedRow;
+  clubs: ClubLite[];
+  userId: string | null;
+  onShared: () => void;
+}) {
+  const { palette } = useTheme();
+  const [already, setAlready] = useState<Set<string>>(new Set());
+  // clubId → remaining song slots; null = uncapped/no open cycle (always allowed).
+  const [remaining, setRemaining] = useState<Record<string, number | null>>({});
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const root = rootPostId(post);
+  const isTrack = post.kind === 'track';
+
+  useEffect(() => {
+    if (!visible) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await feedDb.sharedClubIds(root);
+      const sharedSet = new Set((data ?? []).map((r) => r.club_id));
+      const remMap: Record<string, number | null> = {};
+      if (isTrack) {
+        const candidates = clubs.filter((c) => !sharedSet.has(c.id));
+        const quotas = await Promise.all(candidates.map((c) => clubsDb.songQuota(c.id)));
+        candidates.forEach((c, i) => {
+          const q = quotas[i].data as unknown as SongQuota | null;
+          remMap[c.id] =
+            q && q.limit != null && q.has_open_cycle ? Math.max(0, q.limit - q.used) : null;
+        });
+      }
+      if (!cancelled) {
+        setAlready(sharedSet);
+        setRemaining(remMap);
+        setSelected(new Set());
+        setError(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, root, isTrack, clubs]);
+
+  const toggle = (clubId: string) =>
+    setSelected((s) => {
+      const next = new Set(s);
+      if (next.has(clubId)) next.delete(clubId);
+      else next.add(clubId);
+      return next;
+    });
+
+  const share = async () => {
+    if (!userId || selected.size === 0) return;
+    setBusy(true);
+    setError(null);
+    const failures: string[] = [];
+    for (const targetId of selected) {
+      const err = await sharePostTo(targetId, post, userId);
+      if (err) failures.push(clubs.find((c) => c.id === targetId)?.name ?? 'a club');
+    }
+    setBusy(false);
+    onShared();
+    if (failures.length) {
+      setError(`Couldn't share to ${failures.join(', ')} — song cap reached.`);
+      return;
+    }
+    onClose();
+  };
+
+  return (
+    <BottomSheet visible={visible} onClose={onClose}>
+      <Label>Share "{post.title}" to…</Label>
+      {clubs.map((c) => {
+        const has = already.has(c.id);
+        const rem = remaining[c.id];
+        const capReached = isTrack && rem === 0;
+        const disabled = has || capReached;
+        const on = selected.has(c.id);
+        return (
+          <Pressable
+            key={c.id}
+            onPress={disabled ? undefined : () => toggle(c.id)}
+            disabled={disabled}
+            style={({ pressed }) => [
+              styles.shareRow,
+              {
+                borderColor: on ? palette.teal : palette.border,
+                backgroundColor: on ? palette.tealBg : palette.card2,
+                opacity: disabled ? 0.55 : pressed ? 0.8 : 1,
+              },
+            ]}
+          >
+            <Text style={{ fontSize: 20 }}>{c.emoji}</Text>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text numberOfLines={1} style={[styles.shareRowName, { color: palette.text1 }]}>
+                {c.name}
+              </Text>
+              {isTrack && typeof rem === 'number' && !has ? (
+                <Text style={[styles.shareRowHint, { color: capReached ? palette.coral : palette.text3 }]}>
+                  {capReached ? 'No song slots left this cycle' : `${rem} song${rem === 1 ? '' : 's'} left`}
+                </Text>
+              ) : null}
+            </View>
+            <Text
+              style={[
+                styles.shareRowState,
+                { color: has || capReached ? palette.text3 : on ? palette.teal : palette.text3 },
+              ]}
+            >
+              {has ? '✓ Added' : capReached ? 'Capped' : on ? '✓' : '+'}
+            </Text>
+          </Pressable>
+        );
+      })}
+      <Button
+        title={selected.size > 0 ? `Share to ${selected.size} club${selected.size === 1 ? '' : 's'}` : 'Share'}
+        onPress={share}
+        loading={busy}
+        disabled={selected.size === 0}
+        style={{ marginTop: 8 }}
+      />
+      {error ? <InlineNote text={error} tone="error" /> : null}
+    </BottomSheet>
   );
 }
 
@@ -710,7 +1021,36 @@ const styles = StyleSheet.create({
   },
   checkmark: { color: '#fff', fontSize: 13, fontWeight: '700' },
   checkLabel: { flex: 1, fontFamily: fonts.sans, fontSize: 12, lineHeight: 17 },
+  sharePickBlock: { gap: 8, marginTop: 2 },
+  sharePickLabel: { fontFamily: fonts.monoMedium, fontSize: 9, letterSpacing: 1.5 },
+  shareChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  shareChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    maxWidth: '100%',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 20,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+  },
+  shareChipText: { fontFamily: fonts.sansMedium, fontSize: 12, flexShrink: 1 },
+  shareChipCheck: { fontFamily: fonts.monoMedium, fontSize: 11 },
   postHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
+  sharedFrom: { fontFamily: fonts.sans, fontSize: 11, marginTop: -2, marginBottom: 8 },
+  shareRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.lg,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 8,
+  },
+  shareRowName: { fontFamily: fonts.sansBold, fontSize: 15 },
+  shareRowHint: { fontFamily: fonts.mono, fontSize: 10, marginTop: 2 },
+  shareRowState: { fontFamily: fonts.monoMedium, fontSize: 13 },
   postHeadAuthor: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0 },
   postAuthor: { fontFamily: fonts.sansBold, fontSize: 13 },
   postTime: { fontFamily: fonts.mono, fontSize: 10 },

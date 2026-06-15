@@ -422,6 +422,10 @@ export const feed = {
   create: (post: TablesInsert<'feed_posts'>) =>
     supabase.from('feed_posts').insert(post).select().single(),
   remove: (id: string) => supabase.from('feed_posts').delete().eq('id', id),
+  // Club ids that already have this post: the original plus any shared copies
+  // (origin_post_id = root). RLS limits it to clubs the caller belongs to.
+  sharedClubIds: (rootId: string) =>
+    supabase.from('feed_posts').select('club_id').or(`id.eq.${rootId},origin_post_id.eq.${rootId}`),
   // A member's recent posts in a club — the "recently shared" strip on a profile.
   listByAuthor: (clubId: string, profileId: string, limit = 8) =>
     supabase
@@ -489,6 +493,11 @@ export const concerts = {
       .select()
       .single(),
   remove: (id: string) => supabase.from('concerts').delete().eq('id', id),
+  // Club ids that already have this concert: the original plus any shared
+  // copies (origin_concert_id = root). RLS limits this to clubs the caller is
+  // a member of — exactly the clubs that matter for the share picker.
+  sharedClubIds: (rootId: string) =>
+    supabase.from('concerts').select('club_id').or(`id.eq.${rootId},origin_concert_id.eq.${rootId}`),
   // status null clears the row; otherwise upsert as 'interested' | 'going'.
   setInterest: (concertId: string, profileId: string, status: ConcertStatus | null) =>
     status

@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { ConcertCalendar } from '@/components/ConcertCalendar';
 import { DateTimeField } from '@/components/DateTimeField';
 import { MentionInput, MentionText, resolveMentions, type MentionMember } from '@/components/Mentions';
-import { Avatar, Button, Card, InlineNote, Label, NoClubSelected, Screen, TextField } from '@/components/ui';
+import { Avatar, BottomSheet, Button, Card, InlineNote, Label, NoClubSelected, Screen, TextField } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
 import { useConcerts, type ConcertRow } from '@/hooks/useConcerts';
+import { useMyClubs } from '@/hooks/useMyClubs';
 import { useFocusTarget, useGlow } from '@/hooks/useFocusTarget';
 import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
@@ -67,6 +69,56 @@ interface Draft {
 
 const emptyDraft = (): Draft => ({ artist: '', when: null, venue: '', price: '', ticketUrl: '', note: '' });
 
+// A club the current user belongs to, trimmed to what the share UI needs.
+interface ClubLite {
+  id: string;
+  name: string;
+  emoji: string;
+}
+
+// The copyable fields of a concert — engagement (interest, comments, review,
+// completion) stays per-club and is deliberately left out.
+type ShareFields = Pick<
+  ConcertRow,
+  'artist' | 'concert_date' | 'concert_time' | 'venue' | 'price' | 'ticket_url' | 'note'
+>;
+
+const shareFieldsOf = (c: ShareFields): ShareFields => ({
+  artist: c.artist,
+  concert_date: c.concert_date,
+  concert_time: c.concert_time,
+  venue: c.venue,
+  price: c.price,
+  ticket_url: c.ticket_url,
+  note: c.note,
+});
+
+// Cross-post a concert into another club as an independent copy that points
+// back to the original (originId), and announce it in that club's activity.
+// If the sharer already RSVP'd on the source, carry that status onto the copy
+// so they don't have to re-tap "Going"/"Interested" in the other club.
+async function postConcertCopy(
+  targetClubId: string,
+  originId: string,
+  fields: ShareFields,
+  userId: string,
+  interestStatus: ConcertStatus | null = null,
+) {
+  const { data, error } = await concertsDb.create({
+    ...fields,
+    club_id: targetClubId,
+    added_by: userId,
+    origin_concert_id: originId,
+  });
+  if (error || !data) return error;
+  if (interestStatus) await concertsDb.setInterest(data.id, userId, interestStatus);
+  await activity.publish(targetClubId, 'concert_added', { artist: data.artist, concert_id: data.id });
+  return null;
+}
+
+// The original this concert traces back to (itself, if it's not a copy).
+const rootConcertId = (c: ConcertRow) => c.origin_concert_id ?? c.id;
+
 export default function Concerts() {
   const id = useCurrentClubStore((s) => s.clubId) ?? undefined;
   const { palette } = useTheme();
@@ -104,12 +156,24 @@ export default function Concerts() {
   const { refreshing, onRefresh } = useRefresh(refresh);
   const { focus, scrollRef, onItemLayout } = useFocusTarget();
 
+  // Your other clubs — the candidates for cross-posting a concert.
+  const { rows: myClubRows } = useMyClubs();
+  const otherClubs = useMemo<ClubLite[]>(
+    () =>
+      myClubRows
+        .filter((r) => r.club.id !== id)
+        .map((r) => ({ id: r.club.id, name: r.club.name, emoji: r.club.emoji })),
+    [myClubRows, id],
+  );
+
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>(emptyDraft());
+  const [shareTargets, setShareTargets] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
+  const [view, setView] = useState<'list' | 'calendar'>('list');
 
   const { upcoming, completed } = useMemo(() => {
     const up = rows.filter((c) => !c.completed_at);
@@ -128,9 +192,13 @@ export default function Concerts() {
   const startAdd = () => {
     setEditingId(null);
     setDraft(emptyDraft());
+    setShareTargets([]);
     setError(null);
     setOpen(true);
   };
+
+  const toggleShareTarget = (clubId: string) =>
+    setShareTargets((t) => (t.includes(clubId) ? t.filter((x) => x !== clubId) : [...t, clubId]));
 
   const startEdit = (c: ConcertRow) => {
     setEditingId(c.id);
@@ -170,13 +238,21 @@ export default function Concerts() {
       if (err) return setError(err.message);
     } else {
       const { data, error: err } = await concertsDb.create({ ...fields, club_id: id, added_by: userId });
-      if (!err && data) await activity.publish(id, 'concert_added', { artist: data.artist, concert_id: data.id });
+      if (err || !data) {
+        setBusy(false);
+        return setError(err?.message ?? 'Could not add the concert.');
+      }
+      await activity.publish(id, 'concert_added', { artist: data.artist, concert_id: data.id });
+      // Fan the new concert out to any clubs picked in "Also post to".
+      for (const targetId of shareTargets) {
+        await postConcertCopy(targetId, data.id, fields, userId);
+      }
       setBusy(false);
-      if (err) return setError(err.message);
     }
     setOpen(false);
     setEditingId(null);
     setDraft(emptyDraft());
+    setShareTargets([]);
     refresh();
   };
 
@@ -191,6 +267,25 @@ export default function Concerts() {
         </View>
       </View>
 
+      <View style={[styles.segment, { borderColor: palette.border, backgroundColor: palette.surface }]}>
+        {(['list', 'calendar'] as const).map((v) => {
+          const on = v === view;
+          return (
+            <Pressable key={v} onPress={() => setView(v)} style={styles.segBtn}>
+              <View style={[styles.segInner, on && { backgroundColor: palette.tealBg, borderColor: palette.teal }]}>
+                <Text style={[styles.segText, { color: on ? palette.teal : palette.text2 }]}>
+                  {v === 'list' ? 'List' : 'Calendar'}
+                </Text>
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {view === 'calendar' ? (
+        <ConcertCalendar concerts={rows} memberInfo={memberInfo} />
+      ) : (
+        <>
       {!open ? (
         <Button title="+ Add a concert" onPress={startAdd} style={{ marginBottom: 14 }} />
       ) : (
@@ -203,8 +298,44 @@ export default function Concerts() {
             <TextField placeholder="Ticket price (optional)" value={draft.price} onChangeText={(v) => setDraft((d) => ({ ...d, price: v }))} />
             <TextField placeholder="Ticket link (optional)" value={draft.ticketUrl} onChangeText={(v) => setDraft((d) => ({ ...d, ticketUrl: v }))} autoCapitalize="none" />
             <TextField placeholder="Notes (optional)" value={draft.note} onChangeText={(v) => setDraft((d) => ({ ...d, note: v }))} />
-            <Button title={editingId ? 'Save changes' : 'Add'} onPress={save} loading={busy} />
-            <Button title="Cancel" variant="ghost" onPress={() => { setOpen(false); setEditingId(null); }} />
+            {!editingId && otherClubs.length > 0 ? (
+              <View style={styles.sharePickBlock}>
+                <Text style={[styles.sharePickLabel, { color: palette.text3 }]}>
+                  ALSO POST TO (OPTIONAL)
+                </Text>
+                <View style={styles.shareChips}>
+                  {otherClubs.map((c) => {
+                    const on = shareTargets.includes(c.id);
+                    return (
+                      <Pressable
+                        key={c.id}
+                        onPress={() => toggleShareTarget(c.id)}
+                        style={[
+                          styles.shareChip,
+                          { borderColor: palette.border, backgroundColor: palette.card2 },
+                          on && { borderColor: palette.teal, backgroundColor: palette.tealBg },
+                        ]}
+                      >
+                        <Text style={{ fontSize: 14 }}>{c.emoji}</Text>
+                        <Text
+                          numberOfLines={1}
+                          style={[styles.shareChipText, { color: on ? palette.teal : palette.text2 }]}
+                        >
+                          {c.name}
+                        </Text>
+                        {on ? <Text style={[styles.shareChipCheck, { color: palette.teal }]}>✓</Text> : null}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : null}
+            <Button
+              title={editingId ? 'Save changes' : shareTargets.length > 0 ? `Add & share to ${shareTargets.length}` : 'Add'}
+              onPress={save}
+              loading={busy}
+            />
+            <Button title="Cancel" variant="ghost" onPress={() => { setOpen(false); setEditingId(null); setShareTargets([]); }} />
             {error ? <InlineNote text={error} tone="error" /> : null}
           </View>
         </Card>
@@ -216,7 +347,7 @@ export default function Concerts() {
 
       {upcoming.map((c) => (
         <View key={c.id} onLayout={onItemLayout(c.id)}>
-          <ConcertCard concert={c} userId={userId} isAdmin={isAdmin} memberInfo={memberInfo} mentionMembers={mentionMembers} onEdit={startEdit} onChange={refresh} highlight={c.id === focus} />
+          <ConcertCard concert={c} userId={userId} isAdmin={isAdmin} memberInfo={memberInfo} mentionMembers={mentionMembers} shareClubs={otherClubs} onEdit={startEdit} onChange={refresh} highlight={c.id === focus} />
         </View>
       ))}
 
@@ -234,12 +365,14 @@ export default function Concerts() {
           {showCompleted
             ? completed.map((c) => (
                 <View key={c.id} onLayout={onItemLayout(c.id)}>
-                  <ConcertCard concert={c} userId={userId} isAdmin={isAdmin} memberInfo={memberInfo} mentionMembers={mentionMembers} onEdit={startEdit} onChange={refresh} highlight={c.id === focus} />
+                  <ConcertCard concert={c} userId={userId} isAdmin={isAdmin} memberInfo={memberInfo} mentionMembers={mentionMembers} shareClubs={otherClubs} onEdit={startEdit} onChange={refresh} highlight={c.id === focus} />
                 </View>
               ))
             : null}
         </>
       ) : null}
+        </>
+      )}
     </Screen>
   );
 }
@@ -317,6 +450,7 @@ function ConcertCard({
   isAdmin,
   memberInfo,
   mentionMembers,
+  shareClubs,
   onEdit,
   onChange,
   highlight = false,
@@ -326,12 +460,14 @@ function ConcertCard({
   isAdmin: boolean;
   memberInfo: Map<string, { display_name: string | null; avatar_color: number; avatar_url: string | null }>;
   mentionMembers: MentionMember[];
+  shareClubs: ClubLite[];
   onEdit: (c: ConcertRow) => void;
   onChange: () => void;
   highlight?: boolean;
 }) {
   const { palette } = useTheme();
   const glow = useGlow(highlight);
+  const [showShare, setShowShare] = useState(false);
   const canManage = concert.added_by === userId || isAdmin;
   const myStatus = concert.concert_interest.find((i) => i.profile_id === userId)?.status ?? null;
   const going = concert.concert_interest.filter((i) => i.status === 'going');
@@ -451,19 +587,55 @@ function ConcertCard({
       </View>
 
       <View style={[styles.cActions, { borderTopColor: palette.border }]}>
-        <Pressable onPress={() => setShowComments((s) => !s)} hitSlop={6}>
-          <Text style={[styles.actionLink, { color: palette.text2 }]}>
-            💬 {commentCount > 0 ? `${commentCount} comment${commentCount === 1 ? '' : 's'}` : 'Comment'}
-          </Text>
-        </Pressable>
+        <View style={styles.actionGroup}>
+          <Pressable
+            onPress={() => setShowComments((s) => !s)}
+            style={({ pressed }) => [
+              styles.actionBtn,
+              { borderColor: palette.border, backgroundColor: palette.card2, opacity: pressed ? 0.8 : 1 },
+            ]}
+          >
+            <Text style={[styles.actionBtnText, { color: palette.text2 }]}>
+              💬 {commentCount > 0 ? `${commentCount} comment${commentCount === 1 ? '' : 's'}` : 'Comment'}
+            </Text>
+          </Pressable>
+          {shareClubs.length > 0 ? (
+            <Pressable
+              onPress={() => setShowShare(true)}
+              style={({ pressed }) => [
+                styles.actionBtn,
+                { borderColor: palette.border, backgroundColor: palette.card2, opacity: pressed ? 0.8 : 1 },
+              ]}
+            >
+              <Text style={[styles.actionBtnText, { color: palette.teal }]}>↗ Share</Text>
+            </Pressable>
+          ) : null}
+        </View>
         {canManage ? (
-          <Pressable onPress={() => setShowReview((s) => !s)} hitSlop={6}>
-            <Text style={[styles.actionLink, { color: palette.purple }]}>
-              {isCompleted ? '✎ Edit review' : '✓ Mark complete & review'}
+          <Pressable
+            onPress={() => setShowReview((s) => !s)}
+            style={({ pressed }) => [
+              styles.actionBtn,
+              { borderColor: palette.border, backgroundColor: palette.card2, opacity: pressed ? 0.8 : 1 },
+            ]}
+          >
+            <Text style={[styles.actionBtnText, { color: palette.purple }]}>
+              {isCompleted ? '✎ Edit review' : '✓ Review'}
             </Text>
           </Pressable>
         ) : null}
       </View>
+
+      {shareClubs.length > 0 ? (
+        <ShareConcertSheet
+          visible={showShare}
+          onClose={() => setShowShare(false)}
+          concert={concert}
+          clubs={shareClubs}
+          userId={userId}
+          onShared={onChange}
+        />
+      ) : null}
 
       {showReview ? (
         <View style={[styles.reviewForm, { borderTopColor: palette.border }]}>
@@ -595,10 +767,122 @@ function ConcertComments({
   );
 }
 
+// Bottom sheet for cross-posting an existing concert to your other clubs.
+// Clubs that already have the show (the original + prior shares) are shown as
+// "Added" and can't be picked again.
+function ShareConcertSheet({
+  visible,
+  onClose,
+  concert,
+  clubs,
+  userId,
+  onShared,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  concert: ConcertRow;
+  clubs: ClubLite[];
+  userId: string | null;
+  onShared: () => void;
+}) {
+  const { palette } = useTheme();
+  const [already, setAlready] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+
+  const root = rootConcertId(concert);
+
+  useEffect(() => {
+    if (!visible) return;
+    concertsDb.sharedClubIds(root).then(({ data }) => {
+      setAlready(new Set((data ?? []).map((r) => r.club_id)));
+      setSelected(new Set());
+    });
+  }, [visible, root]);
+
+  const toggle = (clubId: string) =>
+    setSelected((s) => {
+      const next = new Set(s);
+      if (next.has(clubId)) next.delete(clubId);
+      else next.add(clubId);
+      return next;
+    });
+
+  const share = async () => {
+    if (!userId || selected.size === 0) return;
+    setBusy(true);
+    const fields = shareFieldsOf(concert);
+    // Mirror the sharer's own RSVP from the source concert onto each copy.
+    const myStatus = concert.concert_interest.find((i) => i.profile_id === userId)?.status ?? null;
+    for (const targetId of selected) {
+      await postConcertCopy(targetId, root, fields, userId, myStatus);
+    }
+    setBusy(false);
+    onShared();
+    onClose();
+  };
+
+  return (
+    <BottomSheet visible={visible} onClose={onClose}>
+      <Label>Share "{concert.artist}" to…</Label>
+      {clubs.map((c) => {
+        const has = already.has(c.id);
+        const on = selected.has(c.id);
+        return (
+          <Pressable
+            key={c.id}
+            onPress={has ? undefined : () => toggle(c.id)}
+            disabled={has}
+            style={({ pressed }) => [
+              styles.shareRow,
+              {
+                borderColor: on ? palette.teal : palette.border,
+                backgroundColor: on ? palette.tealBg : palette.card2,
+                opacity: has ? 0.55 : pressed ? 0.8 : 1,
+              },
+            ]}
+          >
+            <Text style={{ fontSize: 20 }}>{c.emoji}</Text>
+            <Text numberOfLines={1} style={[styles.shareRowName, { color: palette.text1 }]}>
+              {c.name}
+            </Text>
+            <Text style={[styles.shareRowState, { color: has ? palette.text3 : on ? palette.teal : palette.text3 }]}>
+              {has ? '✓ Added' : on ? '✓' : '+'}
+            </Text>
+          </Pressable>
+        );
+      })}
+      <Button
+        title={selected.size > 0 ? `Share to ${selected.size} club${selected.size === 1 ? '' : 's'}` : 'Share'}
+        onPress={share}
+        loading={busy}
+        disabled={selected.size === 0}
+        style={{ marginTop: 8 }}
+      />
+    </BottomSheet>
+  );
+}
+
 const styles = StyleSheet.create({
   topbar: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 },
   eyebrow: { fontFamily: fonts.sansMedium, fontSize: 9, letterSpacing: 3, marginBottom: 2 },
   title: { fontFamily: fonts.sansBold, fontSize: 19 },
+  segment: {
+    flexDirection: 'row',
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 3,
+    marginBottom: 14,
+  },
+  segBtn: { flex: 1 },
+  segInner: {
+    paddingVertical: 7,
+    borderRadius: 9,
+    alignItems: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'transparent',
+  },
+  segText: { fontFamily: fonts.monoMedium, fontSize: 10, letterSpacing: 0.3 },
   cHead: { flexDirection: 'row', alignItems: 'flex-start' },
   cArtist: { fontFamily: fonts.sansBold, fontSize: 15, marginBottom: 2 },
   cVenue: { fontFamily: fonts.sans, fontSize: 12, marginBottom: 2 },
@@ -635,14 +919,48 @@ const styles = StyleSheet.create({
   interestName: { fontFamily: fonts.sans, fontSize: 12 },
   cActions: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexWrap: 'wrap',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
     marginTop: 10,
     paddingTop: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  actionLink: { fontFamily: fonts.monoMedium, fontSize: 11 },
+  actionGroup: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+  actionBtn: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.md,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+  },
+  actionBtnText: { fontFamily: fonts.sansMedium, fontSize: 12 },
+  sharePickBlock: { gap: 8, marginTop: 2 },
+  sharePickLabel: { fontFamily: fonts.monoMedium, fontSize: 9, letterSpacing: 1.5 },
+  shareChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  shareChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    maxWidth: '100%',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 20,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+  },
+  shareChipText: { fontFamily: fonts.sansMedium, fontSize: 12, flexShrink: 1 },
+  shareChipCheck: { fontFamily: fonts.monoMedium, fontSize: 11 },
+  shareRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.lg,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 8,
+  },
+  shareRowName: { flex: 1, fontFamily: fonts.sansBold, fontSize: 15 },
+  shareRowState: { fontFamily: fonts.monoMedium, fontSize: 13 },
   reviewForm: { marginTop: 10, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth },
   reviewLabel: { fontFamily: fonts.monoMedium, fontSize: 11, marginBottom: 8 },
   comments: { marginTop: 10, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, gap: 10 },

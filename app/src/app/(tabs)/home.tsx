@@ -1,10 +1,11 @@
 import * as Clipboard from 'expo-clipboard';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Linking, Platform, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 
-import { Avatar, Button, Card, InlineNote, Label, NoClubSelected, Screen } from '@/components/ui';
+import { ClubSwitcher } from '@/components/ClubSwitcher';
+import { Avatar, Button, Card, InlineNote, Label, Screen } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
 import { useCycle } from '@/hooks/useCycle';
 import { useFeed, type FeedRow } from '@/hooks/useFeed';
@@ -65,6 +66,7 @@ export default function HomeTab() {
   const { palette } = useTheme();
   const router = useRouter();
   const userId = useAuthStore((s) => s.userId);
+  const profile = useAuthStore((s) => s.profile);
   const clubId = useCurrentClubStore((s) => s.clubId) ?? undefined;
   const { club, members, myRole, loading: clubLoading, refresh: refreshClub } = useClubData(clubId);
   const { cycle, albums, rsvps, guests, preferences, loading: cycleLoading, refresh } = useCycle(clubId);
@@ -102,11 +104,45 @@ export default function HomeTab() {
   );
   const myStatus = rsvps.find((r) => r.profile_id === userId)?.status as RsvpStatus | undefined;
 
-  if (!clubId) return <NoClubSelected what="cycle, albums, and meeting" />;
+  // First sign-in: get a display name before showing the club UI.
+  if (profile && !profile.display_name) {
+    return <Redirect href="/profile-setup" />;
+  }
+
+  if (!clubId) {
+    return (
+      <Screen>
+        <View style={styles.topbar}>
+          <ClubSwitcher />
+        </View>
+        <Card style={{ alignItems: 'center', paddingVertical: 28 }}>
+          <Text style={{ fontSize: 44, marginBottom: 10 }}>🎵</Text>
+          <Text style={[styles.heroTitle, { color: palette.text1 }]}>No club selected</Text>
+          <Text style={[styles.heroSub, { color: palette.text2 }]}>
+            Create your first listening club, or join one with an invite link from a friend.
+          </Text>
+          <Button
+            title="Create a club"
+            onPress={() => router.push('/create-club')}
+            style={{ marginTop: 14, alignSelf: 'stretch' }}
+          />
+          <Button
+            title="Join with an invite code"
+            variant="ghost"
+            onPress={() => router.push('/join')}
+            style={{ marginTop: 8, alignSelf: 'stretch' }}
+          />
+        </Card>
+      </Screen>
+    );
+  }
 
   if (clubLoading || cycleLoading || !club) {
     return (
       <Screen>
+        <View style={styles.topbar}>
+          <ClubSwitcher />
+        </View>
         <Text style={{ color: palette.text3, fontFamily: fonts.mono, fontSize: 12 }}>
           {clubLoading || cycleLoading ? 'Loading…' : 'Club not found (are you a member?).'}
         </Text>
@@ -171,12 +207,7 @@ export default function HomeTab() {
   return (
     <Screen onRefresh={onRefresh} refreshing={refreshing}>
       <View style={styles.topbar}>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.eyebrow, { color: palette.text3 }]}>LISTENING CLUB</Text>
-          <Text style={[styles.title, { color: palette.text1 }]}>
-            {club.emoji} {club.name}
-          </Text>
-        </View>
+        <ClubSwitcher />
         <Pressable onPress={() => router.push(`/club/${club.id}/members`)}>
           <View style={styles.avStack}>
             {members.slice(0, 3).map((m) => (
@@ -496,8 +527,6 @@ export default function HomeTab() {
 
 const styles = StyleSheet.create({
   topbar: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 },
-  eyebrow: { fontFamily: fonts.sansMedium, fontSize: 9, letterSpacing: 3, marginBottom: 2 },
-  title: { fontFamily: fonts.sansBold, fontSize: 19 },
   avStack: { flexDirection: 'row', marginLeft: 8 },
   heroTitle: { fontFamily: fonts.sansBold, fontSize: 18, marginBottom: 6 },
   heroSub: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 19, textAlign: 'center' },

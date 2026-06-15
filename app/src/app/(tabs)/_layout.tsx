@@ -3,6 +3,7 @@ import { Text, type ColorValue } from 'react-native';
 
 import { useActivity } from '@/hooks/useActivity';
 import { useTheme } from '@/hooks/use-theme';
+import { useClubSwitcherStore } from '@/stores/clubSwitcherStore';
 import { useCurrentClubStore } from '@/stores/currentClubStore';
 import { fonts } from '@/theme';
 
@@ -29,8 +30,22 @@ export default function TabsLayout() {
         sceneStyle: { backgroundColor: palette.bg },
       }}
     >
-      <Tabs.Screen name="index" options={{ title: 'Clubs', tabBarIcon: tabIcon('💿') }} />
-      <Tabs.Screen name="home" options={{ title: 'Home', tabBarIcon: tabIcon('🏠') }} />
+      {/* index forwards to home; hidden from the tab bar. */}
+      <Tabs.Screen name="index" options={{ href: null }} />
+      <Tabs.Screen
+        name="home"
+        options={{ title: 'Home', tabBarIcon: tabIcon('🏠') }}
+        listeners={({ navigation }) => ({
+          // Tapping Home while already on Home reopens the club switcher instead
+          // of the default no-op.
+          tabPress: (e) => {
+            if (navigation.isFocused()) {
+              e.preventDefault();
+              useClubSwitcherStore.getState().setOpen(true);
+            }
+          },
+        })}
+      />
       <Tabs.Screen name="feed" options={{ title: 'Feed', tabBarIcon: tabIcon('🎧') }} />
       <Tabs.Screen name="notes" options={{ title: 'Notes', tabBarIcon: tabIcon('📝') }} />
       <Tabs.Screen name="concerts" options={{ title: 'Concerts', tabBarIcon: tabIcon('🎤') }} />

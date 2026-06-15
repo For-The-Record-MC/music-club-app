@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Image,
   Linking,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -44,6 +45,10 @@ export function Screen({
       ref={scrollRef}
       style={{ flex: 1, backgroundColor: palette.bg }}
       contentContainerStyle={[styles.pageContent, { paddingTop: insets.top + 20 }]}
+      // Let the pull-to-refresh gesture work even when content is shorter than
+      // the screen — without this, iOS won't bounce (and won't trigger refresh)
+      // on sparse screens like an empty feed or a quiet activity list.
+      alwaysBounceVertical={!!onRefresh}
       refreshControl={
         onRefresh ? (
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.text2} />
@@ -278,14 +283,66 @@ export function NoClubSelected({ what }: { what: string }) {
             maxWidth: 280,
           }}
         >
-          Head to the Clubs tab and pick a club to see its {what}.
+          Pick a club from the menu at the top of Home to see its {what}.
         </Text>
       </View>
     </Screen>
   );
 }
 
+// A bottom-anchored modal sheet with a dimmed, tap-to-dismiss backdrop.
+// Used by the club switcher; kept generic for reuse.
+export function BottomSheet({
+  visible,
+  onClose,
+  children,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  const { palette } = useTheme();
+  const insets = useSafeAreaInsets();
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+      <Pressable style={styles.sheetBackdrop} onPress={onClose}>
+        {/* Inner Pressable absorbs taps so they don't dismiss the sheet. */}
+        <Pressable
+          style={[
+            styles.sheet,
+            { backgroundColor: palette.surface, borderColor: palette.border, paddingBottom: insets.bottom + 16 },
+          ]}
+          onPress={() => {}}
+        >
+          <View style={[styles.sheetGrabber, { backgroundColor: palette.border2 }]} />
+          {children}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 const styles = StyleSheet.create({
+  sheetBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 0,
+    paddingTop: 10,
+    paddingHorizontal: 14,
+  },
+  sheetGrabber: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 14,
+  },
   pageContent: {
     paddingHorizontal: 14,
     paddingBottom: 60,

@@ -88,7 +88,8 @@ CREATE TABLE concerts (
   review text,
   rating integer,
   completed_at timestamp with time zone,
-  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  origin_concert_id uuid
 );
 
 CREATE TABLE cycle_guests (
@@ -140,7 +141,8 @@ CREATE TABLE feed_posts (
   is_album_suggestion boolean NOT NULL DEFAULT false,
   metadata jsonb,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
-  playlist_synced_at timestamp with time zone
+  playlist_synced_at timestamp with time zone,
+  origin_post_id uuid
 );
 
 CREATE TABLE meeting_posts (
@@ -323,6 +325,8 @@ ALTER TABLE concerts ADD CONSTRAINT concerts_club_id_fkey FOREIGN KEY (club_id) 
 
 ALTER TABLE concerts ADD CONSTRAINT concerts_note_check CHECK (((note IS NULL) OR (char_length(note) <= 1000)));
 
+ALTER TABLE concerts ADD CONSTRAINT concerts_origin_concert_id_fkey FOREIGN KEY (origin_concert_id) REFERENCES concerts(id) ON DELETE SET NULL;
+
 ALTER TABLE concerts ADD CONSTRAINT concerts_pkey PRIMARY KEY (id);
 
 ALTER TABLE concerts ADD CONSTRAINT concerts_rating_check CHECK (((rating IS NULL) OR ((rating >= 1) AND (rating <= 5))));
@@ -366,6 +370,8 @@ ALTER TABLE feed_posts ADD CONSTRAINT feed_posts_club_id_fkey FOREIGN KEY (club_
 ALTER TABLE feed_posts ADD CONSTRAINT feed_posts_kind_check CHECK ((kind = ANY (ARRAY['track'::text, 'album'::text, 'playlist'::text])));
 
 ALTER TABLE feed_posts ADD CONSTRAINT feed_posts_note_check CHECK (((note IS NULL) OR (char_length(note) <= 2000)));
+
+ALTER TABLE feed_posts ADD CONSTRAINT feed_posts_origin_post_id_fkey FOREIGN KEY (origin_post_id) REFERENCES feed_posts(id) ON DELETE SET NULL;
 
 ALTER TABLE feed_posts ADD CONSTRAINT feed_posts_pkey PRIMARY KEY (id);
 
@@ -500,6 +506,8 @@ CREATE INDEX concert_interest_concert_idx ON public.concert_interest USING btree
 
 CREATE INDEX concerts_club_idx ON public.concerts USING btree (club_id, concert_date);
 
+CREATE INDEX concerts_origin_idx ON public.concerts USING btree (origin_concert_id);
+
 CREATE INDEX cycle_guests_cycle_idx ON public.cycle_guests USING btree (cycle_id);
 
 CREATE INDEX cycle_preferences_cycle_idx ON public.cycle_preferences USING btree (cycle_id);
@@ -509,6 +517,8 @@ CREATE INDEX cycles_club_idx ON public.cycles USING btree (club_id);
 CREATE UNIQUE INDEX cycles_one_open_idx ON public.cycles USING btree (club_id) WHERE (status = 'open'::text);
 
 CREATE INDEX feed_posts_club_idx ON public.feed_posts USING btree (club_id, created_at DESC);
+
+CREATE INDEX feed_posts_origin_idx ON public.feed_posts USING btree (origin_post_id);
 
 CREATE INDEX feed_posts_suggestion_idx ON public.feed_posts USING btree (club_id) WHERE is_album_suggestion;
 

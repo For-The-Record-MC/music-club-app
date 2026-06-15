@@ -76,17 +76,17 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "activity_events_recipient_id_fkey"
-            columns: ["recipient_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "activity_events_club_id_fkey"
             columns: ["club_id"]
             isOneToOne: false
             referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_events_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -356,6 +356,7 @@ export type Database = {
           created_at: string
           id: string
           note: string | null
+          origin_concert_id: string | null
           price: string | null
           rating: number | null
           review: string | null
@@ -373,6 +374,7 @@ export type Database = {
           created_at?: string
           id?: string
           note?: string | null
+          origin_concert_id?: string | null
           price?: string | null
           rating?: number | null
           review?: string | null
@@ -390,6 +392,7 @@ export type Database = {
           created_at?: string
           id?: string
           note?: string | null
+          origin_concert_id?: string | null
           price?: string | null
           rating?: number | null
           review?: string | null
@@ -410,6 +413,13 @@ export type Database = {
             columns: ["club_id"]
             isOneToOne: false
             referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "concerts_origin_concert_id_fkey"
+            columns: ["origin_concert_id"]
+            isOneToOne: false
+            referencedRelation: "concerts"
             referencedColumns: ["id"]
           },
         ]
@@ -585,6 +595,7 @@ export type Database = {
           kind: string
           metadata: Json | null
           note: string | null
+          origin_post_id: string | null
           platform: string
           playlist_synced_at: string | null
           title: string
@@ -600,6 +611,7 @@ export type Database = {
           kind?: string
           metadata?: Json | null
           note?: string | null
+          origin_post_id?: string | null
           platform?: string
           playlist_synced_at?: string | null
           title: string
@@ -615,6 +627,7 @@ export type Database = {
           kind?: string
           metadata?: Json | null
           note?: string | null
+          origin_post_id?: string | null
           platform?: string
           playlist_synced_at?: string | null
           title?: string
@@ -633,6 +646,13 @@ export type Database = {
             columns: ["club_id"]
             isOneToOne: false
             referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feed_posts_origin_post_id_fkey"
+            columns: ["origin_post_id"]
+            isOneToOne: false
+            referencedRelation: "feed_posts"
             referencedColumns: ["id"]
           },
         ]
@@ -754,36 +774,6 @@ export type Database = {
           },
         ]
       }
-      profiles: {
-        Row: {
-          avatar_album_url: string | null
-          avatar_color: number
-          avatar_label: string | null
-          avatar_url: string | null
-          created_at: string
-          display_name: string | null
-          id: string
-        }
-        Insert: {
-          avatar_album_url?: string | null
-          avatar_color?: number
-          avatar_label?: string | null
-          avatar_url?: string | null
-          created_at?: string
-          display_name?: string | null
-          id: string
-        }
-        Update: {
-          avatar_album_url?: string | null
-          avatar_color?: number
-          avatar_label?: string | null
-          avatar_url?: string | null
-          created_at?: string
-          display_name?: string | null
-          id?: string
-        }
-        Relationships: []
-      }
       profile_tracks: {
         Row: {
           album_name: string
@@ -830,6 +820,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      profiles: {
+        Row: {
+          avatar_album_url: string | null
+          avatar_color: number
+          avatar_label: string | null
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+        }
+        Insert: {
+          avatar_album_url?: string | null
+          avatar_color?: number
+          avatar_label?: string | null
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id: string
+        }
+        Update: {
+          avatar_album_url?: string | null
+          avatar_color?: number
+          avatar_label?: string | null
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+        }
+        Relationships: []
       }
       ratings: {
         Row: {
@@ -1114,6 +1134,7 @@ export type Database = {
           emoji: string
           id: string
           invite_code: string
+          leaderboard_weights: Json
           name: string
           owner_id: string
           song_limit_per_cycle: number | null
@@ -1135,6 +1156,7 @@ export type Database = {
           emoji: string
           id: string
           invite_code: string
+          leaderboard_weights: Json
           name: string
           owner_id: string
           song_limit_per_cycle: number | null
