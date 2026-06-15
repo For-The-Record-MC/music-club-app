@@ -77,6 +77,7 @@ export interface LeaderboardStats {
 export interface LeaderboardRow {
   profile_id: string;
   display_name: string | null;
+  email: string | null;
   avatar_color: number;
   avatar_url: string | null;
   avatar_label: string | null;
@@ -221,7 +222,7 @@ export const clubMembers = {
   list: (clubId: string) =>
     supabase
       .from('club_members')
-      .select('*, profiles(display_name, avatar_color, avatar_url)')
+      .select('*, profiles(display_name, email, avatar_color, avatar_url)')
       .eq('club_id', clubId)
       .order('joined_at'),
   setRole: (memberId: string, role: Exclude<ClubRole, 'owner'>) =>

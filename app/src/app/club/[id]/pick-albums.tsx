@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Button, Card, InlineNote, Label, Screen, TextField } from '@/components/ui';
@@ -10,7 +10,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { fonts, radius } from '@/theme';
 import { getAlbumTracks, resolveAppleAlbum, searchAlbums as searchItunesAlbums } from '@/utils/itunes';
 import { resolveSpotifyAlbum, searchAlbums as searchSpotifyAlbums } from '@/utils/spotify';
-import { activity, albums as albumsDb } from '@/utils/supabase/db';
+import { activity, albums as albumsDb, ratings as ratingsDb } from '@/utils/supabase/db';
 
 // One source-agnostic album result for the picker list. Search is Spotify-first
 // (best catalog), falling back to iTunes; the Apple link + the iTunes track list
@@ -35,6 +35,26 @@ export default function PickAlbums() {
   const { cycle, albums, refresh } = useCycle(id);
   const { palette } = useTheme();
 
+  // Picks freeze once anyone rates: swapping an album in place would re-point its
+  // existing reviews at a different record (RLS blocks the write server-side too).
+  // get_album_summary surfaces the submitted count even before the reveal.
+  const [locked, setLocked] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!albums.length) {
+        setLocked(false);
+        return;
+      }
+      const summaries = await Promise.all(albums.map((a) => ratingsDb.summary(a.id)));
+      const anyReviews = summaries.some((s) => ((s.data as { count?: number } | null)?.count ?? 0) > 0);
+      if (!cancelled) setLocked(anyReviews);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [albums]);
+
   // Announce album picks once saved (max two events per cycle — fine for the feed).
   const handleSaved = async () => {
     if (cycle && id) await activity.publish(id, 'albums_set', { cycle_number: cycle.number });
@@ -58,8 +78,11 @@ export default function PickAlbums() {
         <InlineNote text="No open cycle — spin the wheel first." />
       ) : (
         <>
-          <SlotEditor slot={1} cycleId={cycle.id} existing={albums.find((a) => a.slot === 1)} onSaved={handleSaved} />
-          <SlotEditor slot={2} cycleId={cycle.id} existing={albums.find((a) => a.slot === 2)} onSaved={handleSaved} />
+          {locked ? (
+            <InlineNote text="Reviews are in — album picks are locked for this cycle." />
+          ) : null}
+          <SlotEditor slot={1} cycleId={cycle.id} existing={albums.find((a) => a.slot === 1)} locked={locked} onSaved={handleSaved} />
+          <SlotEditor slot={2} cycleId={cycle.id} existing={albums.find((a) => a.slot === 2)} locked={locked} onSaved={handleSaved} />
           <Button title="Done — back to the club" variant="ghost" onPress={() => router.replace('/home')} />
         </>
       )}
@@ -71,11 +94,13 @@ function SlotEditor({
   slot,
   cycleId,
   existing,
+  locked,
   onSaved,
 }: {
   slot: 1 | 2;
   cycleId: string;
   existing?: { title: string; artist: string; year: number | null; artwork_url: string | null };
+  locked: boolean;
   onSaved: () => void;
 }) {
   const { palette } = useTheme();
@@ -213,7 +238,7 @@ function SlotEditor({
     <>
       <Label>Album {slot}</Label>
       <Card>
-        {existing && !editing ? (
+        {existing && (!editing || locked) ? (
           <View style={styles.existingRow}>
             {existing.artwork_url ? (
               <Image source={{ uri: existing.artwork_url }} style={styles.art} contentFit="cover" />
@@ -229,7 +254,7 @@ function SlotEditor({
                 {existing.year ? ` · ${existing.year}` : ''}
               </Text>
             </View>
-            <Button title="Change" variant="ghost" onPress={() => setEditing(true)} />
+            {locked ? null : <Button title="Change" variant="ghost" onPress={() => setEditing(true)} />}
           </View>
         ) : (
           <View style={{ gap: 10 }}>

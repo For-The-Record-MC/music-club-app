@@ -10,6 +10,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useCurrentClubStore } from '@/stores/currentClubStore';
 import { fonts } from '@/theme';
 import { confirmAsync } from '@/utils/confirm';
+import { memberName } from '@/utils/memberName';
 import { clubMembers, leaderboard, type LeaderboardRow } from '@/utils/supabase/db';
 
 type Mode = 'active' | 'rated' | 'loved';
@@ -89,7 +90,7 @@ export default function Leaderboard() {
           (b.stats.avg_rating_received ?? 0) - (a.stats.avg_rating_received ?? 0) || byRecent(a, b),
       );
       without.sort((a, b) =>
-        (a.display_name ?? '~').localeCompare(b.display_name ?? '~'),
+        memberName(a.display_name, a.email).localeCompare(memberName(b.display_name, b.email)),
       );
       return { ranked: withRating, unrated: without };
     }
@@ -266,7 +267,7 @@ function Row({
             )}
           </View>
           <Avatar
-            name={row.display_name}
+            name={memberName(row.display_name, row.email)}
             colorIndex={row.avatar_color}
             imageUrl={row.avatar_url}
             size={40}
@@ -274,7 +275,7 @@ function Row({
           <View style={{ flex: 1, minWidth: 0 }}>
             <View style={styles.nameLine}>
               <Text style={[styles.name, { color: palette.text1 }]} numberOfLines={1}>
-                {row.display_name ?? '(no name yet)'}
+                {memberName(row.display_name, row.email)}
               </Text>
               {isMe ? <Text style={[styles.you, { color: palette.teal }]}>· you</Text> : null}
               {row.role !== 'member' ? (

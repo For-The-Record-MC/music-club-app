@@ -189,7 +189,8 @@ CREATE TABLE profiles (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   avatar_url text,
   avatar_label text,
-  avatar_album_url text
+  avatar_album_url text,
+  email text
 );
 
 CREATE TABLE ratings (
@@ -557,10 +558,10 @@ CREATE POLICY albums_select ON albums AS PERMISSIVE FOR SELECT TO authenticated
   WHERE ((c.id = albums.cycle_id) AND is_club_member(c.club_id)))));
 
 CREATE POLICY albums_write ON albums AS PERMISSIVE FOR ALL TO authenticated
-  USING ((EXISTS ( SELECT 1
+  USING (((NOT album_has_ratings(id)) AND (EXISTS ( SELECT 1
    FROM cycles c
-  WHERE ((c.id = albums.cycle_id) AND (c.status = 'open'::text) AND ((c.picker_id = auth.uid()) OR (club_role(c.club_id) = ANY (ARRAY['owner'::text, 'admin'::text])))))))
-  WITH CHECK (((set_by = auth.uid()) AND (EXISTS ( SELECT 1
+  WHERE ((c.id = albums.cycle_id) AND (c.status = 'open'::text) AND ((c.picker_id = auth.uid()) OR (club_role(c.club_id) = ANY (ARRAY['owner'::text, 'admin'::text]))))))))
+  WITH CHECK (((set_by = auth.uid()) AND (NOT album_has_ratings(id)) AND (EXISTS ( SELECT 1
    FROM cycles c
   WHERE ((c.id = albums.cycle_id) AND (c.status = 'open'::text) AND ((c.picker_id = auth.uid()) OR (club_role(c.club_id) = ANY (ARRAY['owner'::text, 'admin'::text]))))))));
 
@@ -846,6 +847,16 @@ ALTER TABLE streaming_connections ENABLE ROW LEVEL SECURITY;
 -- FUNCTIONS & PROCEDURES
 -- =====================================================
 
+CREATE OR REPLACE FUNCTION public.album_has_ratings(p_album uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select exists (select 1 from ratings where album_id = p_album);
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.close_cycle(p_cycle uuid)
  RETURNS cycles
  LANGUAGE plpgsql
@@ -899,6 +910,7 @@ begin
     select
       cm.profile_id,
       p.display_name,
+      p.email,
       p.avatar_color,
       p.avatar_url,
       p.avatar_label,
@@ -1144,10 +1156,11 @@ CREATE OR REPLACE FUNCTION public.handle_new_user()
  SET search_path TO 'public'
 AS $function$
 begin
-  insert into public.profiles (id, display_name, avatar_color)
+  insert into public.profiles (id, display_name, email, avatar_color)
   values (
     new.id,
     nullif(trim(coalesce(new.raw_user_meta_data ->> 'display_name', '')), ''),
+    new.email,
     floor(random() * 7)::int
   )
   on conflict (id) do nothing;
@@ -1426,6 +1439,19 @@ begin
     'status', v_row.status,
     'connected_by', v_row.connected_by
   );
+end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.sync_profile_email()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  update public.profiles set email = new.email where id = new.id;
+  return new;
 end;
 $function$
 ;

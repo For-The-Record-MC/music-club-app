@@ -9,6 +9,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useCurrentClubStore } from '@/stores/currentClubStore';
 import { clubEmojis, fonts, radius } from '@/theme';
 import { confirmAsync } from '@/utils/confirm';
+import { memberName } from '@/utils/memberName';
 import {
   clubMembers,
   clubs,
@@ -214,14 +215,14 @@ export default function ClubSettings() {
           <Card key={m.id} style={{ marginBottom: 8 }}>
             <View style={styles.memberRow}>
               <Avatar
-                name={m.profiles?.display_name ?? null}
+                name={memberName(m.profiles?.display_name, m.profiles?.email)}
                 colorIndex={m.profiles?.avatar_color ?? 0}
                 imageUrl={m.profiles?.avatar_url}
                 size={38}
               />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={[styles.memberName, { color: palette.text1 }]}>
-                  {m.profiles?.display_name ?? '(no name yet)'} {isMe ? '· you' : ''}
+                  {memberName(m.profiles?.display_name, m.profiles?.email)} {isMe ? '· you' : ''}
                 </Text>
                 <Text style={[styles.memberMeta, { color: palette.text3 }]}>
                   joined {new Date(m.joined_at).toLocaleDateString()}

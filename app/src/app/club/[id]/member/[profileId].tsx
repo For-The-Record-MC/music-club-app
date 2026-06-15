@@ -10,6 +10,7 @@ import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
 import { fonts, radius } from '@/theme';
+import { memberName } from '@/utils/memberName';
 import {
   albums as albumsDb,
   feed as feedDb,
@@ -109,7 +110,7 @@ export default function MemberProfile() {
     );
   }
 
-  const name = me?.display_name ?? '(no name yet)';
+  const name = memberName(me?.display_name, me?.email);
 
   return (
     <Screen onRefresh={onRefresh} refreshing={refreshing}>
@@ -125,7 +126,7 @@ export default function MemberProfile() {
       {/* Header */}
       <Card style={{ alignItems: 'center', paddingVertical: 22, gap: 8 }}>
         <Avatar
-          name={me?.display_name ?? null}
+          name={name}
           colorIndex={me?.avatar_color ?? 0}
           imageUrl={me?.avatar_url}
           size={72}

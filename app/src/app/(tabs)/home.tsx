@@ -312,6 +312,9 @@ export default function HomeTab() {
               {(isPicker || isAdmin) && albums.length < 2 ? (
                 <Button title={`Choose album ${albums.length + 1}`} variant="ghost" onPress={() => router.push(`/club/${club.id}/pick-albums`)} />
               ) : null}
+              {(isPicker || isAdmin) && albums.length === 2 && !cycle.revealed_at ? (
+                <Button title="✏️ Edit albums" variant="ghost" onPress={() => router.push(`/club/${club.id}/pick-albums`)} />
+              ) : null}
               {cycle.spotify_playlist_url ? (
                 <Pressable
                   onPress={() => Linking.openURL(cycle.spotify_playlist_url!)}
