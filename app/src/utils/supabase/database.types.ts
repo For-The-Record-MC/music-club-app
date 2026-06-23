@@ -187,6 +187,54 @@ export type Database = {
           },
         ]
       }
+      club_favorite_tracks: {
+        Row: {
+          added_at: string
+          artist: string | null
+          club_id: string
+          cycle_id: string | null
+          id: string
+          source: string | null
+          spotify_uri: string | null
+          title: string
+        }
+        Insert: {
+          added_at?: string
+          artist?: string | null
+          club_id: string
+          cycle_id?: string | null
+          id?: string
+          source?: string | null
+          spotify_uri?: string | null
+          title: string
+        }
+        Update: {
+          added_at?: string
+          artist?: string | null
+          club_id?: string
+          cycle_id?: string | null
+          id?: string
+          source?: string | null
+          spotify_uri?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_favorite_tracks_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_favorite_tracks_cycle_id_fkey"
+            columns: ["cycle_id"]
+            isOneToOne: false
+            referencedRelation: "cycles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       club_members: {
         Row: {
           club_id: string
@@ -236,6 +284,8 @@ export type Database = {
           name: string
           owner_id: string
           song_limit_per_cycle: number | null
+          spotify_favorites_playlist_id: string | null
+          spotify_favorites_playlist_url: string | null
         }
         Insert: {
           created_at?: string
@@ -246,6 +296,8 @@ export type Database = {
           name: string
           owner_id: string
           song_limit_per_cycle?: number | null
+          spotify_favorites_playlist_id?: string | null
+          spotify_favorites_playlist_url?: string | null
         }
         Update: {
           created_at?: string
@@ -256,6 +308,8 @@ export type Database = {
           name?: string
           owner_id?: string
           song_limit_per_cycle?: number | null
+          spotify_favorites_playlist_id?: string | null
+          spotify_favorites_playlist_url?: string | null
         }
         Relationships: [
           {
@@ -528,6 +582,8 @@ export type Database = {
           number: number
           picker_id: string
           revealed_at: string | null
+          spotify_highlights_playlist_id: string | null
+          spotify_highlights_playlist_url: string | null
           spotify_playlist_id: string | null
           spotify_playlist_url: string | null
           start_date: string
@@ -545,6 +601,8 @@ export type Database = {
           number: number
           picker_id: string
           revealed_at?: string | null
+          spotify_highlights_playlist_id?: string | null
+          spotify_highlights_playlist_url?: string | null
           spotify_playlist_id?: string | null
           spotify_playlist_url?: string | null
           start_date?: string
@@ -562,6 +620,8 @@ export type Database = {
           number?: number
           picker_id?: string
           revealed_at?: string | null
+          spotify_highlights_playlist_id?: string | null
+          spotify_highlights_playlist_url?: string | null
           spotify_playlist_id?: string | null
           spotify_playlist_url?: string | null
           start_date?: string
@@ -1102,6 +1162,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      album_has_ratings: { Args: { p_album: string }; Returns: boolean }
       close_cycle: {
         Args: { p_cycle: string }
         Returns: {
@@ -1116,6 +1177,8 @@ export type Database = {
           number: number
           picker_id: string
           revealed_at: string | null
+          spotify_highlights_playlist_id: string | null
+          spotify_highlights_playlist_url: string | null
           spotify_playlist_id: string | null
           spotify_playlist_url: string | null
           start_date: string
@@ -1141,6 +1204,8 @@ export type Database = {
           name: string
           owner_id: string
           song_limit_per_cycle: number | null
+          spotify_favorites_playlist_id: string | null
+          spotify_favorites_playlist_url: string | null
         }
         SetofOptions: {
           from: "*"
@@ -1151,6 +1216,7 @@ export type Database = {
       }
       generate_invite_code: { Args: never; Returns: string }
       get_album_summary: { Args: { p_album: string }; Returns: Json }
+      get_cycle_highlights: { Args: { p_cycle: string }; Returns: Json }
       is_club_member: { Args: { p_club: string }; Returns: boolean }
       join_club: {
         Args: { p_code: string }
@@ -1163,6 +1229,8 @@ export type Database = {
           name: string
           owner_id: string
           song_limit_per_cycle: number | null
+          spotify_favorites_playlist_id: string | null
+          spotify_favorites_playlist_url: string | null
         }
         SetofOptions: {
           from: "*"
@@ -1195,6 +1263,8 @@ export type Database = {
           number: number
           picker_id: string
           revealed_at: string | null
+          spotify_highlights_playlist_id: string | null
+          spotify_highlights_playlist_url: string | null
           spotify_playlist_id: string | null
           spotify_playlist_url: string | null
           start_date: string
@@ -1208,6 +1278,15 @@ export type Database = {
         }
       }
       rotate_invite_code: { Args: { p_club: string }; Returns: string }
+      set_concert_review: {
+        Args: {
+          p_concert: string
+          p_mark_complete: boolean
+          p_rating: number
+          p_review: string
+        }
+        Returns: number
+      }
       spin_wheel: {
         Args: { p_club: string }
         Returns: {
@@ -1222,6 +1301,8 @@ export type Database = {
           number: number
           picker_id: string
           revealed_at: string | null
+          spotify_highlights_playlist_id: string | null
+          spotify_highlights_playlist_url: string | null
           spotify_playlist_id: string | null
           spotify_playlist_url: string | null
           start_date: string

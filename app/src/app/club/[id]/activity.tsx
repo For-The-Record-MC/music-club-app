@@ -1,19 +1,19 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Avatar, Card, InlineNote, NoClubSelected, Screen } from '@/components/ui';
+import { Avatar, Card, InlineNote, Screen } from '@/components/ui';
 import { useActivity } from '@/hooks/useActivity';
 import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
-import { useCurrentClubStore } from '@/stores/currentClubStore';
 import { renderActivity, timeAgo } from '@/utils/activityTemplates';
 import { fonts } from '@/theme';
 
-// Activity tab ("what's been happening"). Opening it marks all events read,
-// clearing the tab badge.
+// Activity ("what's been happening") — reached from the bell in the Home topbar
+// (no longer a bottom tab; History took that slot). Opening it marks all events
+// read, clearing the unread bell.
 export default function Activity() {
-  const id = useCurrentClubStore((s) => s.clubId) ?? undefined;
+  const { id } = useLocalSearchParams<{ id: string }>();
   const { palette } = useTheme();
   const router = useRouter();
   const { events, markRead, refresh } = useActivity(id);
@@ -23,11 +23,12 @@ export default function Activity() {
     if (id) markRead();
   }, [markRead, id]);
 
-  if (!id) return <NoClubSelected what="activity" />;
-
   return (
     <Screen onRefresh={onRefresh} refreshing={refreshing}>
       <View style={styles.topbar}>
+        <Pressable onPress={() => router.back()}>
+          <Text style={[styles.back, { color: palette.text2 }]}>←</Text>
+        </Pressable>
         <View>
           <Text style={[styles.eyebrow, { color: palette.text3 }]}>WHAT'S BEEN HAPPENING</Text>
           <Text style={[styles.title, { color: palette.text1 }]}>🔔 Activity</Text>

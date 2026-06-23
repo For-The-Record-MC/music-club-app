@@ -385,6 +385,10 @@ verify_jwt = true
 [functions.spotify-sync]
 verify_jwt = true
 
+# Builds a closed cycle's highlights + all-time favorites playlists (owner's token).
+[functions.cycle-highlights]
+verify_jwt = true
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.

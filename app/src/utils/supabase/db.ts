@@ -29,6 +29,7 @@ export type ConcertComment = Tables<'concert_comments'>;
 export type MeetingPost = Tables<'meeting_posts'>;
 export type ConcertStatus = 'interested' | 'going';
 export type ActivityEvent = Tables<'activity_events'>;
+export type ClubFavoriteTrack = Tables<'club_favorite_tracks'>;
 export type ProfileTrack = Tables<'profile_tracks'>;
 export type TrackSlot = 'new' | 'old' | 'obsession';
 export const TRACK_SLOTS: TrackSlot[] = ['new', 'old', 'obsession'];
@@ -95,6 +96,64 @@ export interface AlbumSummary {
   avg_score: number | null;
   revealed: boolean;
   mine_submitted: boolean;
+}
+
+// Shape of the get_cycle_highlights RPC payload (json column, typed manually).
+export interface CycleHighlightSong {
+  source: 'album' | 'feed';
+  title: string;
+  artist: string | null;
+  score: number;
+  album_id?: string;
+  post_id?: string;
+  spotify_uri?: string | null;
+  artwork_url?: string | null;
+}
+
+export interface CycleHighlights {
+  cycle: {
+    id: string;
+    number: number;
+    picker_id: string | null;
+    picker_name: string | null;
+    meeting_at: string | null;
+    closed_at: string | null;
+    spotify_playlist_url: string | null;
+  };
+  albums: {
+    album_id: string;
+    slot: number;
+    title: string;
+    artist: string;
+    artwork_url: string | null;
+    avg_score: number | null;
+    rating_count: number;
+    min_score: number | null;
+    max_score: number | null;
+    favorite_votes: number;
+  }[];
+  winner_album_id: string | null;
+  top_songs: CycleHighlightSong[];
+  reviews: {
+    album_id: string;
+    album_title: string;
+    kind: 'high' | 'low';
+    profile_id: string;
+    score: number;
+    review: string;
+    display_name: string | null;
+    avatar_color: number;
+    avatar_url: string | null;
+  }[];
+  popular_shares: {
+    post_id: string;
+    kind: string;
+    title: string;
+    artist: string | null;
+    url: string | null;
+    artwork_url: string | null;
+    reactions: number;
+  }[];
 }
 
 export const profiles = {
@@ -216,7 +275,25 @@ export const streaming = {
     supabase.functions.invoke<SyncResult>('spotify-sync', {
       body: { club_id: clubId, remove_post_id: postId },
     }),
+  // Build a closed cycle's highlights + all-time favorites playlists (owner
+  // token, server-side). Fired after close_cycle and from a manual button.
+  // No-ops quietly (ok:false, reason) when the club hasn't connected Spotify.
+  generateHighlights: (clubId: string, cycleId: string) =>
+    supabase.functions.invoke<HighlightsResult>('cycle-highlights', {
+      body: { club_id: clubId, cycle_id: cycleId },
+    }),
 };
+
+// Result of the cycle-highlights Edge Function.
+export interface HighlightsResult {
+  ok: boolean;
+  added?: number;
+  favorites_added?: number;
+  already?: boolean;
+  playlist_url?: string | null;
+  reason?: string;
+  message?: string;
+}
 
 export const clubMembers = {
   list: (clubId: string) =>
@@ -266,6 +343,10 @@ export const cycles = {
   reveal: (id: string) => supabase.rpc('reveal_cycle', { p_cycle: id }),
   close: (id: string) => supabase.rpc('close_cycle', { p_cycle: id }),
   remove: (id: string) => supabase.from('cycles').delete().eq('id', id),
+  // The History detail payload — albums/scores, combined-signal top songs,
+  // standout reviews, popular feed shares. Member-gated, post-reveal only.
+  highlights: (cycleId: string) =>
+    supabase.rpc('get_cycle_highlights', { p_cycle: cycleId }),
 };
 
 export const albums = {
@@ -493,6 +574,22 @@ export const concerts = {
       .eq('id', id)
       .select()
       .single(),
+  // Write a review to this concert AND every shared copy the caller can manage
+  // (adder or admin of that club) — see set_concert_review. Returns the row count.
+  setReview: (
+    concertId: string,
+    rating: number | null,
+    review: string | null,
+    markComplete: boolean,
+  ) =>
+    // p_rating/p_review accept null in SQL; the generated arg types omit
+    // nullability, so assert past it.
+    supabase.rpc('set_concert_review', {
+      p_concert: concertId,
+      p_rating: rating as number,
+      p_review: review as string,
+      p_mark_complete: markComplete,
+    }),
   remove: (id: string) => supabase.from('concerts').delete().eq('id', id),
   // Club ids that already have this concert: the original plus any shared
   // copies (origin_concert_id = root). RLS limits this to clubs the caller is
@@ -551,6 +648,17 @@ export const activity = {
       p_recipients: recipientIds,
       p_payload: payload,
     }),
+};
+
+// The club's all-time favorites — 1–3 enshrined per cycle close by the
+// cycle-highlights Edge Function. Member-readable; written only server-side.
+export const clubFavorites = {
+  listByClub: (clubId: string) =>
+    supabase
+      .from('club_favorite_tracks')
+      .select('*')
+      .eq('club_id', clubId)
+      .order('added_at', { ascending: false }),
 };
 
 export const health = {
