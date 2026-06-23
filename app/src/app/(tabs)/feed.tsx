@@ -142,6 +142,23 @@ export default function Feed() {
   const { refreshing, onRefresh } = useRefresh(refresh);
   const { focus, scrollRef, onItemLayout } = useFocusTarget();
 
+  // Scope the feed to the current (open) cycle by default; earlier posts collapse
+  // behind a toggle. The window matches the cycle playlist (created_at >= start).
+  const [showEarlier, setShowEarlier] = useState(false);
+  const { current: currentPosts, earlier: earlierPosts } = useMemo(() => {
+    if (!cycle) return { current: posts, earlier: [] as FeedRow[] };
+    const start = new Date(cycle.created_at).getTime();
+    return {
+      current: posts.filter((p) => new Date(p.created_at).getTime() >= start),
+      earlier: posts.filter((p) => new Date(p.created_at).getTime() < start),
+    };
+  }, [posts, cycle]);
+
+  // If a deep-link focuses a post that lives in the collapsed bucket, reveal it.
+  useEffect(() => {
+    if (focus && earlierPosts.some((p) => p.id === focus)) setShowEarlier(true);
+  }, [focus, earlierPosts]);
+
   // Your other clubs — the candidates for cross-posting a song/album.
   const { rows: myClubRows } = useMyClubs();
   const otherClubs = useMemo<ClubLite[]>(
@@ -605,15 +622,40 @@ export default function Feed() {
         </Card>
       )}
 
-      {posts.length === 0 ? (
-        <InlineNote text="No posts yet — be the first to share what you're listening to." />
-      ) : (
-        posts.map((post) => (
+      {(() => {
+        const renderPost = (post: FeedRow) => (
           <View key={post.id} onLayout={onItemLayout(post.id)}>
             <PostCard post={post} userId={userId} onChange={refresh} highlight={post.id === focus} mentionMembers={mentionMembers} shareClubs={otherClubs} />
           </View>
-        ))
-      )}
+        );
+        if (currentPosts.length === 0 && earlierPosts.length === 0) {
+          return <InlineNote text="No posts yet — be the first to share what you're listening to." />;
+        }
+        return (
+          <>
+            {currentPosts.length === 0 ? (
+              <InlineNote text="Nothing shared this cycle yet — be the first." />
+            ) : (
+              currentPosts.map(renderPost)
+            )}
+            {earlierPosts.length > 0 ? (
+              <>
+                <Pressable
+                  onPress={() => setShowEarlier((v) => !v)}
+                  style={[styles.earlierToggle, { borderColor: palette.border }]}
+                >
+                  <Text style={[styles.earlierToggleText, { color: palette.text2 }]}>
+                    {showEarlier
+                      ? '▾ Hide earlier posts'
+                      : `▸ Show ${earlierPosts.length} earlier post${earlierPosts.length === 1 ? '' : 's'}`}
+                  </Text>
+                </Pressable>
+                {showEarlier ? earlierPosts.map(renderPost) : null}
+              </>
+            ) : null}
+          </>
+        );
+      })()}
     </Screen>
   );
 }
@@ -1101,4 +1143,13 @@ const styles = StyleSheet.create({
   commentAuthor: { fontFamily: fonts.sansBold, fontSize: 11, marginBottom: 1 },
   commentText: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 18 },
   commentForm: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  earlierToggle: {
+    alignItems: 'center',
+    paddingVertical: 11,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderStyle: 'dashed',
+    marginVertical: 6,
+  },
+  earlierToggleText: { fontFamily: fonts.monoMedium, fontSize: 12 },
 });

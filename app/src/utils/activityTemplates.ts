@@ -42,6 +42,14 @@ export function renderActivity(event: ActivityEvent, actorName: string | null): 
       };
     case 'ratings_revealed':
       return { icon: '🎙️', text: `Ratings for cycle ${p.cycle_number ?? '?'} are revealed!`, target: HOME };
+    case 'cycle_closed':
+      return {
+        icon: '🏁',
+        text: `Cycle ${p.cycle_number ?? '?'} wrapped — see the highlights.`,
+        target: p.cycle_id
+          ? { pathname: '/club/[id]/cycle/[cycleId]', params: { id: String(event.club_id), cycleId: String(p.cycle_id) } }
+          : HOME,
+      };
     case 'feed_post':
       return {
         icon: p.is_album_suggestion ? '💡' : '🎧',

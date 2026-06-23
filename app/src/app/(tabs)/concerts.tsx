@@ -496,11 +496,13 @@ function ConcertCard({
 
   const saveReview = async (markComplete: boolean) => {
     setSavingReview(true);
-    const { error } = await concertsDb.update(concert.id, {
-      rating: ratingDraft || null,
-      review: reviewDraft.trim() || null,
-      completed_at: markComplete ? new Date().toISOString() : concert.completed_at,
-    });
+    // Propagates to every club this concert is shared to (that you manage).
+    const { error } = await concertsDb.setReview(
+      concert.id,
+      ratingDraft || null,
+      reviewDraft.trim() || null,
+      markComplete,
+    );
     setSavingReview(false);
     if (!error) {
       setShowReview(false);
@@ -654,6 +656,9 @@ function ConcertCard({
             loading={savingReview}
             style={{ marginTop: 8 }}
           />
+          <Text style={[styles.reviewSharedHint, { color: palette.text3 }]}>
+            Your review applies to this concert in every club it's shared to.
+          </Text>
         </View>
       ) : null}
 
@@ -963,6 +968,7 @@ const styles = StyleSheet.create({
   shareRowState: { fontFamily: fonts.monoMedium, fontSize: 13 },
   reviewForm: { marginTop: 10, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth },
   reviewLabel: { fontFamily: fonts.monoMedium, fontSize: 11, marginBottom: 8 },
+  reviewSharedHint: { fontFamily: fonts.mono, fontSize: 10, lineHeight: 15, textAlign: 'center', marginTop: 8 },
   comments: { marginTop: 10, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, gap: 10 },
   commentRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   commentName: { fontFamily: fonts.monoMedium, fontSize: 10, marginBottom: 1 },
