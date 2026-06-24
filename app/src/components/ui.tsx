@@ -1,4 +1,4 @@
-import { type ReactNode, type RefObject } from 'react';
+import { type ReactNode, type RefObject, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -178,10 +178,17 @@ export function ListenLinks({
 
 export function TextField(props: TextInputProps) {
   const { palette } = useTheme();
-  return (
+  const [revealed, setRevealed] = useState(false);
+
+  // Password fields get a Show/Hide toggle so the member can confirm what they
+  // typed. When revealed we drop secureTextEntry (and the toggle is only shown
+  // when the caller asked for a secure field).
+  const secure = !!props.secureTextEntry;
+  const field = (
     <TextInput
       placeholderTextColor={palette.text3}
       {...props}
+      secureTextEntry={secure && !revealed}
       style={[
         styles.input,
         {
@@ -189,9 +196,26 @@ export function TextField(props: TextInputProps) {
           borderColor: palette.border,
           color: palette.text1,
         },
+        secure && { paddingRight: 58 },
         props.style,
       ]}
     />
+  );
+
+  if (!secure) return field;
+  return (
+    <View>
+      {field}
+      <Pressable
+        onPress={() => setRevealed((r) => !r)}
+        hitSlop={8}
+        style={styles.revealToggle}
+      >
+        <Text style={[styles.revealText, { color: palette.text2 }]}>
+          {revealed ? 'Hide' : 'Show'}
+        </Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -413,6 +437,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: fonts.sans,
   },
+  revealToggle: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    paddingHorizontal: 13,
+  },
+  revealText: { fontFamily: fonts.sansMedium, fontSize: 12 },
   badge: {
     borderRadius: 20,
     paddingHorizontal: 9,

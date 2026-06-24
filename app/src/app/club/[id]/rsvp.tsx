@@ -12,6 +12,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { fonts, radius } from '@/theme';
 import { timeAgo } from '@/utils/activityTemplates';
 import { activity, cycleGuests, rsvps as rsvpsDb, type RsvpStatus } from '@/utils/supabase/db';
+import { memberName } from '@/utils/memberName';
 
 // First ~80 chars of a comment, for the mention notification preview.
 const snippetOf = (text: string) => text.trim().replace(/\s+/g, ' ').slice(0, 80);
@@ -178,7 +179,7 @@ export default function RsvpScreen() {
                     size={30}
                   />
                   <Text style={[styles.memberName, { color: palette.text1 }]}>
-                    {m.profiles?.display_name ?? '(no name)'}
+                    {memberName(m.profiles?.display_name, m.profiles?.email)}
                   </Text>
                   {s && c ? (
                     <Badge text={STATUS_LABEL[s]} color={c.color} bg={c.bg} />

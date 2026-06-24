@@ -7,8 +7,14 @@ import { Avatar, Button, Card, InlineNote, Label, Screen, TextField } from '@/co
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
 import { avatarColors, fonts, radius } from '@/theme';
-import { searchAlbums, searchSongs as searchItunesSongs, type ItunesAlbum } from '@/utils/itunes';
-import { searchSongs as searchSpotifySongs } from '@/utils/spotify';
+import {
+  searchAlbums as searchItunesAlbums,
+  searchSongs as searchItunesSongs,
+} from '@/utils/itunes';
+import {
+  searchAlbums as searchSpotifyAlbums,
+  searchSongs as searchSpotifySongs,
+} from '@/utils/spotify';
 import { supabase } from '@/utils/supabase/client';
 import {
   profiles,
@@ -18,6 +24,41 @@ import {
   type ProfileTrack,
   type TrackSlot,
 } from '@/utils/supabase/db';
+
+// One unified album hit from either catalog (Spotify first, iTunes fallback).
+interface AlbumHit {
+  key: string;
+  collectionName: string;
+  artistName: string;
+  artworkUrl: string;
+  year: number | null;
+  url: string | null;
+}
+
+// Spotify is the better catalog; fall back to iTunes when it's empty (creds
+// unset, function un-deployed, or iTunes blocked) — same approach as the album
+// picker and the song search below.
+async function searchAlbums(term: string): Promise<AlbumHit[]> {
+  const spotify = await searchSpotifyAlbums(term);
+  if (spotify.length) {
+    return spotify.map((a) => ({
+      key: a.id,
+      collectionName: a.collectionName,
+      artistName: a.artistName,
+      artworkUrl: a.artworkUrl,
+      year: a.year,
+      url: a.spotifyUrl,
+    }));
+  }
+  return (await searchItunesAlbums(term)).map((a) => ({
+    key: String(a.collectionId),
+    collectionName: a.collectionName,
+    artistName: a.artistName,
+    artworkUrl: a.artworkUrl,
+    year: a.year,
+    url: a.appleUrl || null,
+  }));
+}
 
 // One unified song hit from either catalog (Spotify first, iTunes fallback).
 interface SongHit {
@@ -77,7 +118,7 @@ export default function ProfileSetup() {
 
   // Album cover search (iTunes — keyless, always works) for the profile picture.
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<ItunesAlbum[]>([]);
+  const [results, setResults] = useState<AlbumHit[]>([]);
   const searchSeq = useRef(0);
 
   const runSearch = async (term: string) => {
@@ -91,10 +132,10 @@ export default function ProfileSetup() {
     if (seq === searchSeq.current) setResults(found);
   };
 
-  const pickCover = (album: ItunesAlbum) => {
+  const pickCover = (album: AlbumHit) => {
     setAvatarUrl(album.artworkUrl);
     setAvatarLabel(`${album.collectionName} — ${album.artistName}`);
-    setAvatarAlbumUrl(album.appleUrl || null);
+    setAvatarAlbumUrl(album.url);
     setQuery('');
     setResults([]);
   };
@@ -179,7 +220,7 @@ export default function ProfileSetup() {
           <View style={styles.results}>
             {results.map((r) => (
               <Pressable
-                key={r.collectionId}
+                key={r.key}
                 onPress={() => pickCover(r)}
                 style={({ pressed }) => [
                   styles.resultRow,
@@ -236,9 +277,9 @@ export default function ProfileSetup() {
         {error ? <InlineNote text={error} tone="error" /> : null}
       </Card>
 
-      {userId ? <FeaturedTracksCard userId={userId} /> : null}
-
       <PasswordCard />
+
+      {userId ? <FeaturedTracksCard userId={userId} /> : null}
     </Screen>
   );
 }

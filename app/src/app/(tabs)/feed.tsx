@@ -1,9 +1,10 @@
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { MentionInput, MentionText, resolveMentions, type MentionMember } from '@/components/Mentions';
+import { ShowdownPanel } from '@/components/ShowdownPanel';
 import { Avatar, BottomSheet, Button, Card, InlineNote, Label, ListenLinks, NoClubSelected, Screen, TextField } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
 import { useCycle } from '@/hooks/useCycle';
@@ -141,6 +142,8 @@ export default function Feed() {
   const { cycle } = useCycle(id);
   const { refreshing, onRefresh } = useRefresh(refresh);
   const { focus, scrollRef, onItemLayout } = useFocusTarget();
+  // Deep links (e.g. a Showdown activity row) can land directly on the tab.
+  const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
 
   // Scope the feed to the current (open) cycle by default; earlier posts collapse
   // behind a toggle. The window matches the cycle playlist (created_at >= start).
@@ -169,6 +172,10 @@ export default function Feed() {
     [myClubRows, id],
   );
 
+  const [tab, setTab] = useState<'feed' | 'showdown'>('feed');
+  useEffect(() => {
+    if (tabParam === 'showdown' || tabParam === 'feed') setTab(tabParam);
+  }, [tabParam]);
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [artist, setArtist] = useState('');
@@ -437,7 +444,7 @@ export default function Feed() {
           <Text style={[styles.eyebrow, { color: palette.text3 }]}>WHAT YOU'RE HEARING</Text>
           <Text style={[styles.title, { color: palette.text1 }]}>The Feed</Text>
         </View>
-        <View style={{ alignItems: 'flex-end', gap: 8 }}>
+        <View style={styles.headerBtnRow}>
           <Pressable
             onPress={() => router.push(`/club/${id}/suggestions`)}
             style={({ pressed }) => [
@@ -452,17 +459,38 @@ export default function Feed() {
             <Pressable
               onPress={() => Linking.openURL(cycle.spotify_playlist_url!)}
               style={({ pressed }) => [
-                styles.headerBtn,
-                { backgroundColor: palette.tealBg, borderColor: palette.teal },
-                pressed && { opacity: 0.7 },
+                styles.playlistBtn,
+                { backgroundColor: palette.spotify },
+                pressed && { opacity: 0.85 },
               ]}
             >
-              <Text style={[styles.headerBtnText, { color: palette.teal }]}>▶ Playlist</Text>
+              <View style={styles.playlistPlay}>
+                <Text style={[styles.playlistPlayIcon, { color: palette.spotify }]}>▶</Text>
+              </View>
+              <Text style={styles.playlistBtnText}>Playlist</Text>
             </Pressable>
           ) : null}
         </View>
       </View>
 
+      <View style={styles.tabRow}>
+        {(['feed', 'showdown'] as const).map((t) => (
+          <Pressable
+            key={t}
+            onPress={() => setTab(t)}
+            style={[styles.tabBtn, tab === t && { backgroundColor: palette.tealBg, borderColor: palette.teal }]}
+          >
+            <Text style={[styles.tabText, { color: tab === t ? palette.teal : palette.text2 }]}>
+              {t === 'feed' ? 'Feed' : '🎵 Showdown'}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      {tab === 'showdown' ? (
+        <ShowdownPanel cycle={cycle} cycleNumber={cycle?.number} />
+      ) : (
+      <>
       {!open ? (
         <Button title="+ Share something" onPress={() => { setShareTargets([]); setOpen(true); }} style={{ marginBottom: 14 }} />
       ) : (
@@ -656,6 +684,8 @@ export default function Feed() {
           </>
         );
       })()}
+      </>
+      )}
     </Screen>
   );
 }
@@ -680,6 +710,8 @@ function PostCard({
   const glow = useGlow(highlight);
   const [showComments, setShowComments] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  // Long-pressing a reaction opens a sheet listing who reacted with that emoji.
+  const [reactorsFor, setReactorsFor] = useState<ReactionEmoji | null>(null);
   const sharedFrom = sharedFromOf(post);
   const [commentText, setCommentText] = useState('');
   const [commentRows, setCommentRows] = useState<
@@ -745,6 +777,17 @@ function PostCard({
     acc[r.emoji] = (acc[r.emoji] ?? 0) + 1;
     return acc;
   }, {});
+
+  // Names/avatars for the long-press "who reacted" sheet, keyed by profile.
+  const memberById = useMemo(
+    () => new Map(mentionMembers.map((m) => [m.profile_id, m])),
+    [mentionMembers],
+  );
+  const reactors = reactorsFor
+    ? post.post_reactions
+        .filter((r) => r.emoji === reactorsFor)
+        .map((r) => ({ profile_id: r.profile_id, member: memberById.get(r.profile_id) ?? null }))
+    : [];
 
   return (
     <Card style={glow ? { borderColor: palette.amber } : undefined}>
@@ -815,6 +858,8 @@ function PostCard({
             <Pressable
               key={emoji}
               onPress={() => react(emoji)}
+              onLongPress={count > 0 ? () => setReactorsFor(emoji) : undefined}
+              delayLongPress={250}
               style={[
                 styles.reactBtn,
                 { borderColor: palette.border },
@@ -885,6 +930,23 @@ function PostCard({
           onShared={onChange}
         />
       ) : null}
+
+      <BottomSheet visible={reactorsFor !== null} onClose={() => setReactorsFor(null)}>
+        <Label>Reacted with {reactorsFor}</Label>
+        {reactors.map(({ profile_id, member }) => (
+          <View key={profile_id} style={styles.reactorRow}>
+            <Avatar
+              name={member?.display_name ?? null}
+              colorIndex={member?.avatar_color ?? 0}
+              imageUrl={member?.avatar_url ?? null}
+              size={28}
+            />
+            <Text style={[styles.reactorName, { color: palette.text1 }]}>
+              {member?.display_name ?? '(no name)'}
+            </Text>
+          </View>
+        ))}
+      </BottomSheet>
     </Card>
   );
 }
@@ -1043,6 +1105,26 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   headerBtnText: { fontFamily: fonts.sansBold, fontSize: 12 },
+  headerBtnRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' },
+  playlistBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 20,
+    paddingVertical: 5,
+    paddingLeft: 5,
+    paddingRight: 12,
+  },
+  playlistPlay: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playlistPlayIcon: { fontSize: 8, marginLeft: 1 },
+  playlistBtnText: { fontFamily: fonts.sansBold, fontSize: 12, color: '#fff' },
   segRow: { flexDirection: 'row', gap: 6 },
   seg: {
     flex: 1,
@@ -1052,6 +1134,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   segText: { fontFamily: fonts.monoMedium, fontSize: 11, textTransform: 'uppercase' },
+  tabRow: { flexDirection: 'row', gap: 6, marginBottom: 14 },
+  tabBtn: {
+    flex: 1,
+    paddingVertical: 9,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'transparent',
+    alignItems: 'center',
+  },
+  tabText: { fontFamily: fonts.sansMedium, fontSize: 13 },
   checkRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   checkbox: {
     width: 20,
@@ -1078,7 +1170,7 @@ const styles = StyleSheet.create({
   },
   shareChipText: { fontFamily: fonts.sansMedium, fontSize: 12, flexShrink: 1 },
   shareChipCheck: { fontFamily: fonts.monoMedium, fontSize: 11 },
-  postHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
+  postHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
   sharedFrom: { fontFamily: fonts.sans, fontSize: 11, marginTop: -2, marginBottom: 8 },
   shareRow: {
     flexDirection: 'row',
@@ -1097,7 +1189,7 @@ const styles = StyleSheet.create({
   postAuthor: { fontFamily: fonts.sansBold, fontSize: 13 },
   postTime: { fontFamily: fonts.mono, fontSize: 10 },
   suggBadge: {
-    fontFamily: fonts.monoMedium,
+    fontFamily: fonts.sansBold,
     fontSize: 9,
     paddingHorizontal: 8,
     paddingVertical: 3,
@@ -1119,12 +1211,12 @@ const styles = StyleSheet.create({
   clearPick: { fontSize: 18, paddingHorizontal: 4 },
   pickedHint: { fontFamily: fonts.monoMedium, fontSize: 10, marginTop: 3 },
   orNote: { fontFamily: fonts.mono, fontSize: 10, textAlign: 'center', marginVertical: 8 },
-  postBody: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  postBody: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
   postArt: { width: 44, height: 44, borderRadius: radius.sm },
   postTitle: { fontFamily: fonts.sansBold, fontSize: 15, marginBottom: 1 },
   postArtist: { fontFamily: fonts.sans, fontSize: 12, marginBottom: 4 },
   postNote: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 19, fontStyle: 'italic', marginBottom: 6 },
-  linkRow: { marginTop: 2, marginBottom: 4 },
+  linkRow: { marginTop: 10, marginBottom: 4 },
   reactionRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, flexWrap: 'wrap' },
   reactBtn: {
     flexDirection: 'row',
@@ -1136,6 +1228,8 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   reactCount: { fontFamily: fonts.monoMedium, fontSize: 11 },
+  reactorRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7 },
+  reactorName: { fontFamily: fonts.sansMedium, fontSize: 14 },
   commentToggle: { marginLeft: 'auto', paddingVertical: 5, paddingHorizontal: 8 },
   commentToggleText: { fontFamily: fonts.monoMedium, fontSize: 12 },
   commentSection: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: 10, paddingTop: 10, gap: 10 },

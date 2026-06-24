@@ -140,9 +140,16 @@ export default function AlbumDetail() {
         <Button
           title={mineSubmitted ? '✏️ Edit your rating' : '⭐ Rate this album'}
           onPress={() => router.push(`/club/${id}/rate/${albumId}`)}
-          style={{ marginBottom: 12 }}
+          style={{ marginBottom: 8 }}
         />
       ) : null}
+
+      <Button
+        title="📝 Song notes"
+        variant="ghost"
+        onPress={() => router.push(`/club/${id}/notes/${albumId}`)}
+        style={{ marginBottom: 12 }}
+      />
 
       <Label>
         {summary?.revealed ? 'The reveal' : `Submitted (${summary?.count ?? 0}/${members.length})`}

@@ -1,3 +1,4 @@
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 
 import { useAuthStore } from '@/stores/authStore';
@@ -23,7 +24,11 @@ export function useActivity(clubId: string | undefined) {
     const rows = (ev ?? []) as ActivityRow[];
     setEvents(rows);
     const lastRead = read?.last_read_at ? new Date(read.last_read_at).getTime() : 0;
-    setUnread(rows.filter((e) => new Date(e.created_at).getTime() > lastRead).length);
+    // The bell only counts things *other people* did — your own actions never
+    // need announcing back to you.
+    setUnread(
+      rows.filter((e) => e.actor_id !== userId && new Date(e.created_at).getTime() > lastRead).length,
+    );
     setLoading(false);
   }, [clubId, userId]);
 
@@ -36,6 +41,14 @@ export function useActivity(clubId: string | undefined) {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  // Re-check on focus so the bell badge clears when returning from the Activity
+  // screen (which marks everything read on the server).
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh]),
+  );
 
   return { events, unread, loading, refresh, markRead };
 }

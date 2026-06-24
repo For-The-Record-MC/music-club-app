@@ -56,7 +56,7 @@ const FEATURES: { emoji: string; title: string; body: string; accent: Accent }[]
   {
     emoji: '⭐',
     title: 'Ratings & reviews',
-    body: 'Give each album a score and write what you thought. Nobody sees anyone else’s until the reveal — so first impressions stay honest.',
+    body: "Give each album a score and write what you thought. Nobody sees anyone else's until the reveal — so first impressions stay honest.",
     accent: 'amber',
   },
   {
@@ -74,13 +74,19 @@ const FEATURES: { emoji: string; title: string; body: string; accent: Accent }[]
   {
     emoji: '💬',
     title: 'The feed',
-    body: 'Share songs you’re loving, drop a thought, and react to what others post. The most-loved track gets spotlighted on the home screen.',
+    body: "Share songs you're loving, drop a thought, and react to what others post. The most-loved track gets spotlighted on the home screen.",
     accent: 'teal',
+  },
+  {
+    emoji: '🎵',
+    title: 'Jukebox Showdown',
+    body: 'Each cycle has a fun theme — like “Songs with colors in the title.” Submit one song, then spend 2 upvotes and a downvote on the rest. Votes stay blind until the meeting, when a winner is crowned.',
+    accent: 'purple',
   },
   {
     emoji: '🎫',
     title: 'Concerts',
-    body: 'Post shows the group might want to catch and RSVP so everyone knows who’s in. Add them straight to your calendar.',
+    body: "Post shows the group might want to catch and RSVP so everyone knows who's in. Add them straight to your calendar.",
     accent: 'coral',
   },
   {
@@ -127,7 +133,7 @@ export default function HowItWorks() {
         <Text style={styles.heroEmoji}>🍷</Text>
         <Text style={[styles.heroTitle, { color: palette.text1 }]}>Welcome to the club</Text>
         <Text style={[styles.heroSub, { color: palette.text2 }]}>
-          Here’s the whole rhythm: pick albums, listen, rate them in secret, then
+          Here's the whole rhythm: pick albums, listen, rate them in secret, then
           gather to reveal what everyone really thought. Short version below. 👇
         </Text>
       </View>
@@ -170,10 +176,10 @@ export default function HowItWorks() {
       ))}
 
       <Text style={[styles.footer, { color: palette.text3 }]}>
-        That’s it — the rest you’ll pick up as you go. Pour something nice and press play. 🎶
+        That's it — the rest you'll pick up as you go. Pour something nice and press play. 🎶
       </Text>
 
-      <Button title="Got it — let’s listen" onPress={close} style={{ marginTop: 6 }} />
+      <Button title="Got it — let's listen" onPress={close} style={{ marginTop: 6 }} />
     </Screen>
   );
 }

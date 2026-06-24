@@ -12,9 +12,11 @@ import { fonts, radius } from '@/theme';
 import {
   clubFavorites as favoritesDb,
   cycles as cyclesDb,
+  showdown as showdownDb,
   type Album,
   type ClubFavoriteTrack,
   type Cycle,
+  type ShowdownHistoryRow,
 } from '@/utils/supabase/db';
 
 interface ClosedCycle extends Cycle {
@@ -30,16 +32,19 @@ export default function HistoryTab() {
   const { club, members } = useClubData(clubId);
   const [closed, setClosed] = useState<ClosedCycle[]>([]);
   const [favorites, setFavorites] = useState<ClubFavoriteTrack[]>([]);
+  const [showdowns, setShowdowns] = useState<ShowdownHistoryRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
     if (!clubId) return;
-    const [{ data }, { data: favs }] = await Promise.all([
+    const [{ data }, { data: favs }, { data: sd }] = await Promise.all([
       cyclesDb.listClosed(clubId),
       favoritesDb.listByClub(clubId),
+      showdownDb.history(clubId),
     ]);
     setClosed((data ?? []) as ClosedCycle[]);
     setFavorites((favs ?? []) as ClubFavoriteTrack[]);
+    setShowdowns((sd as ShowdownHistoryRow[] | null) ?? []);
     setLoading(false);
   }, [clubId]);
 
@@ -69,7 +74,7 @@ export default function HistoryTab() {
           <>
             {favorites.slice(0, 6).map((f) => (
               <View key={f.id} style={styles.favRow}>
-                <Text style={styles.favStar}>⭐️</Text>
+                <Text style={styles.favStar}>⭐</Text>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text numberOfLines={1} style={[styles.favTitle, { color: palette.text1 }]}>
                     {f.title}
@@ -105,6 +110,49 @@ export default function HistoryTab() {
           </Text>
         ) : null}
       </Card>
+
+      {showdowns.length > 0 ? (
+        <>
+          <Label>Jukebox Showdown winners</Label>
+          <Card style={{ marginBottom: 14 }}>
+            {showdowns.map((s, i) => (
+              <Pressable
+                key={s.cycle_id}
+                onPress={() => router.push(`/club/${clubId}/theme/${s.cycle_id}`)}
+                style={({ pressed }) => [
+                  styles.sdRow,
+                  { borderBottomColor: palette.border },
+                  i === showdowns.length - 1 && styles.sdRowLast,
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <Text style={styles.sdTrophy}>🏆</Text>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text numberOfLines={1} style={[styles.sdTheme, { color: palette.text3 }]}>
+                    Cycle {s.cycle_number} · {s.theme_text}
+                  </Text>
+                  {s.winner_title ? (
+                    <>
+                      <Text numberOfLines={1} style={[styles.sdWinner, { color: palette.text1 }]}>
+                        {s.winner_title}
+                        {s.winner_artist ? <Text style={{ color: palette.text3 }}> · {s.winner_artist}</Text> : null}
+                      </Text>
+                      {s.winner_submitter ? (
+                        <Text numberOfLines={1} style={[styles.sdBy, { color: palette.text3 }]}>
+                          submitted by {s.winner_submitter}
+                        </Text>
+                      ) : null}
+                    </>
+                  ) : (
+                    <Text style={[styles.sdBy, { color: palette.text3 }]}>No entries</Text>
+                  )}
+                </View>
+                <Text style={{ color: palette.text3 }}>›</Text>
+              </Pressable>
+            ))}
+          </Card>
+        </>
+      ) : null}
 
       <Label>Past cycles</Label>
       {closed.length === 0 ? (
@@ -182,6 +230,12 @@ const styles = StyleSheet.create({
   favTitle: { fontFamily: fonts.sansMedium, fontSize: 14 },
   favArtist: { fontFamily: fonts.sans, fontSize: 12, marginTop: 1 },
   favMore: { fontFamily: fonts.mono, fontSize: 11, marginTop: 4 },
+  sdRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9, borderBottomWidth: StyleSheet.hairlineWidth },
+  sdRowLast: { borderBottomWidth: 0 },
+  sdTrophy: { fontSize: 18 },
+  sdTheme: { fontFamily: fonts.mono, fontSize: 11 },
+  sdWinner: { fontFamily: fonts.sansMedium, fontSize: 14, marginTop: 2 },
+  sdBy: { fontFamily: fonts.sans, fontSize: 11, marginTop: 1 },
   playlistBtn: {
     flexDirection: 'row',
     alignItems: 'center',

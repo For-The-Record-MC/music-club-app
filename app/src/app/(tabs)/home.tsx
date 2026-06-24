@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Linking, Platform, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 
 import { ClubSwitcher } from '@/components/ClubSwitcher';
+import { ShowdownHomeCard } from '@/components/ShowdownHomeCard';
 import { Avatar, Button, Card, InlineNote, Label, Screen } from '@/components/ui';
 import { useActivity } from '@/hooks/useActivity';
 import { useClubData } from '@/hooks/useClubData';
@@ -375,6 +376,8 @@ export default function HomeTab() {
               ) : null}
             </Card>
           )}
+
+          <ShowdownHomeCard cycleId={cycle.id} />
 
           {featuredSong ? (
             <>

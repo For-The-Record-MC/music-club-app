@@ -185,7 +185,7 @@ export default function NotesTab() {
 const styles = StyleSheet.create({
   header: { marginBottom: 16 },
   eyebrow: { fontFamily: fonts.sansMedium, fontSize: 9, letterSpacing: 3, marginBottom: 2 },
-  title: { fontFamily: fonts.sansBold, fontSize: 22, marginBottom: 4 },
+  title: { fontFamily: fonts.sansBold, fontSize: 19, marginBottom: 4 },
   sub: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 19 },
   pillRow: { gap: 8, paddingBottom: 14 },
   pill: {

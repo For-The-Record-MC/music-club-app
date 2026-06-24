@@ -1,6 +1,7 @@
 import { Tabs } from 'expo-router';
 import { Text, type ColorValue } from 'react-native';
 
+import { useDefaultClub } from '@/hooks/useDefaultClub';
 import { useTheme } from '@/hooks/use-theme';
 import { useClubSwitcherStore } from '@/stores/clubSwitcherStore';
 import { fonts } from '@/theme';
@@ -11,6 +12,8 @@ function tabIcon(emoji: string) {
 
 export default function TabsLayout() {
   const { palette } = useTheme();
+  // Snap to your first club when nothing valid is selected (fresh login, relog).
+  useDefaultClub();
 
   return (
     <Tabs
