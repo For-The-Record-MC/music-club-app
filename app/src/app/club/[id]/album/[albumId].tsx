@@ -12,10 +12,13 @@ import {
   albums as albumsDb,
   cycles as cyclesDb,
   ratings as ratingsDb,
+  songNoteShares as songNoteSharesDb,
+  songNotes as songNotesDb,
   type Album,
   type AlbumSummary,
   type Cycle,
   type Rating,
+  type SongNote,
 } from '@/utils/supabase/db';
 
 interface RevealedRating extends Rating {
@@ -37,6 +40,10 @@ export default function AlbumDetail() {
   const [cycle, setCycle] = useState<Cycle | null>(null);
   const [summary, setSummary] = useState<AlbumSummary | null>(null);
   const [revealed, setRevealed] = useState<RevealedRating[]>([]);
+  // Per-member shared song notes (only members with a song_note_shares row), keyed
+  // by profile_id — surfaced beneath their rating card once the cycle is revealed.
+  const [sharedNotes, setSharedNotes] = useState<Record<string, SongNote[]>>({});
+  const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
 
   const refresh = useCallback(async () => {
     if (!albumId) return;
@@ -51,11 +58,29 @@ export default function AlbumDetail() {
       const sum = (s as unknown as AlbumSummary) ?? null;
       setSummary(sum);
       if (sum?.revealed) {
-        const { data: r } = await ratingsDb.listRevealed(albumId);
+        const [{ data: r }, { data: shareRows }, { data: noteRows }] = await Promise.all([
+          ratingsDb.listRevealed(albumId),
+          songNoteSharesDb.listForAlbums([albumId]),
+          songNotesDb.listVisible(albumId),
+        ]);
         setRevealed((r ?? []) as RevealedRating[]);
+        const sharers = new Set((shareRows ?? []).map((sr) => sr.profile_id));
+        const grouped: Record<string, SongNote[]> = {};
+        for (const n of (noteRows ?? []) as SongNote[]) {
+          if (sharers.has(n.profile_id)) (grouped[n.profile_id] ??= []).push(n);
+        }
+        setSharedNotes(grouped);
       }
     }
   }, [albumId]);
+
+  const toggleNotes = (profileId: string) =>
+    setExpandedNotes((prev) => {
+      const next = new Set(prev);
+      if (next.has(profileId)) next.delete(profileId);
+      else next.add(profileId);
+      return next;
+    });
 
   useEffect(() => {
     refresh();
@@ -70,7 +95,8 @@ export default function AlbumDetail() {
   }
 
   const mineSubmitted = summary?.mine_submitted ?? false;
-  const isOpen = cycle?.status === 'open';
+  // Ratings freeze at reveal, not close — once revealed_at is set, no more edits.
+  const isOpen = cycle?.status === 'open' && !cycle?.revealed_at;
   const submittedSet = new Set(summary?.submitted ?? []);
 
   return (
@@ -114,9 +140,16 @@ export default function AlbumDetail() {
         <Button
           title={mineSubmitted ? '✏️ Edit your rating' : '⭐ Rate this album'}
           onPress={() => router.push(`/club/${id}/rate/${albumId}`)}
-          style={{ marginBottom: 12 }}
+          style={{ marginBottom: 8 }}
         />
       ) : null}
+
+      <Button
+        title="📝 Song notes"
+        variant="ghost"
+        onPress={() => router.push(`/club/${id}/notes/${albumId}`)}
+        style={{ marginBottom: 12 }}
+      />
 
       <Label>
         {summary?.revealed ? 'The reveal' : `Submitted (${summary?.count ?? 0}/${members.length})`}
@@ -191,6 +224,39 @@ export default function AlbumDetail() {
                   ) : null}
                 </Text>
               ) : null}
+              {sharedNotes[r.profile_id]?.length ? (
+                <>
+                  <Pressable
+                    onPress={() => toggleNotes(r.profile_id)}
+                    style={[styles.notesToggle, { borderTopColor: palette.border }]}
+                  >
+                    <Text style={[styles.notesToggleText, { color: palette.purple }]}>
+                      📝 Song notes ({sharedNotes[r.profile_id].length}){' '}
+                      {expandedNotes.has(r.profile_id) ? '▾' : '›'}
+                    </Text>
+                  </Pressable>
+                  {expandedNotes.has(r.profile_id)
+                    ? sharedNotes[r.profile_id].map((n) => (
+                        <View key={n.id} style={styles.noteRow}>
+                          <Text style={[styles.noteTrack, { color: palette.text1 }]} numberOfLines={1}>
+                            {n.track_name}
+                          </Text>
+                          {n.rating != null ? (
+                            <Text style={[styles.noteScore, { color: palette.teal }]}>{n.rating}/10</Text>
+                          ) : null}
+                          {n.thumb ? (
+                            <Text style={{ fontSize: 12 }}>{n.thumb === 'up' ? '👍' : '👎'}</Text>
+                          ) : null}
+                          {n.comment ? (
+                            <Text style={[styles.noteComment, { color: palette.text2 }]}>
+                              {n.comment}
+                            </Text>
+                          ) : null}
+                        </View>
+                      ))
+                    : null}
+                </>
+              ) : null}
             </Card>
           ))}
           {revealed.length === 0 ? <InlineNote text="No ratings were submitted." /> : null}
@@ -226,4 +292,10 @@ const styles = StyleSheet.create({
   revealScore: { fontFamily: fonts.sansBold, fontSize: 16 },
   revealReview: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 20, marginBottom: 6 },
   trackLine: { fontFamily: fonts.sansMedium, fontSize: 12, lineHeight: 18, marginTop: 2 },
+  notesToggle: { marginTop: 10, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth },
+  notesToggleText: { fontFamily: fonts.monoMedium, fontSize: 11 },
+  noteRow: { flexDirection: 'row', alignItems: 'center', gap: 7, flexWrap: 'wrap', paddingVertical: 4 },
+  noteTrack: { fontFamily: fonts.sansMedium, fontSize: 12, maxWidth: '60%' },
+  noteScore: { fontFamily: fonts.sansBold, fontSize: 12 },
+  noteComment: { flexBasis: '100%', fontFamily: fonts.sans, fontSize: 12, lineHeight: 17 },
 });

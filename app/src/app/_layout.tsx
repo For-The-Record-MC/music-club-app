@@ -18,6 +18,7 @@ import { Platform } from 'react-native';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
 import { useCurrentClubStore } from '@/stores/currentClubStore';
+import { useOnboardingStore } from '@/stores/onboardingStore';
 import { useThemeStore } from '@/stores/themeStore';
 
 // Runs on every web page load — including the Spotify OAuth callback popup,
@@ -30,6 +31,7 @@ export default function RootLayout() {
   const { userId, isHydrated, hydrate } = useAuthStore();
   const hydrateTheme = useThemeStore((s) => s.hydrate);
   const hydrateClub = useCurrentClubStore((s) => s.hydrate);
+  const hydrateOnboarding = useOnboardingStore((s) => s.hydrate);
   const [fontsLoaded] = useFonts({
     DMSans_400Regular,
     DMSans_500Medium,
@@ -43,8 +45,9 @@ export default function RootLayout() {
     hydrate();
     hydrateTheme();
     hydrateClub();
+    hydrateOnboarding();
     if (Platform.OS === 'web') document.title = 'Vinyl & Vino — Listening Clubs';
-  }, [hydrate, hydrateTheme, hydrateClub]);
+  }, [hydrate, hydrateTheme, hydrateClub, hydrateOnboarding]);
 
   if (!fontsLoaded || !isHydrated) return null;
 
@@ -60,6 +63,7 @@ export default function RootLayout() {
         <Stack.Protected guard={!!userId}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="profile-setup" />
+          <Stack.Screen name="how-it-works" />
           <Stack.Screen name="create-club" />
           <Stack.Screen name="join/index" />
           <Stack.Screen name="club/[id]/members" />
@@ -71,6 +75,8 @@ export default function RootLayout() {
           <Stack.Screen name="club/[id]/album/[albumId]" />
           <Stack.Screen name="club/[id]/rate/[albumId]" />
           <Stack.Screen name="club/[id]/suggestions" />
+          <Stack.Screen name="club/[id]/activity" />
+          <Stack.Screen name="club/[id]/cycle/[cycleId]" />
         </Stack.Protected>
         <Stack.Protected guard={!userId}>
           <Stack.Screen name="sign-in" />

@@ -29,7 +29,11 @@ export type ConcertComment = Tables<'concert_comments'>;
 export type MeetingPost = Tables<'meeting_posts'>;
 export type ConcertStatus = 'interested' | 'going';
 export type ActivityEvent = Tables<'activity_events'>;
+export type ClubFavoriteTrack = Tables<'club_favorite_tracks'>;
 export type ProfileTrack = Tables<'profile_tracks'>;
+export type Showdown = Tables<'showdowns'>;
+export type ShowdownThemeIdea = Tables<'showdown_theme_ideas'>;
+export type ShowdownSubmission = Tables<'showdown_submissions'>;
 export type TrackSlot = 'new' | 'old' | 'obsession';
 export const TRACK_SLOTS: TrackSlot[] = ['new', 'old', 'obsession'];
 export const TRACK_SLOT_LABELS: Record<TrackSlot, string> = {
@@ -88,6 +92,55 @@ export interface LeaderboardRow {
   active_score: number;
 }
 
+// One song in a showdown, as returned by the list_showdown RPC. author_* and
+// net_score are withheld (null) until the cycle is revealed — except for the
+// caller's own entry, where author/my_vote are always present. (json, typed manually.)
+export interface ShowdownEntry {
+  id: string;
+  title: string;
+  artist: string;
+  artwork_url: string | null;
+  spotify_url: string | null;
+  apple_url: string | null;
+  created_at: string;
+  is_mine: boolean;
+  my_vote: 1 | -1 | null;
+  author_name: string | null;
+  author_color: number | null;
+  author_avatar: string | null;
+  net_score: number | null;
+}
+
+// The list_showdown RPC payload — the single blind-aware read path for a cycle's
+// showdown. null when the cycle has no showdown.
+export interface ShowdownView {
+  showdown_id: string;
+  theme_text: string;
+  revealed: boolean;
+  submission_count: number;
+  downvote_unlocked: boolean;
+  up_remaining: number;
+  down_remaining: number;
+  winner_submission_id: string | null;
+  submissions: ShowdownEntry[];
+}
+
+// One past Showdown for the History tab (get_showdown_history payload). winner_*
+// is null if the cycle closed with no submissions. (json, typed manually.)
+export interface ShowdownHistoryRow {
+  cycle_id: string;
+  cycle_number: number;
+  theme_text: string;
+  winner_title: string | null;
+  winner_artist: string | null;
+  winner_artwork: string | null;
+  winner_spotify_url: string | null;
+  winner_apple_url: string | null;
+  winner_submitter: string | null;
+  winner_color: number | null;
+  winner_avatar: string | null;
+}
+
 // Shape of the get_album_summary RPC payload (json column, typed manually).
 export interface AlbumSummary {
   submitted: string[];
@@ -95,6 +148,64 @@ export interface AlbumSummary {
   avg_score: number | null;
   revealed: boolean;
   mine_submitted: boolean;
+}
+
+// Shape of the get_cycle_highlights RPC payload (json column, typed manually).
+export interface CycleHighlightSong {
+  source: 'album' | 'feed';
+  title: string;
+  artist: string | null;
+  score: number;
+  album_id?: string;
+  post_id?: string;
+  spotify_uri?: string | null;
+  artwork_url?: string | null;
+}
+
+export interface CycleHighlights {
+  cycle: {
+    id: string;
+    number: number;
+    picker_id: string | null;
+    picker_name: string | null;
+    meeting_at: string | null;
+    closed_at: string | null;
+    spotify_playlist_url: string | null;
+  };
+  albums: {
+    album_id: string;
+    slot: number;
+    title: string;
+    artist: string;
+    artwork_url: string | null;
+    avg_score: number | null;
+    rating_count: number;
+    min_score: number | null;
+    max_score: number | null;
+    favorite_votes: number;
+  }[];
+  winner_album_id: string | null;
+  top_songs: CycleHighlightSong[];
+  reviews: {
+    album_id: string;
+    album_title: string;
+    kind: 'high' | 'low';
+    profile_id: string;
+    score: number;
+    review: string;
+    display_name: string | null;
+    avatar_color: number;
+    avatar_url: string | null;
+  }[];
+  popular_shares: {
+    post_id: string;
+    kind: string;
+    title: string;
+    artist: string | null;
+    url: string | null;
+    artwork_url: string | null;
+    reactions: number;
+  }[];
 }
 
 export const profiles = {
@@ -216,7 +327,25 @@ export const streaming = {
     supabase.functions.invoke<SyncResult>('spotify-sync', {
       body: { club_id: clubId, remove_post_id: postId },
     }),
+  // Build a closed cycle's highlights + all-time favorites playlists (owner
+  // token, server-side). Fired after close_cycle and from a manual button.
+  // No-ops quietly (ok:false, reason) when the club hasn't connected Spotify.
+  generateHighlights: (clubId: string, cycleId: string) =>
+    supabase.functions.invoke<HighlightsResult>('cycle-highlights', {
+      body: { club_id: clubId, cycle_id: cycleId },
+    }),
 };
+
+// Result of the cycle-highlights Edge Function.
+export interface HighlightsResult {
+  ok: boolean;
+  added?: number;
+  favorites_added?: number;
+  already?: boolean;
+  playlist_url?: string | null;
+  reason?: string;
+  message?: string;
+}
 
 export const clubMembers = {
   list: (clubId: string) =>
@@ -266,6 +395,55 @@ export const cycles = {
   reveal: (id: string) => supabase.rpc('reveal_cycle', { p_cycle: id }),
   close: (id: string) => supabase.rpc('close_cycle', { p_cycle: id }),
   remove: (id: string) => supabase.from('cycles').delete().eq('id', id),
+  // The History detail payload — albums/scores, combined-signal top songs,
+  // standout reviews, popular feed shares. Member-gated, post-reveal only.
+  highlights: (cycleId: string) =>
+    supabase.rpc('get_cycle_highlights', { p_cycle: cycleId }),
+};
+
+// Jukebox Showdown — the optional per-cycle themed song contest. Reads go
+// through list_showdown (blind until reveal); writes go through the RPCs.
+export const showdown = {
+  // The committed theme row for a cycle (null if none). Theme isn't secret, so
+  // a direct select is fine — used by the Home card and History.
+  forCycle: (cycleId: string) =>
+    supabase.from('showdowns').select('*').eq('cycle_id', cycleId).maybeSingle(),
+  // The unused theme-idea pool for a club: the club's own ideas + global seeds.
+  ideas: (clubId: string) =>
+    supabase
+      .from('showdown_theme_ideas')
+      .select('*')
+      .or(`club_id.eq.${clubId},club_id.is.null`)
+      .is('used_cycle_id', null)
+      .order('created_at', { ascending: false }),
+  addIdea: (clubId: string, text: string, createdBy: string) =>
+    supabase.from('showdown_theme_ideas').insert({ club_id: clubId, text, created_by: createdBy }),
+  // RPCs — picker/admin set the theme; the reel spins an unused idea (commit via
+  // setTheme). submit/vote enforce the one-song + 2-up/1-down rules server-side.
+  setTheme: (cycleId: string, text: string, ideaId?: string | null) =>
+    supabase.rpc('set_showdown_theme', { p_cycle: cycleId, p_text: text, p_idea_id: ideaId ?? undefined }),
+  spinTheme: (clubId: string) => supabase.rpc('spin_showdown_theme', { p_club: clubId }),
+  submit: (
+    showdownId: string,
+    song: { title: string; artist: string; artworkUrl?: string | null; spotifyUrl?: string | null; appleUrl?: string | null },
+  ) =>
+    supabase.rpc('submit_showdown_song', {
+      p_showdown: showdownId,
+      p_title: song.title,
+      p_artist: song.artist,
+      p_artwork_url: song.artworkUrl ?? undefined,
+      p_spotify_url: song.spotifyUrl ?? undefined,
+      p_apple_url: song.appleUrl ?? undefined,
+    }),
+  deleteSubmission: (showdownId: string) =>
+    supabase.rpc('delete_showdown_submission', { p_showdown: showdownId }),
+  // value: 1 up, -1 down, 0 clears.
+  vote: (submissionId: string, value: 1 | -1 | 0) =>
+    supabase.rpc('cast_showdown_vote', { p_submission: submissionId, p_value: value }),
+  // The single blind-aware read path — cast data as ShowdownView | null.
+  list: (cycleId: string) => supabase.rpc('list_showdown', { p_cycle: cycleId }),
+  // Past showdowns with their winner — cast data as ShowdownHistoryRow[].
+  history: (clubId: string) => supabase.rpc('get_showdown_history', { p_club: clubId }),
 };
 
 export const albums = {
@@ -493,6 +671,22 @@ export const concerts = {
       .eq('id', id)
       .select()
       .single(),
+  // Write a review to this concert AND every shared copy the caller can manage
+  // (adder or admin of that club) — see set_concert_review. Returns the row count.
+  setReview: (
+    concertId: string,
+    rating: number | null,
+    review: string | null,
+    markComplete: boolean,
+  ) =>
+    // p_rating/p_review accept null in SQL; the generated arg types omit
+    // nullability, so assert past it.
+    supabase.rpc('set_concert_review', {
+      p_concert: concertId,
+      p_rating: rating as number,
+      p_review: review as string,
+      p_mark_complete: markComplete,
+    }),
   remove: (id: string) => supabase.from('concerts').delete().eq('id', id),
   // Club ids that already have this concert: the original plus any shared
   // copies (origin_concert_id = root). RLS limits this to clubs the caller is
@@ -551,6 +745,17 @@ export const activity = {
       p_recipients: recipientIds,
       p_payload: payload,
     }),
+};
+
+// The club's all-time favorites — 1–3 enshrined per cycle close by the
+// cycle-highlights Edge Function. Member-readable; written only server-side.
+export const clubFavorites = {
+  listByClub: (clubId: string) =>
+    supabase
+      .from('club_favorite_tracks')
+      .select('*')
+      .eq('club_id', clubId)
+      .order('added_at', { ascending: false }),
 };
 
 export const health = {

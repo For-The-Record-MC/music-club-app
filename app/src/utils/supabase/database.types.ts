@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       activity_events: {
@@ -187,6 +162,54 @@ export type Database = {
           },
         ]
       }
+      club_favorite_tracks: {
+        Row: {
+          added_at: string
+          artist: string | null
+          club_id: string
+          cycle_id: string | null
+          id: string
+          source: string | null
+          spotify_uri: string | null
+          title: string
+        }
+        Insert: {
+          added_at?: string
+          artist?: string | null
+          club_id: string
+          cycle_id?: string | null
+          id?: string
+          source?: string | null
+          spotify_uri?: string | null
+          title: string
+        }
+        Update: {
+          added_at?: string
+          artist?: string | null
+          club_id?: string
+          cycle_id?: string | null
+          id?: string
+          source?: string | null
+          spotify_uri?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_favorite_tracks_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_favorite_tracks_cycle_id_fkey"
+            columns: ["cycle_id"]
+            isOneToOne: false
+            referencedRelation: "cycles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       club_members: {
         Row: {
           club_id: string
@@ -236,6 +259,8 @@ export type Database = {
           name: string
           owner_id: string
           song_limit_per_cycle: number | null
+          spotify_favorites_playlist_id: string | null
+          spotify_favorites_playlist_url: string | null
         }
         Insert: {
           created_at?: string
@@ -246,6 +271,8 @@ export type Database = {
           name: string
           owner_id: string
           song_limit_per_cycle?: number | null
+          spotify_favorites_playlist_id?: string | null
+          spotify_favorites_playlist_url?: string | null
         }
         Update: {
           created_at?: string
@@ -256,6 +283,8 @@ export type Database = {
           name?: string
           owner_id?: string
           song_limit_per_cycle?: number | null
+          spotify_favorites_playlist_id?: string | null
+          spotify_favorites_playlist_url?: string | null
         }
         Relationships: [
           {
@@ -528,6 +557,8 @@ export type Database = {
           number: number
           picker_id: string
           revealed_at: string | null
+          spotify_highlights_playlist_id: string | null
+          spotify_highlights_playlist_url: string | null
           spotify_playlist_id: string | null
           spotify_playlist_url: string | null
           start_date: string
@@ -545,6 +576,8 @@ export type Database = {
           number: number
           picker_id: string
           revealed_at?: string | null
+          spotify_highlights_playlist_id?: string | null
+          spotify_highlights_playlist_url?: string | null
           spotify_playlist_id?: string | null
           spotify_playlist_url?: string | null
           start_date?: string
@@ -562,6 +595,8 @@ export type Database = {
           number?: number
           picker_id?: string
           revealed_at?: string | null
+          spotify_highlights_playlist_id?: string | null
+          spotify_highlights_playlist_url?: string | null
           spotify_playlist_id?: string | null
           spotify_playlist_url?: string | null
           start_date?: string
@@ -950,6 +985,217 @@ export type Database = {
           },
         ]
       }
+      showdown_submissions: {
+        Row: {
+          apple_url: string | null
+          artist: string
+          artwork_url: string | null
+          created_at: string
+          id: string
+          norm_key: string
+          profile_id: string
+          showdown_id: string
+          spotify_url: string | null
+          title: string
+        }
+        Insert: {
+          apple_url?: string | null
+          artist?: string
+          artwork_url?: string | null
+          created_at?: string
+          id?: string
+          norm_key: string
+          profile_id: string
+          showdown_id: string
+          spotify_url?: string | null
+          title: string
+        }
+        Update: {
+          apple_url?: string | null
+          artist?: string
+          artwork_url?: string | null
+          created_at?: string
+          id?: string
+          norm_key?: string
+          profile_id?: string
+          showdown_id?: string
+          spotify_url?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "showdown_submissions_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "showdown_submissions_showdown_id_fkey"
+            columns: ["showdown_id"]
+            isOneToOne: false
+            referencedRelation: "showdowns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      showdown_theme_ideas: {
+        Row: {
+          club_id: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          text: string
+          used_cycle_id: string | null
+        }
+        Insert: {
+          club_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          text: string
+          used_cycle_id?: string | null
+        }
+        Update: {
+          club_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          text?: string
+          used_cycle_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "showdown_theme_ideas_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "showdown_theme_ideas_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "showdown_theme_ideas_used_cycle_id_fkey"
+            columns: ["used_cycle_id"]
+            isOneToOne: false
+            referencedRelation: "cycles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      showdown_votes: {
+        Row: {
+          created_at: string
+          id: string
+          profile_id: string
+          submission_id: string
+          value: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          profile_id: string
+          submission_id: string
+          value: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          profile_id?: string
+          submission_id?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "showdown_votes_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "showdown_votes_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "showdown_submissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      showdowns: {
+        Row: {
+          club_id: string
+          created_at: string
+          created_by: string
+          cycle_id: string
+          id: string
+          theme_idea_id: string | null
+          theme_text: string
+          winner_submission_id: string | null
+        }
+        Insert: {
+          club_id: string
+          created_at?: string
+          created_by: string
+          cycle_id: string
+          id?: string
+          theme_idea_id?: string | null
+          theme_text: string
+          winner_submission_id?: string | null
+        }
+        Update: {
+          club_id?: string
+          created_at?: string
+          created_by?: string
+          cycle_id?: string
+          id?: string
+          theme_idea_id?: string | null
+          theme_text?: string
+          winner_submission_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "showdowns_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "showdowns_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "showdowns_cycle_id_fkey"
+            columns: ["cycle_id"]
+            isOneToOne: true
+            referencedRelation: "cycles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "showdowns_theme_idea_id_fkey"
+            columns: ["theme_idea_id"]
+            isOneToOne: false
+            referencedRelation: "showdown_theme_ideas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "showdowns_winner_fk"
+            columns: ["winner_submission_id"]
+            isOneToOne: false
+            referencedRelation: "showdown_submissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       song_note_shares: {
         Row: {
           album_id: string
@@ -1102,6 +1348,11 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      album_has_ratings: { Args: { p_album: string }; Returns: boolean }
+      cast_showdown_vote: {
+        Args: { p_submission: string; p_value: number }
+        Returns: undefined
+      }
       close_cycle: {
         Args: { p_cycle: string }
         Returns: {
@@ -1116,6 +1367,8 @@ export type Database = {
           number: number
           picker_id: string
           revealed_at: string | null
+          spotify_highlights_playlist_id: string | null
+          spotify_highlights_playlist_url: string | null
           spotify_playlist_id: string | null
           spotify_playlist_url: string | null
           start_date: string
@@ -1141,6 +1394,8 @@ export type Database = {
           name: string
           owner_id: string
           song_limit_per_cycle: number | null
+          spotify_favorites_playlist_id: string | null
+          spotify_favorites_playlist_url: string | null
         }
         SetofOptions: {
           from: "*"
@@ -1149,8 +1404,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      delete_showdown_submission: {
+        Args: { p_showdown: string }
+        Returns: undefined
+      }
       generate_invite_code: { Args: never; Returns: string }
       get_album_summary: { Args: { p_album: string }; Returns: Json }
+      get_cycle_highlights: { Args: { p_cycle: string }; Returns: Json }
+      get_showdown_history: { Args: { p_club: string }; Returns: Json }
       is_club_member: { Args: { p_club: string }; Returns: boolean }
       join_club: {
         Args: { p_code: string }
@@ -1163,6 +1424,8 @@ export type Database = {
           name: string
           owner_id: string
           song_limit_per_cycle: number | null
+          spotify_favorites_playlist_id: string | null
+          spotify_favorites_playlist_url: string | null
         }
         SetofOptions: {
           from: "*"
@@ -1171,6 +1434,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      list_showdown: { Args: { p_cycle: string }; Returns: Json }
       mark_activity_read: { Args: { p_club: string }; Returns: undefined }
       my_song_quota: { Args: { p_club: string }; Returns: Json }
       notify_comment_mentions: {
@@ -1195,6 +1459,8 @@ export type Database = {
           number: number
           picker_id: string
           revealed_at: string | null
+          spotify_highlights_playlist_id: string | null
+          spotify_highlights_playlist_url: string | null
           spotify_playlist_id: string | null
           spotify_playlist_url: string | null
           start_date: string
@@ -1208,6 +1474,55 @@ export type Database = {
         }
       }
       rotate_invite_code: { Args: { p_club: string }; Returns: string }
+      set_concert_review: {
+        Args: {
+          p_concert: string
+          p_mark_complete: boolean
+          p_rating: number
+          p_review: string
+        }
+        Returns: number
+      }
+      set_showdown_theme: {
+        Args: { p_cycle: string; p_idea_id?: string; p_text: string }
+        Returns: {
+          club_id: string
+          created_at: string
+          created_by: string
+          cycle_id: string
+          id: string
+          theme_idea_id: string | null
+          theme_text: string
+          winner_submission_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "showdowns"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      showdown_norm: {
+        Args: { p_artist: string; p_title: string }
+        Returns: string
+      }
+      spin_showdown_theme: {
+        Args: { p_club: string }
+        Returns: {
+          club_id: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          text: string
+          used_cycle_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "showdown_theme_ideas"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       spin_wheel: {
         Args: { p_club: string }
         Returns: {
@@ -1222,6 +1537,8 @@ export type Database = {
           number: number
           picker_id: string
           revealed_at: string | null
+          spotify_highlights_playlist_id: string | null
+          spotify_highlights_playlist_url: string | null
           spotify_playlist_id: string | null
           spotify_playlist_url: string | null
           start_date: string
@@ -1236,6 +1553,34 @@ export type Database = {
       }
       streaming_disconnect: { Args: { p_club: string }; Returns: undefined }
       streaming_status: { Args: { p_club: string }; Returns: Json }
+      submit_showdown_song: {
+        Args: {
+          p_apple_url?: string
+          p_artist: string
+          p_artwork_url?: string
+          p_showdown: string
+          p_spotify_url?: string
+          p_title: string
+        }
+        Returns: {
+          apple_url: string | null
+          artist: string
+          artwork_url: string | null
+          created_at: string
+          id: string
+          norm_key: string
+          profile_id: string
+          showdown_id: string
+          spotify_url: string | null
+          title: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "showdown_submissions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       wheel_pool: { Args: { p_club: string }; Returns: string[] }
     }
     Enums: {
@@ -1365,9 +1710,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },

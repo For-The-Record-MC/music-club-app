@@ -1,10 +1,9 @@
 import { Tabs } from 'expo-router';
 import { Text, type ColorValue } from 'react-native';
 
-import { useActivity } from '@/hooks/useActivity';
+import { useDefaultClub } from '@/hooks/useDefaultClub';
 import { useTheme } from '@/hooks/use-theme';
 import { useClubSwitcherStore } from '@/stores/clubSwitcherStore';
-import { useCurrentClubStore } from '@/stores/currentClubStore';
 import { fonts } from '@/theme';
 
 function tabIcon(emoji: string) {
@@ -13,8 +12,8 @@ function tabIcon(emoji: string) {
 
 export default function TabsLayout() {
   const { palette } = useTheme();
-  const clubId = useCurrentClubStore((s) => s.clubId);
-  const { unread } = useActivity(clubId ?? undefined);
+  // Snap to your first club when nothing valid is selected (fresh login, relog).
+  useDefaultClub();
 
   return (
     <Tabs
@@ -49,20 +48,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="feed" options={{ title: 'Feed', tabBarIcon: tabIcon('🎧') }} />
       <Tabs.Screen name="notes" options={{ title: 'Notes', tabBarIcon: tabIcon('📝') }} />
       <Tabs.Screen name="concerts" options={{ title: 'Concerts', tabBarIcon: tabIcon('🎤') }} />
-      <Tabs.Screen
-        name="activity"
-        options={{
-          title: 'Activity',
-          tabBarIcon: tabIcon('🔔'),
-          tabBarBadge: clubId && unread > 0 ? (unread > 9 ? '9+' : unread) : undefined,
-          tabBarBadgeStyle: {
-            backgroundColor: palette.amber,
-            color: '#000',
-            fontFamily: fonts.monoMedium,
-            fontSize: 9,
-          },
-        }}
-      />
+      <Tabs.Screen name="history" options={{ title: 'History', tabBarIcon: tabIcon('📜') }} />
     </Tabs>
   );
 }

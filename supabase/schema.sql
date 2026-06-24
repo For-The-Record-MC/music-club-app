@@ -38,6 +38,17 @@ CREATE TABLE albums (
   created_at timestamp with time zone NOT NULL DEFAULT now()
 );
 
+CREATE TABLE club_favorite_tracks (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  club_id uuid NOT NULL,
+  cycle_id uuid,
+  title text NOT NULL,
+  artist text,
+  spotify_uri text,
+  source text,
+  added_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE club_members (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   club_id uuid NOT NULL,
@@ -54,7 +65,9 @@ CREATE TABLE clubs (
   invite_code text NOT NULL DEFAULT generate_invite_code(),
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   song_limit_per_cycle integer,
-  leaderboard_weights jsonb NOT NULL DEFAULT jsonb_build_object('songs_shared', 3, 'interactions_given', 1, 'ratings_given', 2, 'concerts_added', 2, 'meetings_attended', 5, 'albums_chosen', 4)
+  leaderboard_weights jsonb NOT NULL DEFAULT jsonb_build_object('songs_shared', 3, 'interactions_given', 1, 'ratings_given', 2, 'concerts_added', 2, 'meetings_attended', 5, 'albums_chosen', 4),
+  spotify_favorites_playlist_id text,
+  spotify_favorites_playlist_url text
 );
 
 CREATE TABLE concert_comments (
@@ -125,7 +138,9 @@ CREATE TABLE cycles (
   meeting_at timestamp with time zone,
   meeting_url text,
   spotify_playlist_id text,
-  spotify_playlist_url text
+  spotify_playlist_url text,
+  spotify_highlights_playlist_id text,
+  spotify_highlights_playlist_url text
 );
 
 CREATE TABLE feed_posts (
@@ -215,6 +230,47 @@ CREATE TABLE rsvps (
   updated_at timestamp with time zone NOT NULL DEFAULT now()
 );
 
+CREATE TABLE showdown_submissions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  showdown_id uuid NOT NULL,
+  profile_id uuid NOT NULL,
+  title text NOT NULL,
+  artist text NOT NULL DEFAULT ''::text,
+  artwork_url text,
+  spotify_url text,
+  apple_url text,
+  norm_key text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE showdown_theme_ideas (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  club_id uuid,
+  text text NOT NULL,
+  created_by uuid,
+  used_cycle_id uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE showdown_votes (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  submission_id uuid NOT NULL,
+  profile_id uuid NOT NULL,
+  value smallint NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE showdowns (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  cycle_id uuid NOT NULL,
+  club_id uuid NOT NULL,
+  theme_text text NOT NULL,
+  theme_idea_id uuid,
+  created_by uuid NOT NULL,
+  winner_submission_id uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE song_note_shares (
   album_id uuid NOT NULL,
   profile_id uuid NOT NULL,
@@ -279,6 +335,14 @@ ALTER TABLE albums ADD CONSTRAINT albums_set_by_fkey FOREIGN KEY (set_by) REFERE
 ALTER TABLE albums ADD CONSTRAINT albums_slot_check CHECK ((slot = ANY (ARRAY[1, 2])));
 
 ALTER TABLE albums ADD CONSTRAINT albums_title_check CHECK (((char_length(TRIM(BOTH FROM title)) >= 1) AND (char_length(TRIM(BOTH FROM title)) <= 200)));
+
+ALTER TABLE club_favorite_tracks ADD CONSTRAINT club_favorite_tracks_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+
+ALTER TABLE club_favorite_tracks ADD CONSTRAINT club_favorite_tracks_cycle_id_fkey FOREIGN KEY (cycle_id) REFERENCES cycles(id) ON DELETE SET NULL;
+
+ALTER TABLE club_favorite_tracks ADD CONSTRAINT club_favorite_tracks_pkey PRIMARY KEY (id);
+
+ALTER TABLE club_favorite_tracks ADD CONSTRAINT club_favorite_tracks_source_check CHECK (((source IS NULL) OR (source = ANY (ARRAY['album'::text, 'feed'::text]))));
 
 ALTER TABLE club_members ADD CONSTRAINT club_members_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
 
@@ -456,6 +520,54 @@ ALTER TABLE rsvps ADD CONSTRAINT rsvps_profile_id_fkey FOREIGN KEY (profile_id) 
 
 ALTER TABLE rsvps ADD CONSTRAINT rsvps_status_check CHECK ((status = ANY (ARRAY['yes'::text, 'maybe'::text, 'no'::text])));
 
+ALTER TABLE showdown_submissions ADD CONSTRAINT showdown_submissions_pkey PRIMARY KEY (id);
+
+ALTER TABLE showdown_submissions ADD CONSTRAINT showdown_submissions_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE showdown_submissions ADD CONSTRAINT showdown_submissions_showdown_id_fkey FOREIGN KEY (showdown_id) REFERENCES showdowns(id) ON DELETE CASCADE;
+
+ALTER TABLE showdown_submissions ADD CONSTRAINT showdown_submissions_showdown_id_norm_key_key UNIQUE (showdown_id, norm_key);
+
+ALTER TABLE showdown_submissions ADD CONSTRAINT showdown_submissions_showdown_id_profile_id_key UNIQUE (showdown_id, profile_id);
+
+ALTER TABLE showdown_submissions ADD CONSTRAINT showdown_submissions_title_check CHECK (((char_length(TRIM(BOTH FROM title)) >= 1) AND (char_length(TRIM(BOTH FROM title)) <= 300)));
+
+ALTER TABLE showdown_theme_ideas ADD CONSTRAINT showdown_theme_ideas_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+
+ALTER TABLE showdown_theme_ideas ADD CONSTRAINT showdown_theme_ideas_created_by_fkey FOREIGN KEY (created_by) REFERENCES profiles(id) ON DELETE SET NULL;
+
+ALTER TABLE showdown_theme_ideas ADD CONSTRAINT showdown_theme_ideas_pkey PRIMARY KEY (id);
+
+ALTER TABLE showdown_theme_ideas ADD CONSTRAINT showdown_theme_ideas_text_check CHECK (((char_length(TRIM(BOTH FROM text)) >= 1) AND (char_length(TRIM(BOTH FROM text)) <= 140)));
+
+ALTER TABLE showdown_theme_ideas ADD CONSTRAINT showdown_theme_ideas_used_cycle_id_fkey FOREIGN KEY (used_cycle_id) REFERENCES cycles(id) ON DELETE SET NULL;
+
+ALTER TABLE showdown_votes ADD CONSTRAINT showdown_votes_pkey PRIMARY KEY (id);
+
+ALTER TABLE showdown_votes ADD CONSTRAINT showdown_votes_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE showdown_votes ADD CONSTRAINT showdown_votes_submission_id_fkey FOREIGN KEY (submission_id) REFERENCES showdown_submissions(id) ON DELETE CASCADE;
+
+ALTER TABLE showdown_votes ADD CONSTRAINT showdown_votes_submission_id_profile_id_key UNIQUE (submission_id, profile_id);
+
+ALTER TABLE showdown_votes ADD CONSTRAINT showdown_votes_value_check CHECK ((value = ANY (ARRAY[1, '-1'::integer])));
+
+ALTER TABLE showdowns ADD CONSTRAINT showdowns_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+
+ALTER TABLE showdowns ADD CONSTRAINT showdowns_created_by_fkey FOREIGN KEY (created_by) REFERENCES profiles(id);
+
+ALTER TABLE showdowns ADD CONSTRAINT showdowns_cycle_id_fkey FOREIGN KEY (cycle_id) REFERENCES cycles(id) ON DELETE CASCADE;
+
+ALTER TABLE showdowns ADD CONSTRAINT showdowns_cycle_id_key UNIQUE (cycle_id);
+
+ALTER TABLE showdowns ADD CONSTRAINT showdowns_pkey PRIMARY KEY (id);
+
+ALTER TABLE showdowns ADD CONSTRAINT showdowns_theme_idea_id_fkey FOREIGN KEY (theme_idea_id) REFERENCES showdown_theme_ideas(id) ON DELETE SET NULL;
+
+ALTER TABLE showdowns ADD CONSTRAINT showdowns_theme_text_check CHECK (((char_length(TRIM(BOTH FROM theme_text)) >= 1) AND (char_length(TRIM(BOTH FROM theme_text)) <= 140)));
+
+ALTER TABLE showdowns ADD CONSTRAINT showdowns_winner_fk FOREIGN KEY (winner_submission_id) REFERENCES showdown_submissions(id) ON DELETE SET NULL;
+
 ALTER TABLE song_note_shares ADD CONSTRAINT song_note_shares_album_id_fkey FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE CASCADE;
 
 ALTER TABLE song_note_shares ADD CONSTRAINT song_note_shares_pkey PRIMARY KEY (album_id, profile_id);
@@ -495,6 +607,10 @@ CREATE INDEX activity_events_recipient_idx ON public.activity_events USING btree
 
 CREATE INDEX albums_cycle_idx ON public.albums USING btree (cycle_id);
 
+CREATE INDEX club_favorite_tracks_club_idx ON public.club_favorite_tracks USING btree (club_id, added_at DESC);
+
+CREATE UNIQUE INDEX club_favorite_tracks_uri_idx ON public.club_favorite_tracks USING btree (club_id, spotify_uri) WHERE (spotify_uri IS NOT NULL);
+
 CREATE INDEX club_members_club_idx ON public.club_members USING btree (club_id);
 
 CREATE UNIQUE INDEX club_members_one_owner_idx ON public.club_members USING btree (club_id) WHERE (role = 'owner'::text);
@@ -533,6 +649,14 @@ CREATE INDEX ratings_album_idx ON public.ratings USING btree (album_id);
 
 CREATE INDEX rsvps_cycle_idx ON public.rsvps USING btree (cycle_id);
 
+CREATE INDEX showdown_submissions_showdown_idx ON public.showdown_submissions USING btree (showdown_id);
+
+CREATE INDEX showdown_theme_ideas_club_idx ON public.showdown_theme_ideas USING btree (club_id);
+
+CREATE INDEX showdown_votes_submission_idx ON public.showdown_votes USING btree (submission_id);
+
+CREATE INDEX showdowns_club_idx ON public.showdowns USING btree (club_id);
+
 CREATE INDEX song_notes_album_profile_idx ON public.song_notes USING btree (album_id, profile_id);
 
 
@@ -564,6 +688,11 @@ CREATE POLICY albums_write ON albums AS PERMISSIVE FOR ALL TO authenticated
   WITH CHECK (((set_by = auth.uid()) AND (NOT album_has_ratings(id)) AND (EXISTS ( SELECT 1
    FROM cycles c
   WHERE ((c.id = albums.cycle_id) AND (c.status = 'open'::text) AND ((c.picker_id = auth.uid()) OR (club_role(c.club_id) = ANY (ARRAY['owner'::text, 'admin'::text]))))))));
+
+ALTER TABLE club_favorite_tracks ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY club_favorite_tracks_select ON club_favorite_tracks AS PERMISSIVE FOR SELECT TO authenticated
+  USING (is_club_member(club_id));
 
 ALTER TABLE club_members ENABLE ROW LEVEL SECURITY;
 
@@ -668,7 +797,7 @@ CREATE POLICY cycle_preferences_write ON cycle_preferences AS PERMISSIVE FOR ALL
   WITH CHECK (((profile_id = auth.uid()) AND (EXISTS ( SELECT 1
    FROM (albums a
      JOIN cycles c ON ((c.id = a.cycle_id)))
-  WHERE ((a.id = cycle_preferences.album_id) AND (a.cycle_id = a.cycle_id) AND (c.status = 'open'::text) AND is_club_member(c.club_id))))));
+  WHERE ((a.id = cycle_preferences.album_id) AND (a.cycle_id = a.cycle_id) AND (c.status = 'open'::text) AND (c.revealed_at IS NULL) AND is_club_member(c.club_id))))));
 
 ALTER TABLE cycles ENABLE ROW LEVEL SECURITY;
 
@@ -764,13 +893,13 @@ CREATE POLICY ratings_delete ON ratings AS PERMISSIVE FOR DELETE TO authenticate
   USING (((profile_id = auth.uid()) AND (EXISTS ( SELECT 1
    FROM (albums a
      JOIN cycles c ON ((c.id = a.cycle_id)))
-  WHERE ((a.id = ratings.album_id) AND (c.status = 'open'::text))))));
+  WHERE ((a.id = ratings.album_id) AND (c.status = 'open'::text) AND (c.revealed_at IS NULL))))));
 
 CREATE POLICY ratings_insert ON ratings AS PERMISSIVE FOR INSERT TO authenticated
   WITH CHECK (((profile_id = auth.uid()) AND (EXISTS ( SELECT 1
    FROM (albums a
      JOIN cycles c ON ((c.id = a.cycle_id)))
-  WHERE ((a.id = ratings.album_id) AND (c.status = 'open'::text) AND is_club_member(c.club_id))))));
+  WHERE ((a.id = ratings.album_id) AND (c.status = 'open'::text) AND (c.revealed_at IS NULL) AND is_club_member(c.club_id))))));
 
 CREATE POLICY ratings_select ON ratings AS PERMISSIVE FOR SELECT TO authenticated
   USING (((profile_id = auth.uid()) OR (EXISTS ( SELECT 1
@@ -783,7 +912,7 @@ CREATE POLICY ratings_update ON ratings AS PERMISSIVE FOR UPDATE TO authenticate
   WITH CHECK (((profile_id = auth.uid()) AND (EXISTS ( SELECT 1
    FROM (albums a
      JOIN cycles c ON ((c.id = a.cycle_id)))
-  WHERE ((a.id = ratings.album_id) AND (c.status = 'open'::text) AND is_club_member(c.club_id))))));
+  WHERE ((a.id = ratings.album_id) AND (c.status = 'open'::text) AND (c.revealed_at IS NULL) AND is_club_member(c.club_id))))));
 
 ALTER TABLE rsvps ENABLE ROW LEVEL SECURITY;
 
@@ -797,6 +926,29 @@ CREATE POLICY rsvps_write ON rsvps AS PERMISSIVE FOR ALL TO authenticated
   WITH CHECK (((profile_id = auth.uid()) AND (EXISTS ( SELECT 1
    FROM cycles c
   WHERE ((c.id = rsvps.cycle_id) AND (c.status = 'open'::text) AND is_club_member(c.club_id))))));
+
+ALTER TABLE showdown_submissions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY showdown_submissions_select_own ON showdown_submissions AS PERMISSIVE FOR SELECT TO authenticated
+  USING ((profile_id = auth.uid()));
+
+ALTER TABLE showdown_theme_ideas ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY showdown_theme_ideas_insert ON showdown_theme_ideas AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (((club_id IS NOT NULL) AND (created_by = auth.uid()) AND is_club_member(club_id)));
+
+CREATE POLICY showdown_theme_ideas_select ON showdown_theme_ideas AS PERMISSIVE FOR SELECT TO authenticated
+  USING (((club_id IS NULL) OR is_club_member(club_id)));
+
+ALTER TABLE showdown_votes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY showdown_votes_select_own ON showdown_votes AS PERMISSIVE FOR SELECT TO authenticated
+  USING ((profile_id = auth.uid()));
+
+ALTER TABLE showdowns ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY showdowns_select ON showdowns AS PERMISSIVE FOR SELECT TO authenticated
+  USING (is_club_member(club_id));
 
 ALTER TABLE song_note_shares ENABLE ROW LEVEL SECURITY;
 
@@ -857,6 +1009,80 @@ AS $function$
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.cast_showdown_vote(p_submission uuid, p_value integer)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_showdown uuid;
+  v_club uuid;
+  v_status text;
+  v_owner uuid;
+  v_field integer;
+  v_up integer;
+  v_down integer;
+begin
+  select sub.showdown_id, c.club_id, c.status, sub.profile_id
+    into v_showdown, v_club, v_status, v_owner
+  from showdown_submissions sub
+  join showdowns sd on sd.id = sub.showdown_id
+  join cycles c on c.id = sd.cycle_id
+  where sub.id = p_submission;
+  if not found then
+    raise exception 'Submission not found';
+  end if;
+  if not public.is_club_member(v_club) then
+    raise exception 'Not a club member';
+  end if;
+  if v_status <> 'open' then
+    raise exception 'Voting is closed';
+  end if;
+  if v_owner = auth.uid() then
+    raise exception 'You can''t vote on your own song';
+  end if;
+  if p_value not in (1, -1, 0) then
+    raise exception 'Invalid vote';
+  end if;
+
+  if p_value = 0 then
+    delete from showdown_votes where submission_id = p_submission and profile_id = auth.uid();
+    return;
+  end if;
+
+  if p_value = -1 then
+    select count(*) into v_field from showdown_submissions where showdown_id = v_showdown;
+    if v_field < 4 then
+      raise exception 'Downvotes unlock once there are 4 songs';
+    end if;
+  end if;
+
+  -- Budget across the whole field, excluding the song being (re)voted.
+  select
+    count(*) filter (where v.value = 1),
+    count(*) filter (where v.value = -1)
+  into v_up, v_down
+  from showdown_votes v
+  join showdown_submissions s on s.id = v.submission_id
+  where s.showdown_id = v_showdown
+    and v.profile_id = auth.uid()
+    and v.submission_id <> p_submission;
+
+  if p_value = 1 and v_up >= 2 then
+    raise exception 'You''ve used both upvotes';
+  end if;
+  if p_value = -1 and v_down >= 1 then
+    raise exception 'You''ve used your downvote';
+  end if;
+
+  insert into showdown_votes (submission_id, profile_id, value)
+  values (p_submission, auth.uid(), p_value)
+  on conflict (submission_id, profile_id) do update set value = excluded.value;
+end;
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.close_cycle(p_cycle uuid)
  RETURNS cycles
  LANGUAGE plpgsql
@@ -865,6 +1091,11 @@ CREATE OR REPLACE FUNCTION public.close_cycle(p_cycle uuid)
 AS $function$
 declare
   v_cycle public.cycles;
+  v_sd public.showdowns;
+  v_winner uuid;
+  v_w_title text;
+  v_w_artist text;
+  v_w_name text;
 begin
   select * into v_cycle from cycles where id = p_cycle;
   if not found then
@@ -882,6 +1113,39 @@ begin
       revealed_at = coalesce(revealed_at, now())
   where id = p_cycle
   returning * into v_cycle;
+
+  -- Crown the showdown winner: highest net (sum of votes), tiebreak by most
+  -- upvotes, then earliest submission.
+  select * into v_sd from showdowns where cycle_id = p_cycle;
+  if found then
+    select s.id, s.title, s.artist, p.display_name
+      into v_winner, v_w_title, v_w_artist, v_w_name
+    from showdown_submissions s
+    join profiles p on p.id = s.profile_id
+    where s.showdown_id = v_sd.id
+    order by
+      coalesce((select sum(v.value) from showdown_votes v where v.submission_id = s.id), 0) desc,
+      coalesce((select count(*) from showdown_votes v where v.submission_id = s.id and v.value = 1), 0) desc,
+      s.created_at asc
+    limit 1;
+
+    if v_winner is not null then
+      update showdowns set winner_submission_id = v_winner where id = v_sd.id;
+      perform public.publish_activity_event(
+        v_cycle.club_id, 'showdown_winner',
+        jsonb_build_object(
+          'cycle_number', v_cycle.number, 'cycle_id', p_cycle,
+          'title', v_w_title, 'artist', v_w_artist, 'submitter_name', v_w_name
+        )
+      );
+    end if;
+  end if;
+
+  perform public.publish_activity_event(
+    v_cycle.club_id, 'cycle_closed',
+    jsonb_build_object('cycle_number', v_cycle.number, 'cycle_id', v_cycle.id)
+  );
+
   return v_cycle;
 end;
 $function$
@@ -1043,6 +1307,31 @@ end;
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.delete_showdown_submission(p_showdown uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_id uuid;
+  v_votes integer;
+begin
+  select s.id, (select count(*) from showdown_votes v where v.submission_id = s.id)
+    into v_id, v_votes
+  from showdown_submissions s
+  where s.showdown_id = p_showdown and s.profile_id = auth.uid();
+  if v_id is null then
+    return;
+  end if;
+  if v_votes > 0 then
+    raise exception 'Your song is locked in — it already has votes.';
+  end if;
+  delete from showdown_submissions where id = v_id;
+end;
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.enforce_song_limit()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -1149,6 +1438,248 @@ end;
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.get_cycle_highlights(p_cycle uuid)
+ RETURNS json
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_club uuid;
+  v_revealed timestamptz;
+  v_result json;
+begin
+  select c.club_id, c.revealed_at into v_club, v_revealed
+  from cycles c where c.id = p_cycle;
+  if not found then
+    raise exception 'Cycle not found';
+  end if;
+  if not public.is_club_member(v_club) then
+    raise exception 'Not a club member';
+  end if;
+  if v_revealed is null then
+    raise exception 'Cycle not revealed yet';
+  end if;
+
+  with cyc as (
+    select c.*, p.display_name as picker_name
+    from cycles c
+    left join profiles p on p.id = c.picker_id
+    where c.id = p_cycle
+  ),
+  alb as (
+    select * from albums where cycle_id = p_cycle
+  ),
+  -- ── per-album stats ────────────────────────────────────────────────────────
+  album_stats as (
+    select a.id, a.slot, a.title, a.artist, a.artwork_url,
+      round(avg(r.score)::numeric, 1) as avg_score,
+      count(r.*) as rating_count,
+      min(r.score) as min_score,
+      max(r.score) as max_score
+    from alb a
+    left join ratings r on r.album_id = a.id
+    group by a.id, a.slot, a.title, a.artist, a.artwork_url
+  ),
+  fav_votes as (
+    select album_id, count(*) as votes
+    from cycle_preferences
+    where cycle_id = p_cycle
+    group by album_id
+  ),
+  -- ── combined-signal song ranking ───────────────────────────────────────────
+  album_tracks as (
+    select a.id as album_id, a.artist as album_artist, a.artwork_url,
+      (t->>'trackName') as track_name
+    from alb a, jsonb_array_elements(coalesce(a.tracks, '[]'::jsonb)) t
+    where (t->>'trackName') is not null
+  ),
+  fav_pts as (
+    select album_id, favorite_track as track_name, count(*) * 3 as pts
+    from ratings
+    where album_id in (select id from alb) and favorite_track is not null
+    group by album_id, favorite_track
+  ),
+  least_pts as (
+    select album_id, least_track as track_name, count(*) * -2 as pts
+    from ratings
+    where album_id in (select id from alb) and least_track is not null
+    group by album_id, least_track
+  ),
+  note_pts as (
+    select sn.album_id, sn.track_name,
+      sum(
+        (case when sn.thumb = 'up' then 1 when sn.thumb = 'down' then -1 else 0 end)
+        + (case when sn.rating >= 8 then 1 else 0 end)
+      ) as pts
+    from song_notes sn
+    join song_note_shares sh
+      on sh.album_id = sn.album_id and sh.profile_id = sn.profile_id
+    where sn.album_id in (select id from alb)
+    group by sn.album_id, sn.track_name
+  ),
+  album_song_scores as (
+    select at.album_id, at.album_artist, at.artwork_url, at.track_name,
+      coalesce(f.pts, 0) + coalesce(l.pts, 0) + coalesce(n.pts, 0) as score
+    from album_tracks at
+    left join fav_pts f on f.album_id = at.album_id and f.track_name = at.track_name
+    left join least_pts l on l.album_id = at.album_id and l.track_name = at.track_name
+    left join note_pts n on n.album_id = at.album_id and n.track_name = at.track_name
+  ),
+  feed_songs as (
+    select fp.id as post_id, fp.title, fp.artist,
+      fp.metadata->>'spotify_uri' as spotify_uri,
+      fp.metadata->>'artwork' as artwork_url,
+      count(pr.*) filter (where pr.emoji in ('👍', '❤️', '🔥', '😂')) as score
+    from feed_posts fp
+    left join post_reactions pr on pr.post_id = fp.id
+    where fp.club_id = (select club_id from cyc)
+      and fp.kind = 'track'
+      and fp.created_at >= (select created_at from cyc)
+      and fp.created_at <= coalesce((select closed_at from cyc), now())
+    group by fp.id, fp.title, fp.artist, fp.metadata
+  ),
+  song_ranking as (
+    select json_build_object(
+      'source', 'album', 'title', track_name, 'artist', album_artist,
+      'album_id', album_id, 'artwork_url', artwork_url, 'score', score
+    ) as obj, score
+    from album_song_scores where score > 0
+    union all
+    select json_build_object(
+      'source', 'feed', 'title', title, 'artist', artist, 'post_id', post_id,
+      'spotify_uri', spotify_uri, 'artwork_url', artwork_url, 'score', score
+    ) as obj, score
+    from feed_songs where score > 0
+  ),
+  -- ── standout reviews: highest + lowest scored written review per album ───────
+  review_high as (
+    select distinct on (r.album_id)
+      r.album_id, a.title as album_title, r.profile_id, r.score, r.review, 'high' as kind
+    from ratings r join alb a on a.id = r.album_id
+    where r.review is not null and char_length(trim(r.review)) > 0
+    order by r.album_id, r.score desc, char_length(r.review) desc
+  ),
+  review_low as (
+    select distinct on (r.album_id)
+      r.album_id, a.title as album_title, r.profile_id, r.score, r.review, 'low' as kind
+    from ratings r join alb a on a.id = r.album_id
+    where r.review is not null and char_length(trim(r.review)) > 0
+    order by r.album_id, r.score asc, char_length(r.review) desc
+  ),
+  reviews as (
+    select * from review_high
+    union all
+    -- drop the low pick when it's the same row as the high pick (single review)
+    select rl.* from review_low rl
+    where not exists (
+      select 1 from review_high rh
+      where rh.album_id = rl.album_id and rh.profile_id = rl.profile_id
+    )
+  ),
+  -- ── popular feed shares in the cycle window ─────────────────────────────────
+  popular as (
+    select fp.id as post_id, fp.kind, fp.title, fp.artist, fp.url,
+      fp.metadata->>'artwork' as artwork_url,
+      count(pr.*) filter (where pr.emoji in ('👍', '❤️', '🔥', '😂')) as reactions
+    from feed_posts fp
+    left join post_reactions pr on pr.post_id = fp.id
+    where fp.club_id = (select club_id from cyc)
+      and fp.created_at >= (select created_at from cyc)
+      and fp.created_at <= coalesce((select closed_at from cyc), now())
+    group by fp.id, fp.kind, fp.title, fp.artist, fp.url, fp.metadata
+    having count(pr.*) filter (where pr.emoji in ('👍', '❤️', '🔥', '😂')) > 0
+    order by reactions desc
+    limit 3
+  )
+  select json_build_object(
+    'cycle', (
+      select json_build_object(
+        'id', id, 'number', number, 'picker_id', picker_id, 'picker_name', picker_name,
+        'meeting_at', meeting_at, 'closed_at', closed_at,
+        'spotify_playlist_url', spotify_playlist_url
+      ) from cyc
+    ),
+    'albums', coalesce((
+      select json_agg(json_build_object(
+        'album_id', s.id, 'slot', s.slot, 'title', s.title, 'artist', s.artist,
+        'artwork_url', s.artwork_url, 'avg_score', s.avg_score,
+        'rating_count', s.rating_count, 'min_score', s.min_score, 'max_score', s.max_score,
+        'favorite_votes', coalesce(fv.votes, 0)
+      ) order by s.slot)
+      from album_stats s left join fav_votes fv on fv.album_id = s.id
+    ), '[]'::json),
+    'winner_album_id', (
+      select album_id from fav_votes
+      where votes = (select max(votes) from fav_votes)
+        and (select count(*) from fav_votes f2 where f2.votes = (select max(votes) from fav_votes)) = 1
+      limit 1
+    ),
+    'top_songs', coalesce((
+      select json_agg(obj order by score desc) from song_ranking
+    ), '[]'::json),
+    'reviews', coalesce((
+      select json_agg(json_build_object(
+        'album_id', rv.album_id, 'album_title', rv.album_title, 'kind', rv.kind,
+        'profile_id', rv.profile_id, 'score', rv.score, 'review', rv.review,
+        'display_name', p.display_name, 'avatar_color', p.avatar_color, 'avatar_url', p.avatar_url
+      ))
+      from reviews rv left join profiles p on p.id = rv.profile_id
+    ), '[]'::json),
+    'popular_shares', coalesce((
+      select json_agg(json_build_object(
+        'post_id', post_id, 'kind', kind, 'title', title, 'artist', artist,
+        'url', url, 'artwork_url', artwork_url, 'reactions', reactions
+      ) order by reactions desc)
+      from popular
+    ), '[]'::json)
+  ) into v_result;
+
+  return v_result;
+end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.get_showdown_history(p_club uuid)
+ RETURNS json
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_rows json;
+begin
+  if not public.is_club_member(p_club) then
+    raise exception 'Not a club member';
+  end if;
+
+  select coalesce(json_agg(row order by row.cycle_number desc), '[]'::json) into v_rows
+  from (
+    select
+      c.id as cycle_id,
+      c.number as cycle_number,
+      sd.theme_text,
+      w.title as winner_title,
+      w.artist as winner_artist,
+      w.artwork_url as winner_artwork,
+      w.spotify_url as winner_spotify_url,
+      w.apple_url as winner_apple_url,
+      p.display_name as winner_submitter,
+      p.avatar_color as winner_color,
+      p.avatar_url as winner_avatar
+    from showdowns sd
+    join cycles c on c.id = sd.cycle_id
+    left join showdown_submissions w on w.id = sd.winner_submission_id
+    left join profiles p on p.id = w.profile_id
+    where sd.club_id = p_club
+      and c.revealed_at is not null
+  ) row;
+
+  return v_rows;
+end;
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.handle_new_user()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -1204,6 +1735,81 @@ begin
   on conflict (club_id, profile_id) do nothing;
 
   return v_club;
+end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.list_showdown(p_cycle uuid)
+ RETURNS json
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_sd public.showdowns;
+  v_revealed boolean;
+  v_club uuid;
+  v_field integer;
+  v_up integer;
+  v_down integer;
+  v_subs json;
+begin
+  select * into v_sd from showdowns where cycle_id = p_cycle;
+  if not found then
+    return null;
+  end if;
+  v_club := v_sd.club_id;
+  if not public.is_club_member(v_club) then
+    raise exception 'Not a club member';
+  end if;
+
+  select (revealed_at is not null) into v_revealed from cycles where id = p_cycle;
+  select count(*) into v_field from showdown_submissions where showdown_id = v_sd.id;
+
+  select
+    coalesce(count(*) filter (where value = 1), 0),
+    coalesce(count(*) filter (where value = -1), 0)
+  into v_up, v_down
+  from showdown_votes v
+  join showdown_submissions s on s.id = v.submission_id
+  where s.showdown_id = v_sd.id and v.profile_id = auth.uid();
+
+  select coalesce(json_agg(row order by row.created_at), '[]'::json) into v_subs
+  from (
+    select
+      s.id,
+      s.title,
+      s.artist,
+      s.artwork_url,
+      s.spotify_url,
+      s.apple_url,
+      s.created_at,
+      (s.profile_id = auth.uid()) as is_mine,
+      (select v.value from showdown_votes v where v.submission_id = s.id and v.profile_id = auth.uid()) as my_vote,
+      -- Author only after reveal (or if it's mine).
+      case when v_revealed or s.profile_id = auth.uid() then p.display_name end as author_name,
+      case when v_revealed or s.profile_id = auth.uid() then p.avatar_color end as author_color,
+      case when v_revealed or s.profile_id = auth.uid() then p.avatar_url end as author_avatar,
+      -- Net score only after reveal.
+      case when v_revealed then (
+        select coalesce(sum(v.value), 0) from showdown_votes v where v.submission_id = s.id
+      ) end as net_score
+    from showdown_submissions s
+    join profiles p on p.id = s.profile_id
+    where s.showdown_id = v_sd.id
+  ) row;
+
+  return json_build_object(
+    'showdown_id', v_sd.id,
+    'theme_text', v_sd.theme_text,
+    'revealed', v_revealed,
+    'submission_count', v_field,
+    'downvote_unlocked', (v_field >= 4),
+    'up_remaining', 2 - v_up,
+    'down_remaining', 1 - v_down,
+    'winner_submission_id', v_sd.winner_submission_id,
+    'submissions', v_subs
+  );
 end;
 $function$
 ;
@@ -1353,6 +1959,132 @@ end;
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.set_concert_review(p_concert uuid, p_rating integer, p_review text, p_mark_complete boolean)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_root uuid;
+  v_club uuid;
+  v_count integer;
+begin
+  select coalesce(origin_concert_id, id), club_id
+  into v_root, v_club
+  from concerts where id = p_concert;
+  if not found then
+    raise exception 'Concert not found';
+  end if;
+
+  -- Caller must be able to manage the source concert (adder or admin), same as
+  -- the concerts_update policy.
+  if not (
+    exists (select 1 from concerts c where c.id = p_concert and c.added_by = auth.uid())
+    or public.club_role(v_club) in ('owner', 'admin')
+  ) then
+    raise exception 'Not allowed to review this concert';
+  end if;
+
+  update concerts set
+    rating = p_rating,
+    review = p_review,
+    -- Marking complete sets the timestamp once; edits preserve the original.
+    completed_at = case when p_mark_complete then coalesce(completed_at, now()) else completed_at end,
+    updated_at = now()
+  where (id = v_root or origin_concert_id = v_root)
+    and (added_by = auth.uid() or public.club_role(club_id) in ('owner', 'admin'));
+
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.set_showdown_theme(p_cycle uuid, p_text text, p_idea_id uuid DEFAULT NULL::uuid)
+ RETURNS showdowns
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_cycle public.cycles;
+  v_showdown public.showdowns;
+begin
+  select * into v_cycle from cycles where id = p_cycle;
+  if not found then
+    raise exception 'Cycle not found';
+  end if;
+  if v_cycle.status <> 'open' then
+    raise exception 'The cycle is closed';
+  end if;
+  if v_cycle.picker_id <> auth.uid()
+     and public.club_role(v_cycle.club_id) not in ('owner', 'admin') then
+    raise exception 'Only the picker or an admin can set the theme';
+  end if;
+  if char_length(trim(coalesce(p_text, ''))) = 0 then
+    raise exception 'Theme cannot be empty';
+  end if;
+
+  insert into showdowns (cycle_id, club_id, theme_text, theme_idea_id, created_by)
+  values (p_cycle, v_cycle.club_id, trim(p_text), p_idea_id, auth.uid())
+  on conflict (cycle_id) do update
+    set theme_text = excluded.theme_text,
+        theme_idea_id = excluded.theme_idea_id
+  returning * into v_showdown;
+
+  if p_idea_id is not null then
+    update showdown_theme_ideas set used_cycle_id = p_cycle where id = p_idea_id;
+  end if;
+
+  perform public.publish_activity_event(
+    v_cycle.club_id, 'showdown_started',
+    jsonb_build_object('cycle_number', v_cycle.number, 'cycle_id', p_cycle, 'theme', v_showdown.theme_text)
+  );
+
+  return v_showdown;
+end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.showdown_norm(p_title text, p_artist text)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE
+AS $function$
+  select regexp_replace(
+    lower(trim(coalesce(p_title, '')) || '|' || trim(coalesce(p_artist, ''))),
+    '[^a-z0-9|]+', '', 'g'
+  );
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.spin_showdown_theme(p_club uuid)
+ RETURNS showdown_theme_ideas
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_idea public.showdown_theme_ideas;
+begin
+  if not public.is_club_member(p_club) then
+    raise exception 'Not a club member';
+  end if;
+  select * into v_idea
+  from showdown_theme_ideas
+  where used_cycle_id is null
+    and (club_id is null or club_id = p_club)
+  order by random()
+  limit 1;
+  if not found then
+    raise exception 'No theme ideas left to spin';
+  end if;
+  return v_idea;
+end;
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.spin_wheel(p_club uuid)
  RETURNS cycles
  LANGUAGE plpgsql
@@ -1439,6 +2171,72 @@ begin
     'status', v_row.status,
     'connected_by', v_row.connected_by
   );
+end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.submit_showdown_song(p_showdown uuid, p_title text, p_artist text, p_artwork_url text DEFAULT NULL::text, p_spotify_url text DEFAULT NULL::text, p_apple_url text DEFAULT NULL::text)
+ RETURNS showdown_submissions
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_club uuid;
+  v_status text;
+  v_norm text;
+  v_existing_id uuid;
+  v_votes integer;
+  v_row public.showdown_submissions;
+begin
+  select c.club_id, c.status into v_club, v_status
+  from showdowns sd join cycles c on c.id = sd.cycle_id
+  where sd.id = p_showdown;
+  if not found then
+    raise exception 'Showdown not found';
+  end if;
+  if not public.is_club_member(v_club) then
+    raise exception 'Not a club member';
+  end if;
+  if v_status <> 'open' then
+    raise exception 'Submissions are closed';
+  end if;
+
+  v_norm := public.showdown_norm(p_title, p_artist);
+
+  -- Duplicate held by someone else? Friendly rejection (leaks that the song is
+  -- taken, not who took it — accepted tradeoff for the no-duplicates rule).
+  if exists (
+    select 1 from showdown_submissions s
+    where s.showdown_id = p_showdown and s.norm_key = v_norm and s.profile_id <> auth.uid()
+  ) then
+    raise exception 'That song is already in the running — pick another.';
+  end if;
+
+  select s.id, (select count(*) from showdown_votes v where v.submission_id = s.id)
+    into v_existing_id, v_votes
+  from showdown_submissions s
+  where s.showdown_id = p_showdown and s.profile_id = auth.uid();
+
+  if v_existing_id is not null then
+    if v_votes > 0 then
+      raise exception 'Your song is locked in — it already has votes.';
+    end if;
+    update showdown_submissions
+    set title = trim(p_title), artist = coalesce(p_artist, ''),
+        artwork_url = p_artwork_url, spotify_url = p_spotify_url, apple_url = p_apple_url,
+        norm_key = v_norm
+    where id = v_existing_id
+    returning * into v_row;
+  else
+    insert into showdown_submissions
+      (showdown_id, profile_id, title, artist, artwork_url, spotify_url, apple_url, norm_key)
+    values
+      (p_showdown, auth.uid(), trim(p_title), coalesce(p_artist, ''), p_artwork_url, p_spotify_url, p_apple_url, v_norm)
+    returning * into v_row;
+  end if;
+
+  return v_row;
 end;
 $function$
 ;

@@ -9,6 +9,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { fonts, radius } from '@/theme';
 import {
   albums as albumsDb,
+  cycles as cyclesDb,
   ratings as ratingsDb,
   songNotes as songNotesDb,
   type Album,
@@ -45,10 +46,19 @@ export default function RateAlbum() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [songNotes, setSongNotes] = useState<SongNote[]>([]);
+  // Ratings freeze at reveal — once the cycle is revealed/closed, this screen is read-only.
+  const [locked, setLocked] = useState(false);
 
   useEffect(() => {
     if (!albumId || !userId) return;
-    albumsDb.get(albumId).then(({ data }) => setAlbum(data ?? null));
+    albumsDb.get(albumId).then(({ data }) => {
+      setAlbum(data ?? null);
+      if (data) {
+        cyclesDb
+          .get(data.cycle_id)
+          .then(({ data: c }) => setLocked(!!c && (c.status !== 'open' || !!c.revealed_at)));
+      }
+    });
     songNotesDb.mine(albumId, userId).then(({ data }) =>
       setSongNotes(
         (data ?? []).filter((n) => n.rating !== null || n.thumb !== null || !!n.comment),
@@ -75,7 +85,7 @@ export default function RateAlbum() {
   }, [songNotes]);
 
   const save = async () => {
-    if (!albumId || !userId) return;
+    if (!albumId || !userId || locked) return;
     if (score === null) {
       setError('Pick a score (1–10) first.');
       return;
@@ -99,6 +109,39 @@ export default function RateAlbum() {
     }
     router.replace(`/club/${id}/album/${albumId}`);
   };
+
+  if (locked) {
+    return (
+      <Screen>
+        <View style={styles.topbar}>
+          <Pressable onPress={() => router.back()}>
+            <Text style={[styles.back, { color: palette.text2 }]}>←</Text>
+          </Pressable>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={[styles.eyebrow, { color: palette.text3 }]}>RATE THIS ALBUM</Text>
+            <Text numberOfLines={1} style={[styles.title, { color: palette.text1 }]}>
+              {album?.title ?? '…'}
+            </Text>
+          </View>
+          {album?.artwork_url ? (
+            <Image source={{ uri: album.artwork_url }} style={styles.art} contentFit="cover" />
+          ) : null}
+        </View>
+        <Card>
+          <Text style={[styles.lockedTitle, { color: palette.text1 }]}>🔒 Ratings are locked</Text>
+          <Text style={[styles.lockedBody, { color: palette.text2 }]}>
+            This cycle's ratings have been revealed — scores and reviews are final. Open the
+            album to read everyone's ratings.
+          </Text>
+          <Button
+            title="View the reveal"
+            onPress={() => router.replace(`/club/${id}/album/${albumId}`)}
+            style={{ marginTop: 14 }}
+          />
+        </Card>
+      </Screen>
+    );
+  }
 
   return (
     <Screen>
@@ -223,7 +266,7 @@ export default function RateAlbum() {
       <Button title="Save rating" onPress={save} loading={busy} />
       <Text style={[styles.sealNote, { color: palette.text3 }]}>
         Sealed until the meeting — after you save you'll see the club average, and
-        everything opens at the reveal. Editable until the cycle closes.
+        everything opens at the reveal. Editable until ratings are revealed.
       </Text>
       {error ? <InlineNote text={error} tone="error" /> : null}
     </Screen>
@@ -345,4 +388,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 10,
   },
+  lockedTitle: { fontFamily: fonts.sansBold, fontSize: 16, marginBottom: 6 },
+  lockedBody: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 19 },
 });

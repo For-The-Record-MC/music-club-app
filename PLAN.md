@@ -136,6 +136,74 @@ OAuth works end-to-end: (1) register redirect URIs in the Spotify app — `vinyl
 Deferred: Apple Music; home-screen reconnect banner for owners (today reconnect lives on the
 streaming screen).
 
+## v4 — End-of-cycle & history (planned 2026-06-23)
+
+Locked via a design Q&A. Five independently shippable phases. Conventions throughout:
+migrations-only schema, all queries via `db.ts`, then `refresh-schema-snapshot.sh` +
+regenerate `database.types.ts`, update the relevant `context/*.md`.
+
+**Decisions:**
+- **Ratings lock at reveal** (not close): once `cycles.revealed_at` is set, members can no
+  longer edit ratings *or* their 👑 favorite vote. Song notes stay editable forever (unchanged).
+- **Shared song notes surface on the revealed album** — when a member has shared their notes
+  (`song_note_shares`) for an album, they're tappable/expandable on the album reveal screen.
+- **History replaces Activity as a bottom tab**; Activity moves to a **bell in the Home topbar**
+  (keeps the unread badge), routed to a pushed `club/[id]/activity` screen.
+- **Cycle highlights page** per closed cycle: Album scores & winner · Top songs · Standout
+  reviews & comments · Popular feed shares.
+- **"Top songs" = combined signal**: album favorite-track votes (`+3` fav / `-2` least),
+  shared song-note thumbs/high ratings (`±1`, `+1` if ≥8), and feed track-post positive
+  reactions (`+1` each). One ranked list; shared by the highlights RPC and the playlist function.
+- **Two new playlists, auto-built on cycle close** (silent no-op if Spotify not connected):
+  a per-cycle **Cycle Highlights** playlist (the top songs) and an **All-Time Club Favorites**
+  playlist that auto-gains the cycle's top **1–3** songs each close. Manual "generate" button on
+  the cycle page as a fallback for clubs that connect Spotify after a close.
+
+**Phase 1 — Lock ratings at reveal** (migration `ratings_lock_on_reveal`): tighten
+`ratings_*` + `cycle_preferences` write policies to `status='open' AND revealed_at IS NULL`;
+rate screen renders read-only when revealed; album-detail edit CTA gated on `!revealed_at`.
+
+**Phase 2 — Shared song notes on the album reveal** (no schema): on the revealed
+`album/[albumId]`, fetch `song_note_shares` + `songNotes.listVisible` (both already in `db.ts`,
+RLS already opens shared notes) and render a per-member `📝 Song notes` expander.
+
+**Phase 3 — History tab + activity bell**: swap the `activity` tab for a `history` (📜) tab;
+move the activity screen to pushed `club/[id]/activity.tsx` reading `currentClubStore`; add a
+badge-carrying bell to the Home topbar. `(tabs)/history.tsx` lists closed cycles
+(`cycles.listClosed`) → tap into the cycle detail. Retire Home's "Past cycles" strip for a
+"See all → History" link.
+
+**Phase 4 — Cycle highlights data + detail page** (migration: `get_cycle_highlights(p_cycle)`
+security-definer RPC, member-gated, requires reveal/close): returns albums + scores + winner
+(`cycle_preferences` tally) + score spread, the combined-signal `top_songs` ranking, standout
+reviews (highest- & lowest-scorer per album + most-reacted feed comment), and popular feed
+shares in the window `[cycle.created_at, closed_at]`. New `club/[id]/cycle/[cycleId].tsx`
+renders the four sections + playlist links; `db.ts` gets `cycles.highlights` + a typed payload.
+
+**Phase 5 — Auto-built playlists on close** (migration `playlists_and_favorites`):
+`cycles.spotify_highlights_playlist_id/_url`, `clubs.spotify_favorites_playlist_id/_url`,
+`club_favorite_tracks(id, club_id, cycle_id, title, artist, spotify_uri, source, added_at)`
+(member-readable; powers an all-time list even without Spotify). New Edge Function
+`cycle-highlights` mirrors `spotify-sync` (service role, owner token, idempotent, `ok:false/reason`
+for recoverable states): resolves ranked songs to URIs (feed `metadata.spotify_uri` else search;
+album tracks via best-effort `searchTrackUri(track_name, album_artist)` — same limitation the feed
+sync has), creates the Cycle Highlights playlist, appends the top 1–3 not-yet-enshrined songs to
+the all-time favorites playlist + records `club_favorite_tracks`. `home.tsx` `closeCycle` fires it
+after `cycles.close` (fire-and-forget + toast, like sync-after-post); manual admin button on the
+cycle page as fallback; publish a `cycle_closed` / `highlights_ready` activity event.
+
+**Sequencing:** 1 & 2 are small/self-contained (ship first); 3 is the nav restructure; 4 delivers
+the History payoff with no Spotify dependency; 5 layers playlists on top.
+
+**Status 2026-06-23:** All five phases built; `npx tsc --noEmit` clean. Migrations applied to the
+live DB (`20260623000000` ratings-lock, `20260623010000` cycle-highlights RPC,
+`20260623020000` playlists+favorites); snapshot + types regenerated. Edge Function
+`cycle-highlights` deployed (project `yecjvvnposykmrzemcej`). `get_cycle_highlights` smoke-tested
+live (2 albums, 10 ranked songs, winner). App code uncommitted/unpushed (live web unchanged).
+Not yet exercised end-to-end in the running app — recommend a manual pass (rate-lock at reveal,
+shared notes on reveal, History tab + bell, a cycle's highlights page, and a real close on a
+Spotify-connected club to verify playlist creation).
+
 ## Backlog / future ideas
 
 - **Auto-generate Google Meet links on schedule** (deferred 2026-06-13). Today the schedule form takes a pasted video link with a `meet.new` shortcut (shipped) — works, but one manual step. Truly automatic minting (a Meet link created the instant a meeting is scheduled) requires Google OAuth: only Google can create a real Meet link, via the Calendar API (event with `conferenceData`, `conferenceDataVersion=1`) or the Meet API (`spaces`). Needs a Google Cloud project, OAuth consent-screen verification for sensitive calendar scopes, an admin Google sign-in + token storage, and an Edge Function to hold the secret. A consumer `@gmail.com` can't do it via a service account (that needs Workspace domain-wide delegation). Same weight as the Ticketmaster integration — only worth it if the manual paste becomes annoying.

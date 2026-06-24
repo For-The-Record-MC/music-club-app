@@ -5,7 +5,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Linking, Platform, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 
 import { ClubSwitcher } from '@/components/ClubSwitcher';
+import { ShowdownHomeCard } from '@/components/ShowdownHomeCard';
 import { Avatar, Button, Card, InlineNote, Label, Screen } from '@/components/ui';
+import { useActivity } from '@/hooks/useActivity';
 import { useClubData } from '@/hooks/useClubData';
 import { useCycle } from '@/hooks/useCycle';
 import { useFeed, type FeedRow } from '@/hooks/useFeed';
@@ -13,6 +15,7 @@ import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
 import { useCurrentClubStore } from '@/stores/currentClubStore';
+import { useOnboardingStore } from '@/stores/onboardingStore';
 import { inviteUrl } from '@/constants';
 import { fonts, radius } from '@/theme';
 import { addToCalendar } from '@/utils/calendar';
@@ -21,14 +24,9 @@ import {
   cycles,
   preferences as preferencesDb,
   rsvps as rsvpsDb,
-  type Album,
-  type Cycle,
+  streaming,
   type RsvpStatus,
 } from '@/utils/supabase/db';
-
-interface ClosedCycle extends Cycle {
-  albums: Album[];
-}
 
 // "Positive" reactions for the featured-song pick (everything but the skeptical 🤔).
 const POSITIVE_EMOJIS = ['👍', '❤️', '🔥', '😂'];
@@ -71,14 +69,23 @@ export default function HomeTab() {
   const { club, members, myRole, loading: clubLoading, refresh: refreshClub } = useClubData(clubId);
   const { cycle, albums, rsvps, guests, preferences, loading: cycleLoading, refresh } = useCycle(clubId);
   const { posts: feedPosts } = useFeed(clubId);
-  const featuredSong = useMemo(() => pickFeaturedSong(feedPosts), [feedPosts]);
+  const { unread } = useActivity(clubId);
+  // Only spotlight songs shared during the current (open) cycle — last cycle's
+  // feed shouldn't keep surfacing once a new one starts.
+  const featuredSong = useMemo(() => {
+    if (!cycle) return null;
+    const start = new Date(cycle.created_at).getTime();
+    const thisCycle = feedPosts.filter((p) => new Date(p.created_at).getTime() >= start);
+    return pickFeaturedSong(thisCycle);
+  }, [feedPosts, cycle]);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [pastCycles, setPastCycles] = useState<ClosedCycle[]>([]);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [pastCycleCount, setPastCycleCount] = useState(0);
 
   const loadPast = useCallback(() => {
     if (!clubId) return;
-    cycles.listClosed(clubId).then(({ data }) => setPastCycles((data ?? []) as ClosedCycle[]));
+    cycles.listClosed(clubId).then(({ data }) => setPastCycleCount((data ?? []).length));
   }, [clubId]);
 
   useEffect(() => {
@@ -90,6 +97,18 @@ export default function HomeTab() {
     loadPast();
   }, [refreshClub, refresh, loadPast]);
   const { refreshing, onRefresh } = useRefresh(refreshAll);
+
+  // First-ever club view on this device: show the "how it works" tour once, so
+  // new members get oriented without anyone pointing them to the menu.
+  const onboardingHydrated = useOnboardingStore((s) => s.hydrated);
+  const seenHowItWorks = useOnboardingStore((s) => s.seenHowItWorks);
+  const markSeenHowItWorks = useOnboardingStore((s) => s.markSeen);
+  useEffect(() => {
+    if (clubId && onboardingHydrated && !seenHowItWorks && profile?.display_name) {
+      markSeenHowItWorks();
+      router.push('/how-it-works');
+    }
+  }, [clubId, onboardingHydrated, seenHowItWorks, profile?.display_name, markSeenHowItWorks, router]);
 
   const isAdmin = myRole === 'owner' || myRole === 'admin';
   const isPicker = cycle?.picker_id === userId;
@@ -195,11 +214,28 @@ export default function HomeTab() {
     if (
       await confirmAsync(
         'Close cycle',
-        `Close cycle ${cycle.number}? Ratings get revealed and the wheel unlocks for the next spin.`,
+        `Close cycle ${cycle.number}? Ratings get revealed, the highlights playlist is built, and the wheel unlocks for the next spin.`,
       )
     ) {
-      const { error: err } = await cycles.close(cycle.id);
-      if (err) setError(err.message);
+      const cycleId = cycle.id;
+      const cycleNumber = cycle.number;
+      const { error: err } = await cycles.close(cycleId);
+      if (err) {
+        setError(err.message);
+        return;
+      }
+      // Build the cycle-highlights + all-time-favorites playlists. Fire-and-forget
+      // — no-ops quietly if the club hasn't connected Spotify; the History page
+      // surfaces the result regardless.
+      streaming.generateHighlights(club.id, cycleId).then(({ data }) => {
+        if (data?.ok && (data.added ?? 0) > 0) {
+          setNotice(
+            `🎶 Cycle ${cycleNumber} highlights playlist created${
+              data.favorites_added ? ` · ${data.favorites_added} added to all-time favorites` : ''
+            }.`,
+          );
+        }
+      });
       refresh();
     }
   };
@@ -208,6 +244,18 @@ export default function HomeTab() {
     <Screen onRefresh={onRefresh} refreshing={refreshing}>
       <View style={styles.topbar}>
         <ClubSwitcher />
+        <Pressable
+          onPress={() => router.push(`/club/${club.id}/activity`)}
+          hitSlop={8}
+          style={styles.bell}
+        >
+          <Text style={{ fontSize: 22 }}>🔔</Text>
+          {unread > 0 ? (
+            <View style={[styles.bellBadge, { backgroundColor: palette.amber }]}>
+              <Text style={styles.bellBadgeText}>{unread > 9 ? '9+' : unread}</Text>
+            </View>
+          ) : null}
+        </Pressable>
         <Pressable onPress={() => router.push(`/club/${club.id}/members`)}>
           <View style={styles.avStack}>
             {members.slice(0, 3).map((m) => (
@@ -328,6 +376,8 @@ export default function HomeTab() {
               ) : null}
             </Card>
           )}
+
+          <ShowdownHomeCard cycleId={cycle.id} />
 
           {featuredSong ? (
             <>
@@ -478,40 +528,15 @@ export default function HomeTab() {
         </>
       )}
 
-      {pastCycles.length > 0 ? (
-        <>
-          <Label>Past cycles</Label>
-          <Card>
-            {pastCycles.map((pc) => (
-              <View key={pc.id}>
-                {pc.albums
-                  .slice()
-                  .sort((a, b) => a.slot - b.slot)
-                  .map((a) => (
-                    <Pressable
-                      key={a.id}
-                      onPress={() => router.push(`/club/${club.id}/album/${a.id}`)}
-                      style={({ pressed }) => [styles.pastRow, pressed && { opacity: 0.7 }]}
-                    >
-                      <Text style={[styles.pastCycleNum, { color: palette.text3 }]}>#{pc.number}</Text>
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text numberOfLines={1} style={[styles.pastTitle, { color: palette.text1 }]}>{a.title}</Text>
-                        <Text numberOfLines={1} style={[styles.pastArtist, { color: palette.text2 }]}>{a.artist}</Text>
-                      </View>
-                      <Text style={{ color: palette.text3 }}>›</Text>
-                    </Pressable>
-                  ))}
-                {pc.spotify_playlist_url ? (
-                  <Pressable onPress={() => Linking.openURL(pc.spotify_playlist_url!)}>
-                    <Text style={[styles.pastPlaylistLink, { color: palette.teal }]}>
-                      ▶ Cycle {pc.number} playlist
-                    </Text>
-                  </Pressable>
-                ) : null}
-              </View>
-            ))}
+      {pastCycleCount > 0 ? (
+        <Pressable onPress={() => router.push('/history')}>
+          <Card style={styles.historyLink}>
+            <Text style={[styles.historyLinkText, { color: palette.text1 }]}>
+              📜 {pastCycleCount} past cycle{pastCycleCount === 1 ? '' : 's'} — see history
+            </Text>
+            <Text style={{ color: palette.text3 }}>›</Text>
           </Card>
-        </>
+        </Pressable>
       ) : null}
 
       <Label>Invite members</Label>
@@ -523,6 +548,7 @@ export default function HomeTab() {
         />
       </Card>
 
+      {notice ? <InlineNote text={notice} tone="success" /> : null}
       {error ? <InlineNote text={error} tone="error" /> : null}
     </Screen>
   );
@@ -530,6 +556,19 @@ export default function HomeTab() {
 
 const styles = StyleSheet.create({
   topbar: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 },
+  bell: { position: 'relative' },
+  bellBadge: {
+    position: 'absolute',
+    top: -5,
+    right: -7,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  bellBadgeText: { fontFamily: fonts.monoMedium, fontSize: 9, color: '#000' },
   avStack: { flexDirection: 'row', marginLeft: 8 },
   heroTitle: { fontFamily: fonts.sansBold, fontSize: 18, marginBottom: 6 },
   heroSub: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 19, textAlign: 'center' },
@@ -554,7 +593,8 @@ const styles = StyleSheet.create({
   },
   playlistPlayIcon: { color: '#1DB954', fontSize: 11, marginLeft: 1 },
   playlistBtnText: { fontFamily: fonts.sansBold, fontSize: 14, color: '#fff', letterSpacing: 0.2 },
-  pastPlaylistLink: { fontFamily: fonts.monoMedium, fontSize: 11, marginTop: 2, marginBottom: 10, marginLeft: 28 },
+  historyLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  historyLinkText: { fontFamily: fonts.sansMedium, fontSize: 14 },
   featuredRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   featuredArt: { width: 50, height: 50, borderRadius: radius.sm },
   featuredEyebrow: { fontFamily: fonts.sansMedium, fontSize: 9, letterSpacing: 1.5, marginBottom: 3 },
@@ -578,10 +618,6 @@ const styles = StyleSheet.create({
   albumName: { fontFamily: fonts.sansBold, fontSize: 16, marginBottom: 1 },
   albumMeta: { fontFamily: fonts.sans, fontSize: 12 },
   rateHint: { fontFamily: fonts.monoMedium, fontSize: 10, marginTop: 3 },
-  pastRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
-  pastCycleNum: { fontFamily: fonts.monoMedium, fontSize: 11, width: 28 },
-  pastTitle: { fontFamily: fonts.sansMedium, fontSize: 13 },
-  pastArtist: { fontFamily: fonts.sans, fontSize: 11 },
   meetingRow: { flexDirection: 'row', alignItems: 'flex-start' },
   meetingDate: { fontFamily: fonts.sansBold, fontSize: 20 },
   meetingSub: { fontFamily: fonts.sans, fontSize: 13, marginTop: 2 },

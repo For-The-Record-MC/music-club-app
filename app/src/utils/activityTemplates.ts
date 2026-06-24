@@ -42,6 +42,26 @@ export function renderActivity(event: ActivityEvent, actorName: string | null): 
       };
     case 'ratings_revealed':
       return { icon: '🎙️', text: `Ratings for cycle ${p.cycle_number ?? '?'} are revealed!`, target: HOME };
+    case 'cycle_closed':
+      return {
+        icon: '🏁',
+        text: `Cycle ${p.cycle_number ?? '?'} wrapped — see the highlights.`,
+        target: p.cycle_id
+          ? { pathname: '/club/[id]/cycle/[cycleId]', params: { id: String(event.club_id), cycleId: String(p.cycle_id) } }
+          : HOME,
+      };
+    case 'showdown_started':
+      return {
+        icon: '🎵',
+        text: `${who} set the Jukebox Showdown theme for cycle ${p.cycle_number ?? '?'}: “${p.theme ?? ''}”`,
+        target: { pathname: '/feed', params: { tab: 'showdown' } },
+      };
+    case 'showdown_winner':
+      return {
+        icon: '🏆',
+        text: `“${p.title ?? 'A song'}”${p.artist ? ` by ${p.artist}` : ''} won the cycle ${p.cycle_number ?? '?'} Showdown${p.submitter_name ? ` — ${p.submitter_name}` : ''}!`,
+        target: { pathname: '/feed', params: { tab: 'showdown' } },
+      };
     case 'feed_post':
       return {
         icon: p.is_album_suggestion ? '💡' : '🎧',

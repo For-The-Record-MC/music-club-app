@@ -19,7 +19,7 @@ Bottom-tab UX (v2). `src/app/_layout.tsx` is the root `Stack` wrapped in `Stack.
 - guard `!userId`: `sign-in`.
 - **`join/[code]` is deliberately unguarded** — invite links must survive sign-in (renders `AuthForm` inline, auto-joins on session).
 
-`src/app/(tabs)/_layout.tsx` is the `Tabs` navigator: **Clubs** (`index`), **Home** (`home`), **Feed** (`feed`), **Concerts** (`concerts`), **Activity** (`activity`, with an unread badge). The Clubs tab redirects to `/profile-setup` while `profile.display_name` is null (first sign-in).
+`src/app/(tabs)/_layout.tsx` is the `Tabs` navigator: **Home** (`home`), **Feed** (`feed`), **Notes** (`notes`), **Concerts** (`concerts`), **History** (`history`). The club switcher is opened from the Home topbar (tapping Home while focused). **Activity** is no longer a tab — it's a pushed screen `club/[id]/activity` reached via the 🔔 bell in the Home topbar (the bell carries the unread badge). The Home tab redirects to `/profile-setup` while `profile.display_name` is null (first sign-in). **History** lists closed cycles → `club/[id]/cycle/[cycleId]` highlights detail.
 
 ### The selected-club model
 

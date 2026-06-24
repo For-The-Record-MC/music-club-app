@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ConcertCalendar } from '@/components/ConcertCalendar';
+import { ConcertSearchField } from '@/components/ConcertSearchField';
 import { DateTimeField } from '@/components/DateTimeField';
 import { MentionInput, MentionText, resolveMentions, type MentionMember } from '@/components/Mentions';
 import { Avatar, BottomSheet, Button, Card, InlineNote, Label, NoClubSelected, Screen, TextField } from '@/components/ui';
@@ -21,6 +22,7 @@ import {
   type ConcertComment,
   type ConcertStatus,
 } from '@/utils/supabase/db';
+import { type ConcertEvent } from '@/utils/ticketmaster';
 import { fonts, radius } from '@/theme';
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -200,6 +202,19 @@ export default function Concerts() {
   const toggleShareTarget = (clubId: string) =>
     setShareTargets((t) => (t.includes(clubId) ? t.filter((x) => x !== clubId) : [...t, clubId]));
 
+  // Autofill the draft from a Ticketmaster pick. Only overwrite fields the event
+  // actually carries, so a partial pick (e.g. date TBA) won't blank what's typed.
+  const applyEvent = (ev: ConcertEvent) => {
+    setError(null);
+    setDraft((d) => ({
+      ...d,
+      artist: ev.artist || d.artist,
+      when: ev.date ? new Date(`${ev.date}T${ev.time ?? '19:00:00'}`) : d.when,
+      venue: ev.venue || d.venue,
+      ticketUrl: ev.ticketUrl || d.ticketUrl,
+    }));
+  };
+
   const startEdit = (c: ConcertRow) => {
     setEditingId(c.id);
     setDraft({
@@ -292,6 +307,12 @@ export default function Concerts() {
         <Card>
           <Label>{editingId ? 'Edit concert' : 'Add a concert'}</Label>
           <View style={{ gap: 8 }}>
+            <View style={styles.searchBlock}>
+              <Text style={[styles.searchHint, { color: palette.text3 }]}>
+                {editingId ? 'SEARCH TO FILL IN DETAILS (OPTIONAL)' : 'SEARCH TO AUTOFILL (OPTIONAL)'}
+              </Text>
+              <ConcertSearchField onPick={applyEvent} />
+            </View>
             <TextField placeholder="Artist / band" value={draft.artist} onChangeText={(v) => setDraft((d) => ({ ...d, artist: v }))} />
             <DateTimeField value={draft.when} onChange={(w) => setDraft((d) => ({ ...d, when: w }))} mode="datetime" />
             <TextField placeholder="Venue & city (optional)" value={draft.venue} onChangeText={(v) => setDraft((d) => ({ ...d, venue: v }))} />
@@ -496,11 +517,13 @@ function ConcertCard({
 
   const saveReview = async (markComplete: boolean) => {
     setSavingReview(true);
-    const { error } = await concertsDb.update(concert.id, {
-      rating: ratingDraft || null,
-      review: reviewDraft.trim() || null,
-      completed_at: markComplete ? new Date().toISOString() : concert.completed_at,
-    });
+    // Propagates to every club this concert is shared to (that you manage).
+    const { error } = await concertsDb.setReview(
+      concert.id,
+      ratingDraft || null,
+      reviewDraft.trim() || null,
+      markComplete,
+    );
     setSavingReview(false);
     if (!error) {
       setShowReview(false);
@@ -654,6 +677,9 @@ function ConcertCard({
             loading={savingReview}
             style={{ marginTop: 8 }}
           />
+          <Text style={[styles.reviewSharedHint, { color: palette.text3 }]}>
+            Your review applies to this concert in every club it's shared to.
+          </Text>
         </View>
       ) : null}
 
@@ -934,6 +960,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   actionBtnText: { fontFamily: fonts.sansMedium, fontSize: 12 },
+  searchBlock: { gap: 6, marginBottom: 2 },
+  searchHint: { fontFamily: fonts.monoMedium, fontSize: 9, letterSpacing: 1.5 },
   sharePickBlock: { gap: 8, marginTop: 2 },
   sharePickLabel: { fontFamily: fonts.monoMedium, fontSize: 9, letterSpacing: 1.5 },
   shareChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -963,6 +991,7 @@ const styles = StyleSheet.create({
   shareRowState: { fontFamily: fonts.monoMedium, fontSize: 13 },
   reviewForm: { marginTop: 10, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth },
   reviewLabel: { fontFamily: fonts.monoMedium, fontSize: 11, marginBottom: 8 },
+  reviewSharedHint: { fontFamily: fonts.mono, fontSize: 10, lineHeight: 15, textAlign: 'center', marginTop: 8 },
   comments: { marginTop: 10, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, gap: 10 },
   commentRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   commentName: { fontFamily: fonts.monoMedium, fontSize: 10, marginBottom: 1 },
