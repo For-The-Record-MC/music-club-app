@@ -30,8 +30,8 @@ export default function Root({ children }: PropsWithChildren) {
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="Vinyl & Vino" />
-        <meta name="application-name" content="Vinyl & Vino" />
+        <meta name="apple-mobile-web-app-title" content="For The Record MC" />
+        <meta name="application-name" content="For The Record MC" />
 
         {/* Browser chrome color (per color scheme) */}
         <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#080808" />
@@ -42,7 +42,7 @@ export default function Root({ children }: PropsWithChildren) {
           name="description"
           content="Run a music listening club: pick albums, rate them, share notes, and plan concerts with your crew."
         />
-        <meta property="og:title" content="Vinyl & Vino — Listening Clubs" />
+        <meta property="og:title" content="For The Record MC — Listening Clubs" />
         <meta
           property="og:description"
           content="Run a music listening club: pick albums, rate them, share notes, and plan concerts with your crew."

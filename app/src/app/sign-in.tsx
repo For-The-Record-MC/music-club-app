@@ -12,7 +12,7 @@ export default function SignIn() {
       <View style={styles.header}>
         <Text style={styles.logo}>🎵</Text>
         <Text style={[styles.eyebrow, { color: palette.text3 }]}>LISTENING CLUBS</Text>
-        <Text style={[styles.title, { color: palette.text1 }]}>Vinyl &amp; Vino</Text>
+        <Text style={[styles.title, { color: palette.text1 }]}>For The Record MC</Text>
         <Text style={[styles.sub, { color: palette.text2 }]}>
           Albums with friends: spin the wheel, listen together, rate and reveal.
         </Text>

@@ -1,4 +1,4 @@
-# TestFlight Deployment Plan — Vinyl & Vino
+# TestFlight Deployment Plan — For The Record MC
 
 Goal: take the Expo (SDK 56, expo-router) app from simulator-only to installable on a
 physical iPhone via TestFlight, using **EAS Build + EAS Submit**.

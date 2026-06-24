@@ -1,4 +1,4 @@
-# Vinyl & Vino (music-club-app) — Agent Reference
+# For The Record MC (music-club-app) — Agent Reference
 
 ## ‼ HARD CONSTRAINTS — read first, no exceptions
 
@@ -17,7 +17,7 @@ Every agent working in this codebase MUST follow these rules. They override any 
 
 ## Project overview
 
-React Native / Expo app (with web target) for "Vinyl & Vino" listening clubs. Each cycle, a randomly-spun picker chooses **two albums**; the club schedules one meeting, RSVPs, listens, and submits sealed 1–10 ratings + reviews that are revealed at the meeting. A social feed carries suggestions, reactions, and comments; a concerts board tracks shows. Full multi-club product with owner/admin/member roles and invite-link joining. Sole backend: Supabase Postgres via typed query objects in `app/src/utils/supabase/db.ts`.
+React Native / Expo app (with web target) for "For The Record MC" listening clubs. Each cycle, a randomly-spun picker chooses **two albums**; the club schedules one meeting, RSVPs, listens, and submits sealed 1–10 ratings + reviews that are revealed at the meeting. A social feed carries suggestions, reactions, and comments; a concerts board tracks shows. Full multi-club product with owner/admin/member roles and invite-link joining. Sole backend: Supabase Postgres via typed query objects in `app/src/utils/supabase/db.ts`.
 
 Product decisions and the phased build plan: [PLAN.md](PLAN.md).
 

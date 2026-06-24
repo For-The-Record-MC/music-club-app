@@ -65,7 +65,7 @@ export default function CreateClub() {
         </View>
         <Label>{'\n'}Club name</Label>
         <TextField
-          placeholder="e.g. Vinyl & Vino, The Record Room…"
+          placeholder="e.g. For The Record MC, The Record Room…"
           value={name}
           onChangeText={setName}
           maxLength={60}

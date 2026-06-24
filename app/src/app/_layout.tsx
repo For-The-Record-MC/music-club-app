@@ -46,7 +46,7 @@ export default function RootLayout() {
     hydrateTheme();
     hydrateClub();
     hydrateOnboarding();
-    if (Platform.OS === 'web') document.title = 'Vinyl & Vino — Listening Clubs';
+    if (Platform.OS === 'web') document.title = 'For The Record MC — Listening Clubs';
   }, [hydrate, hydrateTheme, hydrateClub, hydrateOnboarding]);
 
   if (!fontsLoaded || !isHydrated) return null;

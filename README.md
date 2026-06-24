@@ -1,4 +1,4 @@
-# Vinyl & Vino — Music Club App
+# For The Record MC — Music Club App
 
 App for tracking music-club engagement across friends: each cycle a randomly-spun
 picker chooses two albums, the club schedules a meeting, everyone rates and reviews,

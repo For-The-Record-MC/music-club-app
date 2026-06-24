@@ -47,7 +47,7 @@ export function ClubSwitcher() {
         <Text style={[styles.eyebrow, { color: palette.text3 }]}>LISTENING CLUB</Text>
         <View style={styles.triggerRow}>
           <Text numberOfLines={1} style={[styles.title, { color: palette.text1 }]}>
-            {current ? `${current.club.emoji} ${current.club.name}` : 'Vinyl & Vino'}
+            {current ? `${current.club.emoji} ${current.club.name}` : 'For The Record MC'}
           </Text>
           <Text style={[styles.chevron, { color: palette.text3 }]}>▾</Text>
         </View>

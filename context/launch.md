@@ -10,7 +10,7 @@ Auth is email OTP. Custom SMTP is wired, which both removes Supabase's built-in
 rate limit AND unlocks email-template editing (template edits are blocked on the
 free tier while using the default provider).
 
-- **Provider:** Gmail SMTP via App Password on the dedicated club account `vinylandvinomusicclub@gmail.com`. Config: `smtp_host=smtp.gmail.com`, **`smtp_port=587`** (587/STARTTLS works with GoTrue; 465/SSL returned "Error sending magic link email"), `smtp_user`/`smtp_admin_email`=the club address, sender name "Vinyl & Vino". Limit ≈500/day — ample for a club.
+- **Provider:** Gmail SMTP via App Password on the dedicated club account `vinylandvinomusicclub@gmail.com`. Config: `smtp_host=smtp.gmail.com`, **`smtp_port=587`** (587/STARTTLS works with GoTrue; 465/SSL returned "Error sending magic link email"), `smtp_user`/`smtp_admin_email`=the club address, sender name "For The Record MC". Limit ≈500/day — ample for a club.
 - **Templates:** Confirmation, Magic Link, and Recovery all set to show `{{ .Token }}` (the 6-digit code the app's `verifyOtp` expects). Note: a brand-new email signing up hits the **Confirmation** template, not Magic Link — both must carry the token.
 - **Managed via the Management API**, not the dashboard: `PATCH https://api.supabase.com/v1/projects/<ref>/config/auth` with `SUPABASE_ACCESS_TOKEN`. `smtp_port` must be a **string**. The Gmail App Password lives only in Supabase's server-side config — never in the repo. Rotate/revoke it at myaccount.google.com/apppasswords.
 - **To change the template wording later:** PATCH `mailer_templates_magic_link_content` / `mailer_templates_confirmation_content` (keep `{{ .Token }}`).

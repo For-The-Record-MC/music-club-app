@@ -176,7 +176,7 @@ export default function HomeTab() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } else {
-      await Share.share({ message: `Join "${club.name}" on Vinyl & Vino: ${url}` });
+      await Share.share({ message: `Join "${club.name}" on For The Record MC: ${url}` });
     }
   };
 
