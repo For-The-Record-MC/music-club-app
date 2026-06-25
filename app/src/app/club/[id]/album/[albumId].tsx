@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar, Button, Card, InlineNote, Label, ListenLinks, Screen } from '@/components/ui';
@@ -73,6 +73,21 @@ export default function AlbumDetail() {
       }
     }
   }, [albumId]);
+
+  // trackNumber → trackName, for resolving a member's best 3-song run titles.
+  const trackByNum = useMemo(() => {
+    const map = new Map<number, string>();
+    const tracks = Array.isArray(album?.tracks) ? album!.tracks : [];
+    for (const t of tracks) {
+      if (t && typeof t === 'object' && 'trackNumber' in t && 'trackName' in t) {
+        map.set(Number((t as { trackNumber: number }).trackNumber), String((t as { trackName: string }).trackName));
+      }
+    }
+    return map;
+  }, [album]);
+
+  const runTitles = (start: number) =>
+    [start, start + 1, start + 2].map((n) => trackByNum.get(n)).filter(Boolean).join(' → ');
 
   const toggleNotes = (profileId: string) =>
     setExpandedNotes((prev) => {
@@ -148,6 +163,13 @@ export default function AlbumDetail() {
         title="📝 Song notes"
         variant="ghost"
         onPress={() => router.push(`/club/${id}/notes/${albumId}`)}
+        style={{ marginBottom: 8 }}
+      />
+
+      <Button
+        title={summary?.revealed ? '⚔️ Head-to-head' : '⚔️ Settle the head-to-head'}
+        variant="ghost"
+        onPress={() => router.push(`/club/${id}/compare/${album.cycle_id}`)}
         style={{ marginBottom: 12 }}
       />
 
@@ -200,11 +222,26 @@ export default function AlbumDetail() {
                   imageUrl={r.profiles?.avatar_url}
                   size={32}
                 />
-                <Text style={[styles.revealName, { color: palette.text1 }]}>
-                  {r.profiles?.display_name ?? '(no name)'}
-                </Text>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={[styles.revealName, { color: palette.text1 }]}>
+                    {r.profiles?.display_name ?? '(no name)'}
+                  </Text>
+                  {r.initial_score != null ? (
+                    <Text style={[styles.driftLine, { color: palette.text3 }]}>
+                      first listen {r.initial_score} → {r.score}
+                      {r.score !== r.initial_score
+                        ? ` (${r.score > r.initial_score ? '+' : ''}${
+                            Math.round((r.score - r.initial_score) * 10) / 10
+                          })`
+                        : ''}
+                    </Text>
+                  ) : null}
+                </View>
                 <Text style={[styles.revealScore, { color: palette.amber }]}>{r.score}/10</Text>
               </View>
+              {r.one_sentence_take ? (
+                <Text style={[styles.takeLine, { color: palette.text1 }]}>“{r.one_sentence_take}”</Text>
+              ) : null}
               {r.review ? (
                 <Text style={[styles.revealReview, { color: palette.text1 }]}>{r.review}</Text>
               ) : null}
@@ -222,6 +259,34 @@ export default function AlbumDetail() {
                   {r.least_reason ? (
                     <Text style={{ color: palette.text2 }}> — {r.least_reason}</Text>
                   ) : null}
+                </Text>
+              ) : null}
+              {r.best_run_start != null && runTitles(r.best_run_start) ? (
+                <Text style={[styles.extraLine, { color: palette.text2 }]}>
+                  <Text style={{ color: palette.text3 }}>Best run: </Text>
+                  {runTitles(r.best_run_start)}
+                  {r.best_run_rating != null ? ` (${r.best_run_rating}/10)` : ''}
+                </Text>
+              ) : null}
+              {r.favorite_lyric ? (
+                <Text style={[styles.extraLine, { color: palette.text2, fontStyle: 'italic' }]}>
+                  “{r.favorite_lyric}”
+                </Text>
+              ) : null}
+              {r.best_moment ? (
+                <Text style={[styles.extraLine, { color: palette.text2 }]}>
+                  <Text style={{ color: palette.text3 }}>Best moment: </Text>
+                  {r.best_moment}
+                </Text>
+              ) : null}
+              {r.replayability != null ? (
+                <Text style={[styles.extraLine, { color: palette.text3 }]}>
+                  Replayability {r.replayability}/10
+                </Text>
+              ) : null}
+              {r.album_vibe_tags?.length ? (
+                <Text style={[styles.extraLine, { color: palette.purple }]}>
+                  {r.album_vibe_tags.join(' · ')}
                 </Text>
               ) : null}
               {sharedNotes[r.profile_id]?.length ? (
@@ -250,6 +315,16 @@ export default function AlbumDetail() {
                           {n.comment ? (
                             <Text style={[styles.noteComment, { color: palette.text2 }]}>
                               {n.comment}
+                            </Text>
+                          ) : null}
+                          {n.favorite_lyric ? (
+                            <Text style={[styles.noteComment, { color: palette.text2, fontStyle: 'italic' }]}>
+                              “{n.favorite_lyric}”
+                            </Text>
+                          ) : null}
+                          {n.vibe_tags?.length ? (
+                            <Text style={[styles.noteComment, { color: palette.text3, fontFamily: fonts.mono, fontSize: 11 }]}>
+                              {n.vibe_tags.join(' · ')}
                             </Text>
                           ) : null}
                         </View>
@@ -288,10 +363,13 @@ const styles = StyleSheet.create({
   checkName: { flex: 1, fontFamily: fonts.sansMedium, fontSize: 13 },
   checkMark: { fontFamily: fonts.monoMedium, fontSize: 11 },
   revealHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 },
-  revealName: { flex: 1, fontFamily: fonts.sansBold, fontSize: 13 },
+  revealName: { fontFamily: fonts.sansBold, fontSize: 13 },
+  driftLine: { fontFamily: fonts.mono, fontSize: 10, marginTop: 1 },
   revealScore: { fontFamily: fonts.sansBold, fontSize: 16 },
+  takeLine: { fontFamily: fonts.sans, fontSize: 14, fontStyle: 'italic', lineHeight: 20, marginBottom: 6 },
   revealReview: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 20, marginBottom: 6 },
   trackLine: { fontFamily: fonts.sansMedium, fontSize: 12, lineHeight: 18, marginTop: 2 },
+  extraLine: { fontFamily: fonts.sans, fontSize: 12, lineHeight: 18, marginTop: 3 },
   notesToggle: { marginTop: 10, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth },
   notesToggleText: { fontFamily: fonts.monoMedium, fontSize: 11 },
   noteRow: { flexDirection: 'row', alignItems: 'center', gap: 7, flexWrap: 'wrap', paddingVertical: 4 },

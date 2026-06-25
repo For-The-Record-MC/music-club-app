@@ -22,6 +22,15 @@ CREATE TABLE activity_reads (
   last_read_at timestamp with time zone NOT NULL DEFAULT now()
 );
 
+CREATE TABLE album_impressions (
+  album_id uuid NOT NULL,
+  profile_id uuid NOT NULL,
+  initial_score numeric(3,1),
+  initial_review text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE albums (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   cycle_id uuid NOT NULL,
@@ -120,7 +129,9 @@ CREATE TABLE cycle_preferences (
   profile_id uuid NOT NULL,
   album_id uuid NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  preference_reason text,
+  other_album_merit text
 );
 
 CREATE TABLE cycles (
@@ -212,14 +223,22 @@ CREATE TABLE ratings (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   album_id uuid NOT NULL,
   profile_id uuid NOT NULL,
-  score integer NOT NULL,
+  score numeric(3,1) NOT NULL,
   review text,
   favorite_track text,
   favorite_reason text,
   least_track text,
   least_reason text,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  one_sentence_take text,
+  initial_score numeric(3,1),
+  best_run_start integer,
+  best_run_rating numeric(3,1),
+  replayability numeric(3,1),
+  favorite_lyric text,
+  best_moment text,
+  album_vibe_tags text[] NOT NULL DEFAULT '{}'::text[]
 );
 
 CREATE TABLE rsvps (
@@ -287,7 +306,12 @@ CREATE TABLE song_notes (
   thumb text,
   comment text,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  favorite_lyric text,
+  reminds_me_of text,
+  initial_thoughts text,
+  saved_to_library boolean NOT NULL DEFAULT false,
+  vibe_tags text[] NOT NULL DEFAULT '{}'::text[]
 );
 
 CREATE TABLE streaming_connections (
@@ -303,6 +327,15 @@ CREATE TABLE streaming_connections (
   connected_by uuid,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE vibe_tags (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  name_key text DEFAULT lower(TRIM(BOTH FROM name)),
+  is_canonical boolean NOT NULL DEFAULT false,
+  created_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
 );
 
 
@@ -323,6 +356,16 @@ ALTER TABLE activity_reads ADD CONSTRAINT activity_reads_club_id_fkey FOREIGN KE
 ALTER TABLE activity_reads ADD CONSTRAINT activity_reads_pkey PRIMARY KEY (club_id, profile_id);
 
 ALTER TABLE activity_reads ADD CONSTRAINT activity_reads_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE album_impressions ADD CONSTRAINT album_impressions_album_id_fkey FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE CASCADE;
+
+ALTER TABLE album_impressions ADD CONSTRAINT album_impressions_initial_review_check CHECK (((initial_review IS NULL) OR (char_length(initial_review) <= 4000)));
+
+ALTER TABLE album_impressions ADD CONSTRAINT album_impressions_initial_score_check CHECK (((initial_score IS NULL) OR ((initial_score >= (1)::numeric) AND (initial_score <= (10)::numeric))));
+
+ALTER TABLE album_impressions ADD CONSTRAINT album_impressions_pkey PRIMARY KEY (album_id, profile_id);
+
+ALTER TABLE album_impressions ADD CONSTRAINT album_impressions_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
 
 ALTER TABLE albums ADD CONSTRAINT albums_cycle_id_fkey FOREIGN KEY (cycle_id) REFERENCES cycles(id) ON DELETE CASCADE;
 
@@ -414,7 +457,11 @@ ALTER TABLE cycle_preferences ADD CONSTRAINT cycle_preferences_cycle_id_fkey FOR
 
 ALTER TABLE cycle_preferences ADD CONSTRAINT cycle_preferences_cycle_id_profile_id_key UNIQUE (cycle_id, profile_id);
 
+ALTER TABLE cycle_preferences ADD CONSTRAINT cycle_preferences_other_album_merit_check CHECK (((other_album_merit IS NULL) OR (char_length(other_album_merit) <= 1000)));
+
 ALTER TABLE cycle_preferences ADD CONSTRAINT cycle_preferences_pkey PRIMARY KEY (id);
+
+ALTER TABLE cycle_preferences ADD CONSTRAINT cycle_preferences_preference_reason_check CHECK (((preference_reason IS NULL) OR (char_length(preference_reason) <= 1000)));
 
 ALTER TABLE cycle_preferences ADD CONSTRAINT cycle_preferences_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
 
@@ -498,17 +545,31 @@ ALTER TABLE ratings ADD CONSTRAINT ratings_album_id_fkey FOREIGN KEY (album_id) 
 
 ALTER TABLE ratings ADD CONSTRAINT ratings_album_id_profile_id_key UNIQUE (album_id, profile_id);
 
+ALTER TABLE ratings ADD CONSTRAINT ratings_best_moment_check CHECK (((best_moment IS NULL) OR (char_length(best_moment) <= 1000)));
+
+ALTER TABLE ratings ADD CONSTRAINT ratings_best_run_rating_check CHECK (((best_run_rating IS NULL) OR ((best_run_rating >= (1)::numeric) AND (best_run_rating <= (10)::numeric))));
+
+ALTER TABLE ratings ADD CONSTRAINT ratings_best_run_start_check CHECK (((best_run_start IS NULL) OR (best_run_start >= 1)));
+
+ALTER TABLE ratings ADD CONSTRAINT ratings_favorite_lyric_check CHECK (((favorite_lyric IS NULL) OR (char_length(favorite_lyric) <= 1000)));
+
 ALTER TABLE ratings ADD CONSTRAINT ratings_favorite_reason_check CHECK (((favorite_reason IS NULL) OR (char_length(favorite_reason) <= 1000)));
 
+ALTER TABLE ratings ADD CONSTRAINT ratings_initial_score_check CHECK (((initial_score IS NULL) OR ((initial_score >= (1)::numeric) AND (initial_score <= (10)::numeric))));
+
 ALTER TABLE ratings ADD CONSTRAINT ratings_least_reason_check CHECK (((least_reason IS NULL) OR (char_length(least_reason) <= 1000)));
+
+ALTER TABLE ratings ADD CONSTRAINT ratings_one_sentence_take_check CHECK (((one_sentence_take IS NULL) OR (char_length(one_sentence_take) <= 280)));
 
 ALTER TABLE ratings ADD CONSTRAINT ratings_pkey PRIMARY KEY (id);
 
 ALTER TABLE ratings ADD CONSTRAINT ratings_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
 
+ALTER TABLE ratings ADD CONSTRAINT ratings_replayability_check CHECK (((replayability IS NULL) OR ((replayability >= (1)::numeric) AND (replayability <= (10)::numeric))));
+
 ALTER TABLE ratings ADD CONSTRAINT ratings_review_check CHECK (((review IS NULL) OR (char_length(review) <= 4000)));
 
-ALTER TABLE ratings ADD CONSTRAINT ratings_score_check CHECK (((score >= 1) AND (score <= 10)));
+ALTER TABLE ratings ADD CONSTRAINT ratings_score_check CHECK (((score >= (1)::numeric) AND (score <= (10)::numeric)));
 
 ALTER TABLE rsvps ADD CONSTRAINT rsvps_cycle_id_fkey FOREIGN KEY (cycle_id) REFERENCES cycles(id) ON DELETE CASCADE;
 
@@ -580,11 +641,17 @@ ALTER TABLE song_notes ADD CONSTRAINT song_notes_album_id_profile_id_track_numbe
 
 ALTER TABLE song_notes ADD CONSTRAINT song_notes_comment_check CHECK (((comment IS NULL) OR (char_length(comment) <= 4000)));
 
+ALTER TABLE song_notes ADD CONSTRAINT song_notes_favorite_lyric_check CHECK (((favorite_lyric IS NULL) OR (char_length(favorite_lyric) <= 1000)));
+
+ALTER TABLE song_notes ADD CONSTRAINT song_notes_initial_thoughts_check CHECK (((initial_thoughts IS NULL) OR (char_length(initial_thoughts) <= 2000)));
+
 ALTER TABLE song_notes ADD CONSTRAINT song_notes_pkey PRIMARY KEY (id);
 
 ALTER TABLE song_notes ADD CONSTRAINT song_notes_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
 
 ALTER TABLE song_notes ADD CONSTRAINT song_notes_rating_check CHECK (((rating IS NULL) OR ((rating >= 1) AND (rating <= 10))));
+
+ALTER TABLE song_notes ADD CONSTRAINT song_notes_reminds_me_of_check CHECK (((reminds_me_of IS NULL) OR (char_length(reminds_me_of) <= 1000)));
 
 ALTER TABLE song_notes ADD CONSTRAINT song_notes_thumb_check CHECK (((thumb IS NULL) OR (thumb = ANY (ARRAY['up'::text, 'down'::text]))));
 
@@ -595,6 +662,14 @@ ALTER TABLE streaming_connections ADD CONSTRAINT streaming_connections_connected
 ALTER TABLE streaming_connections ADD CONSTRAINT streaming_connections_pkey PRIMARY KEY (club_id);
 
 ALTER TABLE streaming_connections ADD CONSTRAINT streaming_connections_status_check CHECK ((status = ANY (ARRAY['active'::text, 'needs_reconnect'::text])));
+
+ALTER TABLE vibe_tags ADD CONSTRAINT vibe_tags_created_by_fkey FOREIGN KEY (created_by) REFERENCES profiles(id) ON DELETE SET NULL;
+
+ALTER TABLE vibe_tags ADD CONSTRAINT vibe_tags_name_check CHECK (((char_length(TRIM(BOTH FROM name)) >= 1) AND (char_length(TRIM(BOTH FROM name)) <= 40)));
+
+ALTER TABLE vibe_tags ADD CONSTRAINT vibe_tags_name_key_key UNIQUE (name_key);
+
+ALTER TABLE vibe_tags ADD CONSTRAINT vibe_tags_pkey PRIMARY KEY (id);
 
 
 -- =====================================================
@@ -673,6 +748,27 @@ ALTER TABLE activity_reads ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY activity_reads_select ON activity_reads AS PERMISSIVE FOR SELECT TO authenticated
   USING ((profile_id = auth.uid()));
+
+ALTER TABLE album_impressions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY album_impressions_delete ON album_impressions AS PERMISSIVE FOR DELETE TO authenticated
+  USING ((profile_id = auth.uid()));
+
+CREATE POLICY album_impressions_insert ON album_impressions AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (((profile_id = auth.uid()) AND (EXISTS ( SELECT 1
+   FROM (albums a
+     JOIN cycles c ON ((c.id = a.cycle_id)))
+  WHERE ((a.id = album_impressions.album_id) AND is_club_member(c.club_id))))));
+
+CREATE POLICY album_impressions_select ON album_impressions AS PERMISSIVE FOR SELECT TO authenticated
+  USING ((profile_id = auth.uid()));
+
+CREATE POLICY album_impressions_update ON album_impressions AS PERMISSIVE FOR UPDATE TO authenticated
+  USING ((profile_id = auth.uid()))
+  WITH CHECK (((profile_id = auth.uid()) AND (EXISTS ( SELECT 1
+   FROM (albums a
+     JOIN cycles c ON ((c.id = a.cycle_id)))
+  WHERE ((a.id = album_impressions.album_id) AND is_club_member(c.club_id))))));
 
 ALTER TABLE albums ENABLE ROW LEVEL SECURITY;
 
@@ -993,6 +1089,14 @@ CREATE POLICY song_notes_update ON song_notes AS PERMISSIVE FOR UPDATE TO authen
   WHERE ((a.id = song_notes.album_id) AND is_club_member(c.club_id))))));
 
 ALTER TABLE streaming_connections ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE vibe_tags ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY vibe_tags_insert ON vibe_tags AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (((created_by = auth.uid()) AND (is_canonical = false)));
+
+CREATE POLICY vibe_tags_select ON vibe_tags AS PERMISSIVE FOR SELECT TO authenticated
+  USING (true);
 
 
 -- =====================================================
@@ -1470,10 +1574,19 @@ begin
   alb as (
     select * from albums where cycle_id = p_cycle
   ),
-  -- ── per-album stats ────────────────────────────────────────────────────────
+  album_track_nums as (
+    select a.id as album_id,
+      coalesce((t.val->>'trackNumber')::int, t.ord::int) as track_number,
+      (t.val->>'trackName') as track_name
+    from alb a,
+      jsonb_array_elements(coalesce(a.tracks, '[]'::jsonb)) with ordinality as t(val, ord)
+    where (t.val->>'trackName') is not null
+  ),
   album_stats as (
     select a.id, a.slot, a.title, a.artist, a.artwork_url,
       round(avg(r.score)::numeric, 1) as avg_score,
+      round(avg(r.initial_score)::numeric, 1) as avg_initial,
+      round(avg(r.replayability)::numeric, 1) as avg_replayability,
       count(r.*) as rating_count,
       min(r.score) as min_score,
       max(r.score) as max_score
@@ -1487,7 +1600,6 @@ begin
     where cycle_id = p_cycle
     group by album_id
   ),
-  -- ── combined-signal song ranking ───────────────────────────────────────────
   album_tracks as (
     select a.id as album_id, a.artist as album_artist, a.artwork_url,
       (t->>'trackName') as track_name
@@ -1552,7 +1664,6 @@ begin
     ) as obj, score
     from feed_songs where score > 0
   ),
-  -- ── standout reviews: highest + lowest scored written review per album ───────
   review_high as (
     select distinct on (r.album_id)
       r.album_id, a.title as album_title, r.profile_id, r.score, r.review, 'high' as kind
@@ -1570,14 +1681,77 @@ begin
   reviews as (
     select * from review_high
     union all
-    -- drop the low pick when it's the same row as the high pick (single review)
     select rl.* from review_low rl
     where not exists (
       select 1 from review_high rh
       where rh.album_id = rl.album_id and rh.profile_id = rl.profile_id
     )
   ),
-  -- ── popular feed shares in the cycle window ─────────────────────────────────
+  takes as (
+    select r.album_id, a.title as album_title, a.slot, r.profile_id,
+      r.score, r.one_sentence_take
+    from ratings r join alb a on a.id = r.album_id
+    where r.one_sentence_take is not null and char_length(trim(r.one_sentence_take)) > 0
+  ),
+  vibe_counts as (
+    select tag, count(*) as n
+    from (
+      select unnest(sn.vibe_tags) as tag
+      from song_notes sn
+      join song_note_shares sh
+        on sh.album_id = sn.album_id and sh.profile_id = sn.profile_id
+      where sn.album_id in (select id from alb)
+      union all
+      select unnest(r.album_vibe_tags) as tag
+      from ratings r
+      where r.album_id in (select id from alb)
+    ) t
+    where tag is not null and char_length(trim(tag)) > 0
+    group by tag
+    order by n desc, tag
+    limit 8
+  ),
+  fav_lyrics as (
+    select sn.album_id, sn.track_name as context, sn.favorite_lyric as lyric, sn.profile_id
+    from song_notes sn
+    join song_note_shares sh
+      on sh.album_id = sn.album_id and sh.profile_id = sn.profile_id
+    where sn.album_id in (select id from alb)
+      and sn.favorite_lyric is not null and char_length(trim(sn.favorite_lyric)) > 0
+    union all
+    select r.album_id, a.title as context, r.favorite_lyric as lyric, r.profile_id
+    from ratings r join alb a on a.id = r.album_id
+    where r.favorite_lyric is not null and char_length(trim(r.favorite_lyric)) > 0
+  ),
+  run_pick as (
+    select album_id, best_run_start,
+      count(*) as picks, round(avg(best_run_rating)::numeric, 1) as avg_rating
+    from ratings
+    where album_id in (select id from alb) and best_run_start is not null
+    group by album_id, best_run_start
+  ),
+  best_run as (
+    select distinct on (album_id) album_id, best_run_start, picks, avg_rating
+    from run_pick
+    order by album_id, picks desc, avg_rating desc nulls last
+  ),
+  saved as (
+    select sn.album_id, sn.track_name, count(*) as saves
+    from song_notes sn
+    where sn.album_id in (select id from alb) and sn.saved_to_library
+    group by sn.album_id, sn.track_name
+    order by saves desc, sn.track_name
+    limit 8
+  ),
+  -- ── head-to-head: each member's cycle pick + reasons ────────────────────────
+  h2h as (
+    select cp.profile_id, cp.album_id, a.title as album_title,
+      cp.preference_reason, cp.other_album_merit
+    from cycle_preferences cp
+    join alb a on a.id = cp.album_id
+    where cp.cycle_id = p_cycle
+      and (cp.preference_reason is not null or cp.other_album_merit is not null)
+  ),
   popular as (
     select fp.id as post_id, fp.kind, fp.title, fp.artist, fp.url,
       fp.metadata->>'artwork' as artwork_url,
@@ -1603,7 +1777,8 @@ begin
     'albums', coalesce((
       select json_agg(json_build_object(
         'album_id', s.id, 'slot', s.slot, 'title', s.title, 'artist', s.artist,
-        'artwork_url', s.artwork_url, 'avg_score', s.avg_score,
+        'artwork_url', s.artwork_url, 'avg_score', s.avg_score, 'avg_initial', s.avg_initial,
+        'avg_replayability', s.avg_replayability,
         'rating_count', s.rating_count, 'min_score', s.min_score, 'max_score', s.max_score,
         'favorite_votes', coalesce(fv.votes, 0)
       ) order by s.slot)
@@ -1625,6 +1800,53 @@ begin
         'display_name', p.display_name, 'avatar_color', p.avatar_color, 'avatar_url', p.avatar_url
       ))
       from reviews rv left join profiles p on p.id = rv.profile_id
+    ), '[]'::json),
+    'takes', coalesce((
+      select json_agg(json_build_object(
+        'album_id', tk.album_id, 'album_title', tk.album_title, 'profile_id', tk.profile_id,
+        'score', tk.score, 'take', tk.one_sentence_take,
+        'display_name', p.display_name, 'avatar_color', p.avatar_color, 'avatar_url', p.avatar_url
+      ) order by tk.slot, tk.score desc)
+      from takes tk left join profiles p on p.id = tk.profile_id
+    ), '[]'::json),
+    'cycle_vibe', coalesce((
+      select json_agg(json_build_object('tag', tag, 'count', n) order by n desc, tag)
+      from vibe_counts
+    ), '[]'::json),
+    'favorite_lyrics', coalesce((
+      select json_agg(json_build_object(
+        'album_id', fl.album_id, 'context', fl.context, 'lyric', fl.lyric,
+        'display_name', p.display_name, 'avatar_color', p.avatar_color, 'avatar_url', p.avatar_url
+      ))
+      from fav_lyrics fl left join profiles p on p.id = fl.profile_id
+    ), '[]'::json),
+    'best_runs', coalesce((
+      select json_agg(json_build_object(
+        'album_id', br.album_id, 'album_title', a.title, 'start', br.best_run_start,
+        'picks', br.picks, 'avg_rating', br.avg_rating,
+        'tracks', coalesce((
+          select json_agg(atn.track_name order by atn.track_number)
+          from album_track_nums atn
+          where atn.album_id = br.album_id
+            and atn.track_number between br.best_run_start and br.best_run_start + 2
+        ), '[]'::json)
+      ) order by a.slot)
+      from best_run br join alb a on a.id = br.album_id
+    ), '[]'::json),
+    'most_saved', coalesce((
+      select json_agg(json_build_object(
+        'album_id', sv.album_id, 'album_title', a.title, 'artwork_url', a.artwork_url,
+        'track_name', sv.track_name, 'saves', sv.saves
+      ) order by sv.saves desc, sv.track_name)
+      from saved sv join alb a on a.id = sv.album_id
+    ), '[]'::json),
+    'head_to_head', coalesce((
+      select json_agg(json_build_object(
+        'profile_id', h.profile_id, 'album_id', h.album_id, 'album_title', h.album_title,
+        'preference_reason', h.preference_reason, 'other_album_merit', h.other_album_merit,
+        'display_name', p.display_name, 'avatar_color', p.avatar_color, 'avatar_url', p.avatar_url
+      ))
+      from h2h h left join profiles p on p.id = h.profile_id
     ), '[]'::json),
     'popular_shares', coalesce((
       select json_agg(json_build_object(
@@ -1810,6 +2032,21 @@ begin
     'winner_submission_id', v_sd.winner_submission_id,
     'submissions', v_subs
   );
+end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.lock_initial_score()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  if old.initial_score is not null
+     and new.initial_score is distinct from old.initial_score then
+    raise exception 'Your first-listen score is locked and cannot be changed.'
+      using errcode = 'check_violation';
+  end if;
+  return new;
 end;
 $function$
 ;
@@ -2289,5 +2526,7 @@ $function$
 -- =====================================================
 -- TRIGGERS
 -- =====================================================
+
+CREATE TRIGGER album_impressions_lock_initial BEFORE UPDATE ON public.album_impressions FOR EACH ROW EXECUTE FUNCTION lock_initial_score();
 
 CREATE TRIGGER feed_posts_song_limit BEFORE INSERT ON public.feed_posts FOR EACH ROW EXECUTE FUNCTION enforce_song_limit();

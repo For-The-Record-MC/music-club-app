@@ -1,9 +1,10 @@
-import { type ReactNode, type RefObject, useState } from 'react';
+import { type ReactNode, type RefObject, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
   Linking,
   Modal,
+  PanResponder,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -215,6 +216,91 @@ export function TextField(props: TextInputProps) {
           {revealed ? 'Hide' : 'Show'}
         </Text>
       </Pressable>
+    </View>
+  );
+}
+
+// A touch slider for decimal scores (1.0–10.0 in 0.1 steps by default). Works
+// on web and native via PanResponder. `value === null` means "not set yet" — the
+// thumb is hidden and the readout shows a dash until the member touches it.
+export function Slider({
+  value,
+  onChange,
+  min = 1,
+  max = 10,
+  step = 0.1,
+  disabled = false,
+  accent,
+}: {
+  value: number | null;
+  onChange: (v: number) => void;
+  min?: number;
+  max?: number;
+  step?: number;
+  disabled?: boolean;
+  accent?: string;
+}) {
+  const { palette } = useTheme();
+  const color = accent ?? palette.teal;
+  const decimals = step < 1 ? 1 : 0;
+  const widthRef = useRef(0);
+
+  const setFromX = (x: number) => {
+    const w = widthRef.current;
+    if (w <= 0) return;
+    const ratio = Math.max(0, Math.min(1, x / w));
+    const raw = min + ratio * (max - min);
+    const snapped = Math.round((raw - min) / step) * step + min;
+    const factor = 10 ** decimals;
+    onChange(Math.round(snapped * factor) / factor);
+  };
+
+  // Keep the latest callback/disabled in refs so the once-created PanResponder
+  // never reads stale closures.
+  const setFromXRef = useRef(setFromX);
+  setFromXRef.current = setFromX;
+  const disabledRef = useRef(disabled);
+  disabledRef.current = disabled;
+
+  const responder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => !disabledRef.current,
+      onMoveShouldSetPanResponder: () => !disabledRef.current,
+      onPanResponderGrant: (e) => setFromXRef.current(e.nativeEvent.locationX),
+      onPanResponderMove: (e) => setFromXRef.current(e.nativeEvent.locationX),
+    }),
+  ).current;
+
+  const ratio = value == null ? 0 : (value - min) / (max - min);
+  return (
+    <View style={{ gap: 8, opacity: disabled ? 0.5 : 1 }}>
+      <View style={styles.sliderHead}>
+        <Text style={[styles.sliderValue, { color }]}>
+          {value == null ? '—' : value.toFixed(decimals)}
+        </Text>
+        <Text style={[styles.sliderMax, { color: palette.text3 }]}>/ {max}</Text>
+      </View>
+      <View
+        {...responder.panHandlers}
+        onLayout={(e) => {
+          widthRef.current = e.nativeEvent.layout.width;
+        }}
+        style={[styles.sliderTrack, { backgroundColor: palette.card2, borderColor: palette.border }]}
+      >
+        <View
+          pointerEvents="none"
+          style={[styles.sliderFill, { width: `${ratio * 100}%`, backgroundColor: color }]}
+        />
+        {value != null ? (
+          <View
+            pointerEvents="none"
+            style={[
+              styles.sliderThumb,
+              { left: `${ratio * 100}%`, borderColor: color, backgroundColor: palette.card },
+            ]}
+          />
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -436,6 +522,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: 13,
     fontSize: 14,
     fontFamily: fonts.sans,
+  },
+  sliderHead: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
+  sliderValue: { fontFamily: fonts.sansBold, fontSize: 24 },
+  sliderMax: { fontFamily: fonts.monoMedium, fontSize: 12 },
+  sliderTrack: {
+    height: 28,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    justifyContent: 'center',
+    overflow: 'visible',
+  },
+  sliderFill: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    borderRadius: radius.lg,
+    opacity: 0.35,
+  },
+  sliderThumb: {
+    position: 'absolute',
+    top: 3,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    transform: [{ translateX: -10 }],
   },
   revealToggle: {
     position: 'absolute',

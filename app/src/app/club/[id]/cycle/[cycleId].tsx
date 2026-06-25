@@ -121,7 +121,22 @@ export default function CycleHighlightsScreen() {
                           ? ` · ${a.min_score}–${a.max_score} spread`
                           : ''}
                         {a.favorite_votes > 0 ? ` · 👑 ${a.favorite_votes}` : ''}
+                        {a.avg_replayability != null ? ` · ↻ ${a.avg_replayability}` : ''}
                       </Text>
+                      {a.avg_initial != null && a.avg_score != null ? (
+                        <Text style={[styles.driftLine, { color: palette.text3 }]}>
+                          first listen {a.avg_initial} →{' '}
+                          <Text
+                            style={{
+                              color:
+                                a.avg_score >= a.avg_initial ? palette.teal : palette.coral,
+                            }}
+                          >
+                            {a.avg_score} ({a.avg_score >= a.avg_initial ? '+' : ''}
+                            {Math.round((a.avg_score - a.avg_initial) * 10) / 10})
+                          </Text>
+                        </Text>
+                      ) : null}
                     </View>
                     <View style={[styles.avgBadge, { backgroundColor: palette.tealBg }]}>
                       <Text style={[styles.avgScore, { color: palette.teal }]}>
@@ -134,6 +149,168 @@ export default function CycleHighlightsScreen() {
               </Pressable>
             );
           })}
+
+          {/* ── Cycle vibe ────────────────────────────────────────────── */}
+          {data.cycle_vibe.length > 0 ? (
+            <>
+              <Label>Cycle vibe</Label>
+              <Card>
+                <View style={styles.vibeWrap}>
+                  {data.cycle_vibe.map((v) => (
+                    <View
+                      key={v.tag}
+                      style={[styles.vibeChip, { backgroundColor: palette.purpleBg }]}
+                    >
+                      <Text style={[styles.vibeChipText, { color: palette.purple }]}>{v.tag}</Text>
+                      <Text style={[styles.vibeChipCount, { color: palette.text3 }]}>{v.count}</Text>
+                    </View>
+                  ))}
+                </View>
+              </Card>
+            </>
+          ) : null}
+
+          {/* ── One-sentence takes ────────────────────────────────────── */}
+          {data.takes.length > 0 ? (
+            <>
+              <Label>One-sentence takes</Label>
+              <Card>
+                {data.takes.map((tk, i) => (
+                  <View
+                    key={`${tk.album_id}-${tk.profile_id}`}
+                    style={[
+                      styles.takeRow,
+                      i > 0 && { borderTopColor: palette.border, borderTopWidth: StyleSheet.hairlineWidth },
+                    ]}
+                  >
+                    <Avatar
+                      name={tk.display_name}
+                      colorIndex={tk.avatar_color}
+                      imageUrl={tk.avatar_url}
+                      size={26}
+                    />
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={[styles.takeText, { color: palette.text1 }]}>“{tk.take}”</Text>
+                      <Text numberOfLines={1} style={[styles.takeMeta, { color: palette.text3 }]}>
+                        {tk.display_name ?? '(no name)'} · {tk.album_title}
+                      </Text>
+                    </View>
+                    <Text style={[styles.takeScore, { color: palette.teal }]}>{tk.score}</Text>
+                  </View>
+                ))}
+              </Card>
+            </>
+          ) : null}
+
+          {/* ── Head to head ──────────────────────────────────────────── */}
+          {data.head_to_head.length > 0 ? (
+            <>
+              <Label>Head to head</Label>
+              {data.head_to_head.map((h) => (
+                <Card key={h.profile_id} style={{ marginBottom: 8 }}>
+                  <View style={styles.reviewHead}>
+                    <Avatar
+                      name={h.display_name}
+                      colorIndex={h.avatar_color}
+                      imageUrl={h.avatar_url}
+                      size={26}
+                    />
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text numberOfLines={1} style={[styles.reviewName, { color: palette.text1 }]}>
+                        {h.display_name ?? '(no name)'}
+                      </Text>
+                      <Text numberOfLines={1} style={[styles.reviewAlbum, { color: palette.text3 }]}>
+                        👑 preferred {h.album_title}
+                      </Text>
+                    </View>
+                  </View>
+                  {h.preference_reason ? (
+                    <Text style={[styles.reviewText, { color: palette.text1 }]}>
+                      {h.preference_reason}
+                    </Text>
+                  ) : null}
+                  {h.other_album_merit ? (
+                    <Text style={[styles.h2hMerit, { color: palette.text3 }]}>
+                      But the other did better: {h.other_album_merit}
+                    </Text>
+                  ) : null}
+                </Card>
+              ))}
+            </>
+          ) : null}
+
+          {/* ── Best 3-song run ───────────────────────────────────────── */}
+          {data.best_runs.length > 0 ? (
+            <>
+              <Label>Best 3-song run</Label>
+              {data.best_runs.map((br) => (
+                <Card key={br.album_id} style={{ marginBottom: 8 }}>
+                  <Text style={[styles.runAlbum, { color: palette.text3 }]}>{br.album_title}</Text>
+                  <Text style={[styles.runTracks, { color: palette.text1 }]}>
+                    {br.tracks.join(' → ')}
+                  </Text>
+                  <Text style={[styles.runMeta, { color: palette.text3 }]}>
+                    {br.picks} pick{br.picks === 1 ? '' : 's'}
+                    {br.avg_rating != null ? ` · avg ${br.avg_rating}/10` : ''}
+                  </Text>
+                </Card>
+              ))}
+            </>
+          ) : null}
+
+          {/* ── Most saved ────────────────────────────────────────────── */}
+          {data.most_saved.length > 0 ? (
+            <>
+              <Label>Most saved to libraries</Label>
+              <Card>
+                {data.most_saved.map((s, i) => (
+                  <View
+                    key={`${s.album_id}-${s.track_name}`}
+                    style={[
+                      styles.songRow,
+                      i > 0 && { borderTopColor: palette.border, borderTopWidth: StyleSheet.hairlineWidth },
+                    ]}
+                  >
+                    <Text style={[styles.rank, { color: palette.amber }]}>★</Text>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text numberOfLines={1} style={[styles.songTitle, { color: palette.text1 }]}>
+                        {s.track_name}
+                      </Text>
+                      <Text numberOfLines={1} style={[styles.songArtist, { color: palette.text2 }]}>
+                        {s.album_title}
+                      </Text>
+                    </View>
+                    <Text style={[styles.reactionCount, { color: palette.text3 }]}>
+                      saved ×{s.saves}
+                    </Text>
+                  </View>
+                ))}
+              </Card>
+            </>
+          ) : null}
+
+          {/* ── Favorite lyrics ───────────────────────────────────────── */}
+          {data.favorite_lyrics.length > 0 ? (
+            <>
+              <Label>Favorite lyrics</Label>
+              <Card>
+                {data.favorite_lyrics.map((fl, i) => (
+                  <View
+                    key={`${fl.album_id}-${i}`}
+                    style={[
+                      styles.lyricRow,
+                      i > 0 && { borderTopColor: palette.border, borderTopWidth: StyleSheet.hairlineWidth },
+                    ]}
+                  >
+                    <Text style={[styles.lyricText, { color: palette.text1 }]}>“{fl.lyric}”</Text>
+                    <Text numberOfLines={1} style={[styles.lyricMeta, { color: palette.text3 }]}>
+                      {fl.display_name ?? '(no name)'} · {fl.context}
+                    </Text>
+                  </View>
+                ))}
+              </Card>
+            </>
+          ) : null}
 
           {/* ── Top songs ─────────────────────────────────────────────── */}
           {data.top_songs.length > 0 ? (
@@ -301,6 +478,29 @@ const styles = StyleSheet.create({
   albumName: { fontFamily: fonts.sansBold, fontSize: 15, marginBottom: 1 },
   albumMeta: { fontFamily: fonts.sans, fontSize: 12 },
   albumStats: { fontFamily: fonts.mono, fontSize: 10, marginTop: 3 },
+  driftLine: { fontFamily: fonts.mono, fontSize: 10, marginTop: 2 },
+  vibeWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  vibeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 20,
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+  },
+  vibeChipText: { fontFamily: fonts.sansMedium, fontSize: 12 },
+  vibeChipCount: { fontFamily: fonts.monoMedium, fontSize: 10 },
+  takeRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9 },
+  takeText: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 18 },
+  takeMeta: { fontFamily: fonts.mono, fontSize: 10, marginTop: 2 },
+  takeScore: { fontFamily: fonts.sansBold, fontSize: 15 },
+  runAlbum: { fontFamily: fonts.mono, fontSize: 10, marginBottom: 4 },
+  runTracks: { fontFamily: fonts.sansBold, fontSize: 14, lineHeight: 20 },
+  runMeta: { fontFamily: fonts.mono, fontSize: 10, marginTop: 4 },
+  lyricRow: { paddingVertical: 9 },
+  lyricText: { fontFamily: fonts.sans, fontSize: 13, fontStyle: 'italic', lineHeight: 19 },
+  lyricMeta: { fontFamily: fonts.mono, fontSize: 10, marginTop: 3 },
+  h2hMerit: { fontFamily: fonts.sans, fontSize: 12, lineHeight: 18, marginTop: 6, fontStyle: 'italic' },
   avgBadge: { alignItems: 'center', borderRadius: radius.md, paddingHorizontal: 10, paddingVertical: 7 },
   avgScore: { fontFamily: fonts.sansBold, fontSize: 19 },
   avgLabel: { fontFamily: fonts.monoMedium, fontSize: 8, letterSpacing: 1 },

@@ -19,6 +19,8 @@ export type RsvpStatus = 'yes' | 'maybe' | 'no';
 export type Rating = Tables<'ratings'>;
 export type SongNote = Tables<'song_notes'>;
 export type SongNoteShare = Tables<'song_note_shares'>;
+export type AlbumImpression = Tables<'album_impressions'>;
+export type VibeTag = Tables<'vibe_tags'>;
 export type Thumb = 'up' | 'down';
 export type FeedPost = Tables<'feed_posts'>;
 export type PostReaction = Tables<'post_reactions'>;
@@ -179,6 +181,8 @@ export interface CycleHighlights {
     artist: string;
     artwork_url: string | null;
     avg_score: number | null;
+    avg_initial: number | null;
+    avg_replayability: number | null;
     rating_count: number;
     min_score: number | null;
     max_score: number | null;
@@ -193,6 +197,50 @@ export interface CycleHighlights {
     profile_id: string;
     score: number;
     review: string;
+    display_name: string | null;
+    avatar_color: number;
+    avatar_url: string | null;
+  }[];
+  takes: {
+    album_id: string;
+    album_title: string;
+    profile_id: string;
+    score: number;
+    take: string;
+    display_name: string | null;
+    avatar_color: number;
+    avatar_url: string | null;
+  }[];
+  cycle_vibe: { tag: string; count: number }[];
+  favorite_lyrics: {
+    album_id: string;
+    context: string;
+    lyric: string;
+    display_name: string | null;
+    avatar_color: number;
+    avatar_url: string | null;
+  }[];
+  best_runs: {
+    album_id: string;
+    album_title: string;
+    start: number;
+    picks: number;
+    avg_rating: number | null;
+    tracks: string[];
+  }[];
+  most_saved: {
+    album_id: string;
+    album_title: string;
+    artwork_url: string | null;
+    track_name: string;
+    saves: number;
+  }[];
+  head_to_head: {
+    profile_id: string;
+    album_id: string;
+    album_title: string;
+    preference_reason: string | null;
+    other_album_merit: string | null;
     display_name: string | null;
     avatar_color: number;
     avatar_url: string | null;
@@ -524,10 +572,13 @@ export const songNotes = {
       .order('track_number'),
   // Upsert a batch of touched tracks in one round-trip.
   upsertMany: (notes: TablesInsert<'song_notes'>[]) =>
-    supabase.from('song_notes').upsert(
-      notes.map((n) => ({ ...n, updated_at: new Date().toISOString() })),
-      { onConflict: 'album_id,profile_id,track_number' },
-    ),
+    supabase
+      .from('song_notes')
+      .upsert(
+        notes.map((n) => ({ ...n, updated_at: new Date().toISOString() })),
+        { onConflict: 'album_id,profile_id,track_number' },
+      )
+      .select('id, track_number'),
   // Clear notes that were emptied, by id.
   removeMany: (ids: string[]) => supabase.from('song_notes').delete().in('id', ids),
 };
@@ -557,6 +608,58 @@ export const preferences = {
       { cycle_id: cycleId, profile_id: profileId, album_id: albumId, updated_at: new Date().toISOString() },
       { onConflict: 'cycle_id,profile_id' },
     ),
+  // The head-to-head "why this over the other" reasons, written alongside the
+  // preferred-album pick. Upsert keeps the existing album_id if already set.
+  setReasons: (
+    cycleId: string,
+    profileId: string,
+    albumId: string,
+    reasons: { preference_reason?: string | null; other_album_merit?: string | null },
+  ) =>
+    supabase.from('cycle_preferences').upsert(
+      {
+        cycle_id: cycleId,
+        profile_id: profileId,
+        album_id: albumId,
+        preference_reason: reasons.preference_reason ?? null,
+        other_album_merit: reasons.other_album_merit ?? null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'cycle_id,profile_id' },
+    ),
+};
+
+// Per-(album, member) FIRST-LISTEN scratchpad: an initial slider score (locks
+// the first time it's set, enforced by a DB trigger) and an initial review.
+// Private to the author; the formal ratings row carries the snapshot recap reads.
+export const albumImpressions = {
+  mine: (albumId: string, profileId: string) =>
+    supabase
+      .from('album_impressions')
+      .select('*')
+      .eq('album_id', albumId)
+      .eq('profile_id', profileId)
+      .maybeSingle(),
+  upsert: (impression: TablesInsert<'album_impressions'>) =>
+    supabase.from('album_impressions').upsert(
+      { ...impression, updated_at: new Date().toISOString() },
+      { onConflict: 'album_id,profile_id' },
+    ),
+};
+
+// The shared vibe-tag catalog (canonical seed + member-added custom tags).
+export const vibeTags = {
+  list: () => supabase.from('vibe_tags').select('*').order('name'),
+  // Add a custom tag. Case-insensitive uniqueness is enforced by the DB; on a
+  // collision the existing row wins (ignoreDuplicates), so the picker can call
+  // this optimistically when a member types a new tag.
+  add: (name: string, createdBy: string) =>
+    supabase
+      .from('vibe_tags')
+      .upsert(
+        { name: name.trim(), is_canonical: false, created_by: createdBy },
+        { onConflict: 'name_key', ignoreDuplicates: true },
+      ),
 };
 
 export const rsvps = {

@@ -99,6 +99,48 @@ export type Database = {
           },
         ]
       }
+      album_impressions: {
+        Row: {
+          album_id: string
+          created_at: string
+          initial_review: string | null
+          initial_score: number | null
+          profile_id: string
+          updated_at: string
+        }
+        Insert: {
+          album_id: string
+          created_at?: string
+          initial_review?: string | null
+          initial_score?: number | null
+          profile_id: string
+          updated_at?: string
+        }
+        Update: {
+          album_id?: string
+          created_at?: string
+          initial_review?: string | null
+          initial_score?: number | null
+          profile_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "album_impressions_album_id_fkey"
+            columns: ["album_id"]
+            isOneToOne: false
+            referencedRelation: "albums"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "album_impressions_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       albums: {
         Row: {
           apple_url: string | null
@@ -501,6 +543,8 @@ export type Database = {
           created_at: string
           cycle_id: string
           id: string
+          other_album_merit: string | null
+          preference_reason: string | null
           profile_id: string
           updated_at: string
         }
@@ -509,6 +553,8 @@ export type Database = {
           created_at?: string
           cycle_id: string
           id?: string
+          other_album_merit?: string | null
+          preference_reason?: string | null
           profile_id: string
           updated_at?: string
         }
@@ -517,6 +563,8 @@ export type Database = {
           created_at?: string
           cycle_id?: string
           id?: string
+          other_album_merit?: string | null
+          preference_reason?: string | null
           profile_id?: string
           updated_at?: string
         }
@@ -892,39 +940,63 @@ export type Database = {
       ratings: {
         Row: {
           album_id: string
+          album_vibe_tags: string[]
+          best_moment: string | null
+          best_run_rating: number | null
+          best_run_start: number | null
           created_at: string
+          favorite_lyric: string | null
           favorite_reason: string | null
           favorite_track: string | null
           id: string
+          initial_score: number | null
           least_reason: string | null
           least_track: string | null
+          one_sentence_take: string | null
           profile_id: string
+          replayability: number | null
           review: string | null
           score: number
           updated_at: string
         }
         Insert: {
           album_id: string
+          album_vibe_tags?: string[]
+          best_moment?: string | null
+          best_run_rating?: number | null
+          best_run_start?: number | null
           created_at?: string
+          favorite_lyric?: string | null
           favorite_reason?: string | null
           favorite_track?: string | null
           id?: string
+          initial_score?: number | null
           least_reason?: string | null
           least_track?: string | null
+          one_sentence_take?: string | null
           profile_id: string
+          replayability?: number | null
           review?: string | null
           score: number
           updated_at?: string
         }
         Update: {
           album_id?: string
+          album_vibe_tags?: string[]
+          best_moment?: string | null
+          best_run_rating?: number | null
+          best_run_start?: number | null
           created_at?: string
+          favorite_lyric?: string | null
           favorite_reason?: string | null
           favorite_track?: string | null
           id?: string
+          initial_score?: number | null
           least_reason?: string | null
           least_track?: string | null
+          one_sentence_take?: string | null
           profile_id?: string
+          replayability?: number | null
           review?: string | null
           score?: number
           updated_at?: string
@@ -1234,37 +1306,52 @@ export type Database = {
           album_id: string
           comment: string | null
           created_at: string
+          favorite_lyric: string | null
           id: string
+          initial_thoughts: string | null
           profile_id: string
           rating: number | null
+          reminds_me_of: string | null
+          saved_to_library: boolean
           thumb: string | null
           track_name: string
           track_number: number
           updated_at: string
+          vibe_tags: string[]
         }
         Insert: {
           album_id: string
           comment?: string | null
           created_at?: string
+          favorite_lyric?: string | null
           id?: string
+          initial_thoughts?: string | null
           profile_id: string
           rating?: number | null
+          reminds_me_of?: string | null
+          saved_to_library?: boolean
           thumb?: string | null
           track_name: string
           track_number: number
           updated_at?: string
+          vibe_tags?: string[]
         }
         Update: {
           album_id?: string
           comment?: string | null
           created_at?: string
+          favorite_lyric?: string | null
           id?: string
+          initial_thoughts?: string | null
           profile_id?: string
           rating?: number | null
+          reminds_me_of?: string | null
+          saved_to_library?: boolean
           thumb?: string | null
           track_name?: string
           track_number?: number
           updated_at?: string
+          vibe_tags?: string[]
         }
         Relationships: [
           {
@@ -1337,6 +1424,41 @@ export type Database = {
           {
             foreignKeyName: "streaming_connections_connected_by_fkey"
             columns: ["connected_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vibe_tags: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_canonical: boolean
+          name: string
+          name_key: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_canonical?: boolean
+          name: string
+          name_key?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_canonical?: boolean
+          name?: string
+          name_key?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vibe_tags_created_by_fkey"
+            columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
