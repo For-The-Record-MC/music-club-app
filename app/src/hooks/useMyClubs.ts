@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { useAuthStore } from '@/stores/authStore';
+import { useCurrentClubStore } from '@/stores/currentClubStore';
 import { clubs, type Club, type ClubRole } from '@/utils/supabase/db';
 
 export interface MyClubRow {
@@ -10,6 +11,10 @@ export interface MyClubRow {
 
 export function useMyClubs() {
   const userId = useAuthStore((s) => s.userId);
+  // Creating or joining a club calls setClub(), so the active club id changing is
+  // our signal that the membership list may have grown — refetch so a freshly
+  // created/joined club shows up in the switcher without a reload.
+  const clubId = useCurrentClubStore((s) => s.clubId);
   const [rows, setRows] = useState<MyClubRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -26,7 +31,8 @@ export function useMyClubs() {
 
   useEffect(() => {
     refresh();
-  }, [refresh]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refresh, clubId]);
 
   return { rows, loading, refresh };
 }
