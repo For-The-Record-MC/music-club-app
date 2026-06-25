@@ -5,8 +5,16 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "vinylvino",
+    "scheme": "fortherecordmc",
     "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "com.jordanreticker.fortherecordmc",
+      "buildNumber": "1",
+      "supportsTablet": false,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#080808",
@@ -37,6 +45,12 @@
       "typedRoutes": true,
       "reactCompiler": true,
       "baseUrl": "/music-club-app"
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "c2a496ca-7281-4220-b545-9b2d27378111"
+      }
     }
   }
 }

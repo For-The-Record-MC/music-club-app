@@ -395,6 +395,11 @@ verify_jwt = true
 [functions.cycle-highlights]
 verify_jwt = true
 
+# Permanently deletes the caller's account + owned data (App Store 5.1.1(v)).
+# verify_jwt is on — the function only ever deletes the JWT's own user.
+[functions.delete-account]
+verify_jwt = true
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.

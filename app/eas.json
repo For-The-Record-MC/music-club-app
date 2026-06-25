@@ -1,0 +1,38 @@
+{
+  "cli": {
+    "version": ">= 14.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": { "simulator": true },
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://yecjvvnposykmrzemcej.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InllY2p2dm5wb3N5a21yemVtY2VqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyODUwMTMsImV4cCI6MjA5Njg2MTAxM30.jfyyyDUkXxDCDbYrq230kJdFsXi26ZZnPxIdoBaDSBo",
+        "EXPO_PUBLIC_SPOTIFY_CLIENT_ID": "647b0e8ebe2b455da5ca1069989938f4"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "ios": { "simulator": false },
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://yecjvvnposykmrzemcej.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InllY2p2dm5wb3N5a21yemVtY2VqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyODUwMTMsImV4cCI6MjA5Njg2MTAxM30.jfyyyDUkXxDCDbYrq230kJdFsXi26ZZnPxIdoBaDSBo",
+        "EXPO_PUBLIC_SPOTIFY_CLIENT_ID": "647b0e8ebe2b455da5ca1069989938f4"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://yecjvvnposykmrzemcej.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InllY2p2dm5wb3N5a21yemVtY2VqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyODUwMTMsImV4cCI6MjA5Njg2MTAxM30.jfyyyDUkXxDCDbYrq230kJdFsXi26ZZnPxIdoBaDSBo",
+        "EXPO_PUBLIC_SPOTIFY_CLIENT_ID": "647b0e8ebe2b455da5ca1069989938f4"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

@@ -861,6 +861,15 @@ export const clubFavorites = {
       .order('added_at', { ascending: false }),
 };
 
+export const account = {
+  // Permanently delete the signed-in user's account and owned data. Server-side
+  // (delete-account Edge Function) so it can use the service role to remove the
+  // auth user; owned clubs are transferred to another member or deleted first.
+  // Caller should sign out / route to the auth screen on { ok: true }.
+  deleteSelf: () =>
+    supabase.functions.invoke<{ ok: boolean; message?: string }>('delete-account', { body: {} }),
+};
+
 export const health = {
   /** Connectivity probe — hits the GoTrue health endpoint. */
   async ping(): Promise<boolean> {

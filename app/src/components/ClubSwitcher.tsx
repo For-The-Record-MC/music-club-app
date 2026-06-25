@@ -1,5 +1,5 @@
 import { useRouter, type Href } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Badge, BottomSheet, Label } from '@/components/ui';
 import { useMyClubs } from '@/hooks/useMyClubs';
@@ -9,6 +9,8 @@ import { useClubSwitcherStore } from '@/stores/clubSwitcherStore';
 import { useCurrentClubStore } from '@/stores/currentClubStore';
 import { useThemeStore, type ThemeMode } from '@/stores/themeStore';
 import { avatarColors, fonts, radius } from '@/theme';
+import { confirmAsync } from '@/utils/confirm';
+import { account } from '@/utils/supabase/db';
 
 const THEME_ICON: Record<ThemeMode, string> = { system: '🌗', dark: '🌙', light: '☀️' };
 const THEME_LABEL: Record<ThemeMode, string> = { system: 'System', dark: 'Dark', light: 'Light' };
@@ -39,6 +41,23 @@ export function ClubSwitcher() {
   const switchTo = (id: string) => {
     setClub(id);
     setOpen(false);
+  };
+
+  // App Store 5.1.1(v): in-app account deletion. Double-confirms, deletes
+  // server-side (transfers/cleans up owned clubs first), then signs out.
+  const deleteAccount = async () => {
+    const ok = await confirmAsync(
+      'Delete account?',
+      'This permanently deletes your account, posts, ratings and notes. Clubs you own pass to another member, or are deleted if you’re the only member. This cannot be undone.',
+    );
+    if (!ok) return;
+    const { data, error } = await account.deleteSelf();
+    if (error || !data?.ok) {
+      Alert.alert('Could not delete account', error?.message || data?.message || 'Please try again.');
+      return;
+    }
+    setOpen(false);
+    await signOut();
   };
 
   return (
@@ -113,6 +132,7 @@ export function ClubSwitcher() {
           />
           <MenuRow icon="❓" label="How the club works" onPress={() => go('/how-it-works')} />
           <MenuRow icon="⤴" label="Sign out" tone="danger" onPress={() => { setOpen(false); signOut(); }} />
+          <MenuRow icon="🗑" label="Delete account" tone="danger" onPress={deleteAccount} />
         </ScrollView>
       </BottomSheet>
     </>

@@ -121,7 +121,7 @@ append using owner's token); `streaming.tsx` PKCE connect flow; client sync-afte
 re-sync button; surface links + reconnect banner.
 
 Prereqs: register a Spotify Developer app (client_id/secret, redirect URIs for web +
-`vinylvino://`), scaffold `supabase/functions/` (none exist yet — check `~/Code/PindejosBowling`
+`fortherecordmc://`), scaffold `supabase/functions/` (none exist yet — check `~/Code/PindejosBowling`
 for an Edge Function + deploy pattern to port), set `SPOTIFY_CLIENT_ID`/`SECRET` secrets.
 
 **Status 2026-06-13:** All three phases built; `npx tsc --noEmit` clean. Phase A + C
@@ -129,7 +129,7 @@ migrations applied to the live DB (`20260613240000`, `20260613250000`); Edge Fun
 `spotify-search`, `spotify-oauth`, `spotify-sync` deployed (project `yecjvvnposykmrzemcej`)
 with `SPOTIFY_CLIENT_ID`/`SECRET` secrets set; `spotify-search` smoke-tested OK. App code
 ready but **uncommitted/unpushed** (live web unchanged). Remaining manual steps before
-OAuth works end-to-end: (1) register redirect URIs in the Spotify app — `vinylvino://spotify-callback`,
+OAuth works end-to-end: (1) register redirect URIs in the Spotify app — `fortherecordmc://spotify-callback`,
 `https://jordanreticker.github.io/music-club-app/spotify-callback`, and (for local web dev)
 `http://127.0.0.1:8081/spotify-callback`; (2) add GitHub Actions secret
 `EXPO_PUBLIC_SPOTIFY_CLIENT_ID`. (Client secret was rotated + re-set on Supabase 2026-06-13.)
