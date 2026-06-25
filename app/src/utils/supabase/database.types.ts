@@ -910,6 +910,7 @@ export type Database = {
           avatar_color: number
           avatar_label: string | null
           avatar_url: string | null
+          can_use_personal_spotify: boolean
           created_at: string
           display_name: string | null
           email: string | null
@@ -920,6 +921,7 @@ export type Database = {
           avatar_color?: number
           avatar_label?: string | null
           avatar_url?: string | null
+          can_use_personal_spotify?: boolean
           created_at?: string
           display_name?: string | null
           email?: string | null
@@ -930,6 +932,7 @@ export type Database = {
           avatar_color?: number
           avatar_label?: string | null
           avatar_url?: string | null
+          can_use_personal_spotify?: boolean
           created_at?: string
           display_name?: string | null
           email?: string | null

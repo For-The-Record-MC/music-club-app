@@ -70,12 +70,20 @@ Deno.serve(async (req) => {
     if (!membership) return json({ ok: false, message: 'Not a club member' }, 403)
 
     // ── Connection ────────────────────────────────────────────────────────────
+    // A club either has its own personal connection (allowlisted owners — Jordan,
+    // Tim) or none, in which case we fall back to the shared APP account whose
+    // refresh token lives in SPOTIFY_APP_REFRESH_TOKEN. The app account silently
+    // creates and owns playlists for every non-allowlisted club.
     const { data: conn } = await admin
       .from('streaming_connections').select('*').eq('club_id', clubId).maybeSingle()
-    if (!conn) return json({ ok: false, reason: 'not_connected' })
-    if (conn.status === 'needs_reconnect') return json({ ok: false, reason: 'needs_reconnect' })
+
+    // appManaged: using the shared app token (no per-club row to update / sever).
+    const appManaged = !conn
+    if (conn?.status === 'needs_reconnect') return json({ ok: false, reason: 'needs_reconnect' })
 
     const markReconnect = async () => {
+      // Only personal connections can be "reconnected" — the app token is ours.
+      if (appManaged) return
       await admin.from('streaming_connections')
         .update({ status: 'needs_reconnect', updated_at: new Date().toISOString() })
         .eq('club_id', clubId)
@@ -84,22 +92,36 @@ Deno.serve(async (req) => {
     // Other failures (e.g. 403 dev-mode allowlist) are surfaced WITHOUT severing.
     const isAuthError = (e: unknown) => /\(401\)/.test(String(e))
 
-    // Refresh the access token if it expires within 60s.
-    let accessToken: string = conn.access_token
-    if (new Date(conn.expires_at).getTime() - Date.now() < 60_000) {
+    let accessToken: string
+    if (appManaged) {
+      const appRefresh = Deno.env.get('SPOTIFY_APP_REFRESH_TOKEN')
+      if (!appRefresh) return json({ ok: false, reason: 'not_connected' })
       try {
-        const t = await refreshTokens(clientId, clientSecret, conn.refresh_token)
+        const t = await refreshTokens(clientId, clientSecret, appRefresh)
         accessToken = t.access_token
-        await admin.from('streaming_connections').update({
-          access_token: t.access_token,
-          refresh_token: t.refresh_token ?? conn.refresh_token,
-          expires_at: new Date(Date.now() + t.expires_in * 1000).toISOString(),
-          status: 'active',
-          updated_at: new Date().toISOString(),
-        }).eq('club_id', clubId)
-      } catch {
-        await markReconnect()
-        return json({ ok: false, reason: 'needs_reconnect' })
+      } catch (e) {
+        // The shared token is misconfigured/revoked — a server-side problem, not
+        // something this club's members can fix by "reconnecting".
+        return json({ ok: false, reason: 'app_token_error', message: String(e) })
+      }
+    } else {
+      // Refresh the access token if it expires within 60s.
+      accessToken = conn.access_token
+      if (new Date(conn.expires_at).getTime() - Date.now() < 60_000) {
+        try {
+          const t = await refreshTokens(clientId, clientSecret, conn.refresh_token)
+          accessToken = t.access_token
+          await admin.from('streaming_connections').update({
+            access_token: t.access_token,
+            refresh_token: t.refresh_token ?? conn.refresh_token,
+            expires_at: new Date(Date.now() + t.expires_in * 1000).toISOString(),
+            status: 'active',
+            updated_at: new Date().toISOString(),
+          }).eq('club_id', clubId)
+        } catch {
+          await markReconnect()
+          return json({ ok: false, reason: 'needs_reconnect' })
+        }
       }
     }
 

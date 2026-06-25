@@ -67,6 +67,21 @@ Deno.serve(async (req) => {
       return json({ ok: false, message: 'Only the club owner can connect Spotify' }, 403)
     }
 
+    // Only allowlisted owners connect a PERSONAL account; every other club is
+    // served automatically by the shared app account (see spotify-sync), so
+    // there is nothing to connect here.
+    const { data: profile } = await admin
+      .from('profiles')
+      .select('can_use_personal_spotify')
+      .eq('id', user.id)
+      .maybeSingle()
+    if (!profile?.can_use_personal_spotify) {
+      return json(
+        { ok: false, message: 'This club’s playlists are created automatically — no Spotify connection needed.' },
+        403,
+      )
+    }
+
     // Server-side code → tokens, then read the connected profile.
     const tokens = await exchangeCode(clientId, clientSecret, code, redirectUri)
     const me = await getMe(tokens.access_token)

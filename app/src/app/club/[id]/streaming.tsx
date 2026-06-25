@@ -88,6 +88,8 @@ export default function Streaming() {
       setNote({ text: 'Spotify needs reconnecting.', tone: 'error' });
     } else if (data?.reason === 'no_open_cycle') {
       setNote({ text: 'No open cycle yet — songs will sync once a cycle starts.', tone: 'muted' });
+    } else if (data?.reason === 'app_token_error') {
+      setNote({ text: 'Spotify is temporarily unavailable — please try again later.', tone: 'error' });
     } else {
       setNote({ text: data?.message ?? 'Nothing to sync.', tone: 'muted' });
     }
@@ -98,6 +100,10 @@ export default function Streaming() {
 
   const connected = status?.connected;
   const needsReconnect = status?.status === 'needs_reconnect';
+  // Non-allowlisted owners don't connect their own Spotify — a shared app account
+  // creates and owns their playlists automatically.
+  const canConnect = status?.can_connect !== false;
+  const appManaged = !connected && !canConnect;
 
   return (
     <Screen>
@@ -142,6 +148,21 @@ export default function Streaming() {
             ) : null}
             <Button title="Disconnect" variant="ghost" onPress={disconnect} style={{ marginTop: 8 }} />
           </>
+        ) : appManaged ? (
+          <>
+            <Text style={[styles.help, { color: palette.text2 }]}>
+              Each cycle automatically gets its own public Spotify playlist — songs added to the feed
+              are pushed there for you. Nothing to set up.
+            </Text>
+            {cycle?.spotify_playlist_url ? (
+              <Pressable onPress={() => Linking.openURL(cycle.spotify_playlist_url!)}>
+                <Text style={[styles.link, { color: palette.teal }]}>
+                  ▶ Open Cycle {cycle.number}'s playlist
+                </Text>
+              </Pressable>
+            ) : null}
+            <Button title="Re-sync playlist" onPress={resync} loading={busy} style={{ marginTop: 14 }} />
+          </>
         ) : (
           <>
             <Text style={[styles.help, { color: palette.text2 }]}>
@@ -154,7 +175,10 @@ export default function Streaming() {
         {note ? <InlineNote text={note.text} tone={note.tone} /> : null}
       </Card>
 
-      {/* Setup helper: the exact redirect URI to register in the Spotify app. */}
+      {/* Setup helper: the exact redirect URI to register in the Spotify app.
+          Only relevant when connecting a personal account. */}
+      {appManaged ? null : (
+      <>
       <Label>{'\n'}Setup</Label>
       <Card>
         <Text style={[styles.help, { color: palette.text2 }]}>
@@ -165,6 +189,8 @@ export default function Streaming() {
           {spotifyRedirectUri()}
         </Text>
       </Card>
+      </>
+      )}
     </Screen>
   );
 }

@@ -338,6 +338,9 @@ export interface SongQuota {
 // Spotify connection status — from streaming_status (never includes tokens).
 export interface StreamingStatus {
   connected: boolean;
+  // Whether the current owner may connect a PERSONAL Spotify account. When false
+  // and not connected, the club's playlists are handled by the shared app account.
+  can_connect?: boolean;
   provider?: string;
   display_name?: string | null;
   spotify_user_id?: string | null;

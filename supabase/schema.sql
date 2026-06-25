@@ -216,7 +216,8 @@ CREATE TABLE profiles (
   avatar_url text,
   avatar_label text,
   avatar_album_url text,
-  email text
+  email text,
+  can_use_personal_spotify boolean NOT NULL DEFAULT false
 );
 
 CREATE TABLE ratings (
@@ -2392,13 +2393,21 @@ CREATE OR REPLACE FUNCTION public.streaming_status(p_club uuid)
 AS $function$
 declare
   v_row streaming_connections;
+  v_can_connect boolean;
 begin
   if not public.is_club_member(p_club) then
     raise exception 'Not a club member';
   end if;
+
+  v_can_connect := public.club_role(p_club) = 'owner'
+    and coalesce(
+      (select can_use_personal_spotify from profiles where id = auth.uid()),
+      false
+    );
+
   select * into v_row from streaming_connections where club_id = p_club;
   if not found then
-    return json_build_object('connected', false);
+    return json_build_object('connected', false, 'can_connect', v_can_connect);
   end if;
   return json_build_object(
     'connected', true,
@@ -2406,7 +2415,8 @@ begin
     'display_name', v_row.display_name,
     'spotify_user_id', v_row.spotify_user_id,
     'status', v_row.status,
-    'connected_by', v_row.connected_by
+    'connected_by', v_row.connected_by,
+    'can_connect', v_can_connect
   );
 end;
 $function$
