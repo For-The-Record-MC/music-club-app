@@ -3,31 +3,29 @@
 Goal: take the Expo (SDK 56, expo-router) app from simulator-only to installable on a
 physical iPhone via TestFlight, using **EAS Build + EAS Submit**.
 
-### Progress (last updated 2026-06-25)
+### Progress (last updated 2026-06-26)
 
-**Currently paused at Phase 2 (the build itself).**
+**🎉 LIVE ON DEVICE via TestFlight.** Phases 0–4 complete — built with `eas build`, submitted
+with `eas submit`, installed and working on Jordan's iPhone through Internal Testing.
 
 Done:
-- ✅ Phase 1 config committed — `bundleIdentifier: com.jordanreticker.fortherecordmc`,
-  `scheme: fortherecordmc`, `eas.json` with dev/preview/production profiles.
-- ✅ `eas build:configure` run — `extra.eas.projectId` (`c2a496ca-7281-4220-b545-9b2d27378111`)
-  added to `app/app.json`.
-- ✅ `ITSAppUsesNonExemptEncryption: false` added under `ios.infoPlist` — pre-answers the
-  Export Compliance question so `eas submit` won't pause for it.
-- ✅ Apple Developer Program — **re-enrolled as paid** (membership lapsed; a fresh enrollment can
-  take a few hours to propagate, and there may be a new license agreement to accept at
-  developer.apple.com + App Store Connect before builds/submits succeed).
+- ✅ Phase 1 config — `bundleIdentifier: com.jordanreticker.fortherecordmc`,
+  `scheme: fortherecordmc`, `eas.json` (dev/preview/production), `extra.eas.projectId`
+  (`c2a496ca-7281-4220-b545-9b2d27378111`), `ITSAppUsesNonExemptEncryption: false`.
+- ✅ Apple Developer Program re-enrolled as paid; build + submit succeeded.
+- ✅ `eas.json` env values filled in; cloud build green; on TestFlight Internal Testing.
+- ✅ CI: `.github/workflows/eas-build.yml` — manual (`workflow_dispatch`) iOS build, optional
+  auto-submit. Needs the `EXPO_TOKEN` repo secret (see Phase 6).
+- ✅ Privacy policy page — `app/public/privacy.html`, ships to GitHub Pages at
+  `https://jordanreticker.github.io/music-club-app/privacy.html` on the next web deploy.
 
-Assumed done (verify before resuming): `eas-cli` installed, `eas login`, and the three
-`EXPO_PUBLIC_*` values pasted into `eas.json` (replacing `REPLACE_ME`).
-
-Still TODO before/around the build:
-- [ ] `supabase functions deploy delete-account` (account-deletion fn must be live).
-- [ ] Confirm `app/assets/images/icon.png` is 1024×1024 with **no alpha**.
-- [ ] Register redirect URIs (scheme was renamed): `fortherecordmc://spotify-callback` in the
-      Spotify dashboard, `fortherecordmc://` in Supabase → Auth → URL Configuration.
-
-Next command to run: `eas build --platform ios --profile production` (Phase 2 below).
+Still TODO (verify / Phase 5 public release):
+- [ ] `supabase functions deploy delete-account` — confirm the account-deletion fn is live.
+- [ ] Register redirect URIs (scheme was renamed): `fortherecordmc://spotify-callback` (Spotify
+      dashboard) + `fortherecordmc://` (Supabase → Auth → URL Configuration). Needed for Spotify
+      connect + magic-link login on the physical device.
+- [ ] Add `EXPO_TOKEN` repo secret to enable the CI workflow.
+- [ ] Public App Store release: nutrition labels, screenshots, listing, submit (Phase 5).
 
 ---
 
@@ -42,8 +40,8 @@ Next command to run: `eas build --platform ios --profile production` (Phase 2 be
 ```json
 "ios": {
   "bundleIdentifier": "com.jordanreticker.fortherecordmc",
-  "buildNumber": "1",
-  "supportsTablet": false
+  "supportsTablet": false,
+  "infoPlist": { "ITSAppUsesNonExemptEncryption": false }
 }
 ```
 Globally unique and permanent — can't be changed after shipping without a new app record.
@@ -113,12 +111,40 @@ TestFlight (Phases 0–4) needs **no App Review**. A public listing does. These 
   (Gmail App Password, port 587, ~500/day — see [context/launch.md](context/launch.md)), which
   removes Supabase's built-in rate limit. Ample for review + a club; revisit a higher-volume provider
   (Resend/Postmark/SES) only if usage outgrows Gmail's daily cap.
-- **Privacy policy URL + nutrition labels.** App Store Connect needs a hosted privacy-policy URL and
-  the data-collection questionnaire filled (email, user content, usage).
-- **Store listing assets.** Screenshots (6.7" + 6.5"), description, keywords, category, support URL,
-  age rating.
+- **Privacy policy URL — page DONE, needs deploy + paste.** Page at `app/public/privacy.html`
+  → publishes to `https://jordanreticker.github.io/music-club-app/privacy.html` on the next web
+  deploy (push to main, or run the "Deploy web" workflow). Then paste that URL into App Store
+  Connect → App Information → Privacy Policy URL.
+- **Nutrition labels.** App Store Connect → App Privacy → fill the data-collection questionnaire:
+  email = Contact Info; posts/notes/ratings = User Content; "last active" = Usage Data. All
+  "linked to identity", none used for tracking/ads.
+- **Store listing assets.** Screenshots (6.7" + 6.5"), description, keywords, category
+  (Music or Social Networking), support URL, age rating.
 - **Third-party content/ToS.** Spotify / Apple Music / Genius / Ticketmaster usage must stay within
   each API's terms; app should degrade gracefully when a provider is unavailable.
+- **Reviewer test account.** In App Review Information, give a working login — use the
+  password-path dev account (reviewers can't receive magic-link emails reliably).
 
-Suggested order: Phases 0–4 (get it on your phone) → deploy `delete-account` →
-privacy policy + nutrition labels → screenshots/listing → submit for review.
+Suggested order: deploy `delete-account` + register redirect URIs → deploy web (publishes privacy
+page) → paste privacy URL + fill nutrition labels → screenshots/listing → submit for review.
+
+---
+
+## Phase 6 — CI: build from GitHub Actions (no Xcode, no laptop)
+
+`.github/workflows/eas-build.yml` runs an iOS build on EAS's servers, triggered **manually**
+(not on every push). One-time setup:
+
+1. Create an Expo access token: expo.dev → Account Settings → **Access Tokens** → create one.
+2. Add it as a GitHub repo secret named **`EXPO_TOKEN`** (Settings → Secrets and variables →
+   Actions → New repository secret).
+
+Then to cut a build: GitHub → **Actions** tab → **EAS build (iOS)** → **Run workflow** → pick the
+profile (`production`) and whether to auto-submit to TestFlight. Or from the CLI:
+`gh workflow run eas-build.yml -f profile=production -f submit=true`.
+
+Notes:
+- The build's `EXPO_PUBLIC_*` env comes from `eas.json` (no extra secrets needed).
+- `--auto-submit` reuses the App Store Connect credentials EAS already stored during the first
+  interactive `eas submit`, so CI submits don't prompt.
+- `--no-wait` returns immediately; watch progress at expo.dev or in the EAS dashboard.

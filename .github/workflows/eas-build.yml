@@ -1,0 +1,52 @@
+name: EAS build (iOS)
+
+# Manual trigger only — run it from the GitHub UI (Actions tab → "EAS build (iOS)"
+# → Run workflow) when you actually want a new TestFlight build, NOT on every
+# push to main. You can also kick it off from the CLI: `gh workflow run eas-build.yml`.
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: EAS build profile
+        type: choice
+        options: [production, preview]
+        default: production
+      submit:
+        description: Auto-submit to App Store Connect / TestFlight after the build
+        type: boolean
+        default: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      # Installs eas-cli and authenticates using the EXPO_TOKEN repo secret.
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - run: npm ci
+
+      # Build runs on EAS servers. --no-wait returns immediately so the Action
+      # doesn't burn ~20 min of runner time idling; --auto-submit chains the
+      # TestFlight upload when requested (uses credentials stored on EAS).
+      - name: Trigger EAS build
+        run: |
+          eas build \
+            --platform ios \
+            --profile "${{ inputs.profile }}" \
+            --non-interactive \
+            --no-wait \
+            ${{ inputs.submit && '--auto-submit' || '' }}
