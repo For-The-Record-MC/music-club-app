@@ -33,6 +33,7 @@ const CATEGORY: Record<string, Category> = {
   albums_set: 'lifecycle',
   meeting_scheduled: 'lifecycle',
   meeting_reminder: 'lifecycle',
+  participation_nudge: 'mentions',
   ratings_revealed: 'lifecycle',
   cycle_closed: 'lifecycle',
   showdown_started: 'lifecycle',
@@ -45,6 +46,17 @@ const CATEGORY: Record<string, Category> = {
 
 export function pushCategory(eventType: string): Category | null {
   return CATEGORY[eventType] ?? null;
+}
+
+// The human phrases for a participation_nudge's open gaps (shared by push + bell
+// wording). Payload carries `unrated` (count), `needs_submission`, `needs_votes`.
+export function participationGapPhrases(p: Record<string, any>): string[] {
+  const gaps: string[] = [];
+  const unrated = Number(p.unrated ?? 0);
+  if (unrated > 0) gaps.push(`rate ${unrated} album${unrated === 1 ? '' : 's'}`);
+  if (p.needs_submission) gaps.push('submit a Showdown song');
+  if (p.needs_votes) gaps.push('vote in the Showdown');
+  return gaps;
 }
 
 interface EventRow {
@@ -79,6 +91,16 @@ export function pushTemplate(
       return { category, title, body: `📅 ${who} scheduled the cycle ${p.cycle_number ?? '?'} meeting${p.meeting_date ? ` for ${p.meeting_date}` : ''}.`, target: HOME };
     case 'meeting_reminder':
       return { category, title, body: `📅 Meeting's coming up for cycle ${p.cycle_number ?? '?'} — rate the albums first.`, target: HOME };
+    case 'participation_nudge': {
+      const gaps = participationGapPhrases(p);
+      const onlyShowdown = Number(p.unrated ?? 0) === 0 && (p.needs_submission || p.needs_votes);
+      return {
+        category,
+        title,
+        body: `📋 Before the cycle ${p.cycle_number ?? '?'} meeting, you still need to: ${gaps.join(' · ')}.`,
+        target: onlyShowdown ? { pathname: '/feed', params: { tab: 'showdown' } } : HOME,
+      };
+    }
     case 'ratings_revealed':
       return { category, title, body: `🎙️ Ratings for cycle ${p.cycle_number ?? '?'} are revealed!`, target: HOME };
     case 'cycle_closed':

@@ -513,6 +513,14 @@ export const albums = {
       .eq('set_by', profileId)
       .eq('cycles.club_id', clubId)
       .order('created_at', { ascending: false }),
+  // Every album the club has already picked, excluding the current cycle —
+  // powers the soft "already done in Cycle N" resubmission warning.
+  priorPicks: (clubId: string, excludeCycleId: string) =>
+    supabase
+      .from('albums')
+      .select('title, artist, cycles!inner(club_id, number)')
+      .eq('cycles.club_id', clubId)
+      .neq('cycle_id', excludeCycleId),
 };
 
 export const ratings = {
@@ -586,20 +594,56 @@ export const songNotes = {
   removeMany: (ids: string[]) => supabase.from('song_notes').delete().in('id', ids),
 };
 
+// How a member shares their album song notes: not at all, immediately, or only
+// once the cycle is revealed (the read policy enforces the reveal gate).
+export type ShareMode = 'now' | 'at_reveal';
+
 export const songNoteShares = {
-  // Who has shared notes for these albums (club-member visible).
+  // Who has shared notes for these albums (club-member visible), with mode.
   listForAlbums: (albumIds: string[]) =>
     supabase.from('song_note_shares').select('*').in('album_id', albumIds),
-  set: (albumId: string, profileId: string, shared: boolean) =>
-    shared
+  // mode null = unshare (delete the row); otherwise upsert with the chosen mode.
+  set: (albumId: string, profileId: string, mode: ShareMode | null) =>
+    mode
       ? supabase
           .from('song_note_shares')
-          .upsert({ album_id: albumId, profile_id: profileId }, { onConflict: 'album_id,profile_id' })
+          .upsert({ album_id: albumId, profile_id: profileId, mode }, { onConflict: 'album_id,profile_id' })
       : supabase
           .from('song_note_shares')
           .delete()
           .eq('album_id', albumId)
           .eq('profile_id', profileId),
+};
+
+// Lightweight reactions on a shared song note (support / disagree / love). Also
+// the signal for surfacing a cycle's standout note comments later.
+export const SONG_NOTE_REACTIONS = [
+  { value: 'support', emoji: '👍', label: 'Support' },
+  { value: 'disagree', emoji: '👎', label: 'Disagree' },
+  { value: 'love', emoji: '❤️', label: 'Love' },
+] as const;
+export type SongNoteReactionValue = (typeof SONG_NOTE_REACTIONS)[number]['value'];
+
+export const songNoteReactions = {
+  // Every reaction on any note for an album the caller can see (RLS-gated).
+  listForAlbum: (albumId: string) =>
+    supabase
+      .from('song_note_reactions')
+      .select('song_note_id, profile_id, value, song_notes!inner(album_id)')
+      .eq('song_notes.album_id', albumId),
+  set: (songNoteId: string, profileId: string, value: SongNoteReactionValue) =>
+    supabase
+      .from('song_note_reactions')
+      .upsert(
+        { song_note_id: songNoteId, profile_id: profileId, value },
+        { onConflict: 'song_note_id,profile_id' },
+      ),
+  clear: (songNoteId: string, profileId: string) =>
+    supabase
+      .from('song_note_reactions')
+      .delete()
+      .eq('song_note_id', songNoteId)
+      .eq('profile_id', profileId),
 };
 
 export const preferences = {
@@ -720,6 +764,16 @@ export const feed = {
       .eq('author_id', profileId)
       .order('created_at', { ascending: false })
       .limit(limit),
+  // Track posts shared in this club since the open cycle started — used to warn
+  // before reposting a song already shared this cycle (matched client-side on
+  // spotify_uri or normalized title|artist).
+  tracksThisCycle: (clubId: string, sinceIso: string) =>
+    supabase
+      .from('feed_posts')
+      .select('title, artist, metadata')
+      .eq('club_id', clubId)
+      .eq('kind', 'track')
+      .gte('created_at', sinceIso),
 };
 
 export const reactions = {

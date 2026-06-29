@@ -19,6 +19,7 @@ import { resolveAppleAlbum, resolveAppleTrack, searchAlbums as searchItunesAlbum
 import { resolveSpotifyAlbum, resolveSpotifyTrack, searchAlbums as searchSpotifyAlbums, searchSongs as searchSpotify } from '@/utils/spotify';
 import { timeAgo } from '@/utils/activityTemplates';
 import { confirmAsync } from '@/utils/confirm';
+import { normKey } from '@/utils/normalize';
 import {
   activity,
   clubs as clubsDb,
@@ -369,6 +370,28 @@ export default function Feed() {
     }
     setBusy(true);
     setError(null);
+    // Soft resubmission guard for songs: warn (don't block) if this track was
+    // already shared in the feed this cycle, matched on spotify_uri or
+    // normalized title|artist. Albums are uncapped and skip this.
+    if (kind === 'track' && cycle) {
+      const { data: thisCycle } = await feedDb.tracksThisCycle(id, cycle.created_at);
+      const key = normKey(title, artist);
+      const dup = (thisCycle ?? []).some((p) => {
+        const uri = (p.metadata as { spotify_uri?: string } | null)?.spotify_uri ?? null;
+        if (spotifyUri && uri && uri === spotifyUri) return true;
+        return normKey(p.title, p.artist) === key;
+      });
+      if (dup) {
+        const ok = await confirmAsync(
+          'Already shared this cycle',
+          `“${title.trim()}” has already been posted to the feed this cycle. Post it again anyway?`,
+        );
+        if (!ok) {
+          setBusy(false);
+          return;
+        }
+      }
+    }
     // Fold a manually pasted link into the right service slot (detected from the
     // host), or treat it as a generic "other" link. Picked results already set
     // appleUrl/spotifyUrl.

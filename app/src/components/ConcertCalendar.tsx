@@ -164,6 +164,9 @@ export function ConcertCalendar({
     return out;
   }, [month]);
 
+  const now = new Date();
+  const isCurrentMonth =
+    month.getFullYear() === now.getFullYear() && month.getMonth() === now.getMonth();
   const monthLabel = month.toLocaleString(undefined, { month: 'long', year: 'numeric' });
   const selectedConcerts = selectedDay ? byDay.get(selectedDay) ?? [] : [];
   const selectedLabel = selectedDay
@@ -181,7 +184,14 @@ export function ConcertCalendar({
         <Pressable onPress={() => stepMonth(-1)} hitSlop={10} style={styles.navBtn}>
           <Text style={[styles.nav, { color: palette.text2 }]}>‹</Text>
         </Pressable>
-        <Text style={[styles.monthLabel, { color: palette.text1 }]}>{monthLabel}</Text>
+        <View style={styles.monthLabelWrap}>
+          <Text style={[styles.monthLabel, { color: isCurrentMonth ? palette.teal : palette.text1 }]}>
+            {monthLabel}
+          </Text>
+          {isCurrentMonth ? (
+            <Text style={[styles.thisMonthTag, { color: palette.teal }]}>● this month</Text>
+          ) : null}
+        </View>
         <Pressable onPress={() => stepMonth(1)} hitSlop={10} style={styles.navBtn}>
           <Text style={[styles.nav, { color: palette.text2 }]}>›</Text>
         </Pressable>
@@ -201,6 +211,7 @@ export function ConcertCalendar({
           const dayConcerts = byDay.get(key);
           const has = !!dayConcerts && dayConcerts.length > 0;
           const isToday = key === todayKey;
+          const isPastDay = key < todayKey;
           const goingIds = has ? peopleWithStatus(dayConcerts!, 'going') : [];
           const dayNum = Number(key.split('-')[2]);
           return (
@@ -214,6 +225,7 @@ export function ConcertCalendar({
                 style={[
                   styles.cellInner,
                   isToday && { borderColor: palette.border2, backgroundColor: palette.card2 },
+                  isPastDay && styles.pastCell,
                 ]}
               >
                 <Text
@@ -291,7 +303,10 @@ const styles = StyleSheet.create({
   },
   navBtn: { paddingHorizontal: 10, paddingVertical: 2 },
   nav: { fontFamily: fonts.sans, fontSize: 26, lineHeight: 28 },
+  monthLabelWrap: { alignItems: 'center' },
   monthLabel: { fontFamily: fonts.sansBold, fontSize: 15 },
+  thisMonthTag: { fontFamily: fonts.monoMedium, fontSize: 8, letterSpacing: 0.5, marginTop: 1 },
+  pastCell: { opacity: 0.4 },
   weekRow: { flexDirection: 'row', marginBottom: 4 },
   weekday: {
     flex: 1,

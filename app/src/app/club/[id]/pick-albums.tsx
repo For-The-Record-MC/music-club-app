@@ -9,7 +9,9 @@ import { useCycle } from '@/hooks/useCycle';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
 import { fonts, radius } from '@/theme';
+import { confirmAsync } from '@/utils/confirm';
 import { getAlbumTracks, resolveAppleAlbum, searchAlbums as searchItunesAlbums } from '@/utils/itunes';
+import { normKey } from '@/utils/normalize';
 import { resolveSpotifyAlbum, searchAlbums as searchSpotifyAlbums } from '@/utils/spotify';
 import { activity, albums as albumsDb, ratings as ratingsDb } from '@/utils/supabase/db';
 
@@ -83,8 +85,8 @@ export default function PickAlbums() {
             <InlineNote text="Reviews are in — album picks are locked for this cycle." />
           ) : null}
           {id ? <ThemeChooser clubId={id} cycleId={cycle.id} /> : null}
-          <SlotEditor slot={1} cycleId={cycle.id} existing={albums.find((a) => a.slot === 1)} locked={locked} onSaved={handleSaved} />
-          <SlotEditor slot={2} cycleId={cycle.id} existing={albums.find((a) => a.slot === 2)} locked={locked} onSaved={handleSaved} />
+          <SlotEditor slot={1} clubId={id} cycleId={cycle.id} existing={albums.find((a) => a.slot === 1)} locked={locked} onSaved={handleSaved} />
+          <SlotEditor slot={2} clubId={id} cycleId={cycle.id} existing={albums.find((a) => a.slot === 2)} locked={locked} onSaved={handleSaved} />
           <Button title="Done — back to the club" variant="ghost" onPress={() => router.replace('/home')} />
         </>
       )}
@@ -94,12 +96,14 @@ export default function PickAlbums() {
 
 function SlotEditor({
   slot,
+  clubId,
   cycleId,
   existing,
   locked,
   onSaved,
 }: {
   slot: 1 | 2;
+  clubId: string;
   cycleId: string;
   existing?: { title: string; artist: string; year: number | null; artwork_url: string | null };
   locked: boolean;
@@ -163,6 +167,24 @@ function SlotEditor({
     if (!userId) return;
     setBusy(true);
     setError(null);
+    // Soft resubmission guard: warn (don't block) if the club already did this
+    // album in a previous cycle. Match on normalized title|artist.
+    const { data: prior } = await albumsDb.priorPicks(clubId, cycleId);
+    const key = normKey(album.title, album.artist);
+    const clash = (prior ?? []).find((p) => normKey(p.title, p.artist) === key) as
+      | { title: string; cycles?: { number?: number } | null }
+      | undefined;
+    if (clash) {
+      const num = clash.cycles?.number;
+      const ok = await confirmAsync(
+        'Already done',
+        `“${album.title}” was already a club pick${num ? ` in Cycle ${num}` : ''}. Pick it again anyway?`,
+      );
+      if (!ok) {
+        setBusy(false);
+        return;
+      }
+    }
     const { error: err } = await albumsDb.upsert({
       cycle_id: cycleId,
       slot,
