@@ -32,12 +32,24 @@ export function renderActivity(event: ActivityEvent, actorName: string | null): 
         text: `The wheel landed on ${p.picker_name ?? 'a member'} for cycle ${p.cycle_number ?? '?'}.`,
         target: HOME,
       };
+    case 'you_are_picker':
+      return {
+        icon: '🎡',
+        text: `You're up — pick 2 albums for cycle ${p.cycle_number ?? '?'}.`,
+        target: HOME,
+      };
     case 'albums_set':
       return { icon: '🎵', text: `${who} set the albums for cycle ${p.cycle_number ?? '?'}.`, target: HOME };
     case 'meeting_scheduled':
       return {
         icon: '📅',
         text: `${who} scheduled the cycle ${p.cycle_number ?? '?'} meeting${p.meeting_date ? ` for ${p.meeting_date}` : ''}.`,
+        target: HOME,
+      };
+    case 'meeting_reminder':
+      return {
+        icon: '📅',
+        text: `Meeting's coming up for cycle ${p.cycle_number ?? '?'} — rate the albums first.`,
         target: HOME,
       };
     case 'ratings_revealed':
@@ -73,6 +85,12 @@ export function renderActivity(event: ActivityEvent, actorName: string | null): 
         icon: '🎤',
         text: `${who} added a concert: ${p.artist ?? ''}.`,
         target: { pathname: '/concerts', params: p.concert_id ? { focus: String(p.concert_id) } : undefined },
+      };
+    case 'club_announcement':
+      return {
+        icon: '📣',
+        text: p.title ? `${p.title}: ${p.body ?? ''}` : `${p.body ?? 'Announcement'}`,
+        target: HOME,
       };
     case 'comment_mention': {
       const where =

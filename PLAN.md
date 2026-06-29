@@ -130,7 +130,7 @@ migrations applied to the live DB (`20260613240000`, `20260613250000`); Edge Fun
 with `SPOTIFY_CLIENT_ID`/`SECRET` secrets set; `spotify-search` smoke-tested OK. App code
 ready but **uncommitted/unpushed** (live web unchanged). Remaining manual steps before
 OAuth works end-to-end: (1) register redirect URIs in the Spotify app — `fortherecordmc://spotify-callback`,
-`https://jordanreticker.github.io/music-club-app/spotify-callback`, and (for local web dev)
+`https://for-the-record-mc.github.io/music-club-app/spotify-callback`, and (for local web dev)
 `http://127.0.0.1:8081/spotify-callback`; (2) add GitHub Actions secret
 `EXPO_PUBLIC_SPOTIFY_CLIENT_ID`. (Client secret was rotated + re-set on Supabase 2026-06-13.)
 Deferred: Apple Music; home-screen reconnect banner for owners (today reconnect lives on the
@@ -203,6 +203,56 @@ live (2 albums, 10 ranked songs, winner). App code uncommitted/unpushed (live we
 Not yet exercised end-to-end in the running app — recommend a manual pass (rate-lock at reveal,
 shared notes on reveal, History tab + bell, a cycle's highlights page, and a real close on a
 Spotify-connected club to verify playlist creation).
+
+## v5 — Push notifications (planned + built 2026-06-29)
+
+Locked via two design sessions. Push rides the existing `activity_events` table
+(decision #15's intended seam) — it's a delivery pipe, not a new event system.
+Full reference: [context/notifications.md](context/notifications.md).
+
+**Decisions:**
+- **Categories:** Mentions + Lifecycle + Announcements on by default; **Social
+  (`feed_post`, `concert_added`) off (opt-in)**. Per-category prefs + a **per-club
+  mute**.
+- **Picker split:** the wheel emits a personal `you_are_picker` push to the winner
+  plus the existing broadcast.
+- **Announcements:** owner/admin custom broadcast, per-**club** cap 3/24h.
+- **Meeting reminders** via `pg_cron` (24h + 1h out); reactive push for everything
+  else. "Rate before reveal" folds into the meeting reminder (reveal is manual, no
+  countdown).
+- **Push text lives in TS** (`_shared/pushTemplate.ts`, mirroring
+  `activityTemplates.ts`), not SQL. **Web stays bell-only.**
+
+**Phase 1 — Reactive pipeline** (migration `20260629000000`): `push_tokens`,
+`notification_preferences`, `club_members.notifications_muted`, `pg_net` +
+fail-open AFTER INSERT trigger → `send-push` Edge Function (recipient resolution,
+Expo Push API batching, dead-token pruning). Client: `expo-notifications`,
+`utils/push.ts` (register + foreground-suppress handler + deep-link), `_layout.tsx`
+wiring, `db.ts` query objects.
+
+**Phase 2 — Picker split** (migration `20260629010000`): `spin_wheel` also emits
+targeted `you_are_picker`; bell + push templates.
+
+**Phase 3 — Preferences UI** (migration `20260629020000` for the `set_club_mute`
+RPC): `notifications.tsx` (category switches + per-club mute), account-menu entry.
+
+**Phase 4 — Announcements** (migration `20260629030000`): `post_announcement` +
+`my_announcement_quota` RPCs (role + 3/24h cap), "📣 Announce" composer in
+`settings.tsx`, `club_announcement` templates.
+
+**Phase 5 — Meeting reminders** (migration `20260629040000`): `pg_cron` job +
+`send_meeting_reminders()` + per-cycle sent-at markers.
+
+**Status 2026-06-29:** All five phases built; `npx tsc --noEmit` clean. Migrations
+`20260629000000`–`20260629040000` applied to the live DB; snapshot + types
+regenerated. `send-push` deployed (`--no-verify-jwt`, project `yecjvvnposykmrzemcej`);
+`PUSH_SHARED_SECRET` set + `send_push_url`/`send_push_secret` Vault secrets created;
+function smoke-tested (auth gate + DB path) and `send_meeting_reminders()` + the
+`meeting-reminders` cron job verified live. App code uncommitted/unpushed.
+**Remaining before push lands on iOS:** an EAS dev/prod build with an APNs key
+(Expo Go won't deliver), then a real-device end-to-end pass (token registration,
+a broadcast push + tap deep-link, foreground-suppress, mute). Deferred:
+server-driven app-icon badge counts.
 
 ## Backlog / future ideas
 

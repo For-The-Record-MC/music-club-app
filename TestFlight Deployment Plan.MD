@@ -17,15 +17,45 @@ Done:
 - ✅ CI: `.github/workflows/eas-build.yml` — manual (`workflow_dispatch`) iOS build, optional
   auto-submit. Needs the `EXPO_TOKEN` repo secret (see Phase 6).
 - ✅ Privacy policy page — `app/public/privacy.html`, ships to GitHub Pages at
-  `https://jordanreticker.github.io/music-club-app/privacy.html` on the next web deploy.
+  `https://for-the-record-mc.github.io/music-club-app/privacy.html` on the next web deploy.
 
-Still TODO (verify / Phase 5 public release):
-- [ ] `supabase functions deploy delete-account` — confirm the account-deletion fn is live.
-- [ ] Register redirect URIs (scheme was renamed): `fortherecordmc://spotify-callback` (Spotify
-      dashboard) + `fortherecordmc://` (Supabase → Auth → URL Configuration). Needed for Spotify
-      connect + magic-link login on the physical device.
-- [ ] Add `EXPO_TOKEN` repo secret to enable the CI workflow.
-- [ ] Public App Store release: nutrition labels, screenshots, listing, submit (Phase 5).
+More done (2026-06-26):
+- ✅ Committed + pushed; `delete-account` deployed.
+- ✅ Redirect URIs registered: `fortherecordmc://spotify-callback` (Spotify) + `fortherecordmc://`
+  (Supabase Auth).
+- ✅ `EXPO_TOKEN` repo secret added — CI workflow ready.
+- ✅ Privacy page live: https://for-the-record-mc.github.io/music-club-app/privacy.html
+
+App Store Connect listing — DONE (2026-06-26):
+- ✅ Privacy URL pasted; App Privacy nutrition labels filled.
+- ✅ 4 screenshots uploaded (how-it-works, home, album review, profile — 6.9" set; ASC auto-scales
+  for smaller sizes, so 6.5" optional). Screenshots captured from a local Release build
+  (`expo run:ios --configuration Release`) to drop the dev-menu cog; status bar overridden to 9:41.
+- ✅ Description, keywords, promotional text, category, support URL, age rating all entered.
+
+### Remaining before submitting for review (paused 2026-06-29 — doing push notifications + other
+### changes first; NOT submitting yet)
+
+Submission gating items (must finish before Submit for Review):
+- [ ] **Reviewer test account** — create in Supabase Dashboard → Auth → Add user
+  (`jordanreticker+review@gmail.com` + password + Auto Confirm), sign in via "I have a password",
+  set display name, **join a populated club** (cycle, ratings, feed, a concert). Paste creds + the
+  review notes into ASC → App Review Information. (NOT a magic-link account — reviewers can't get
+  the email code.)
+- [ ] **Confirm account deletion** end-to-end on TestFlight: throwaway acct → club menu →
+  Delete account → confirm sign-out + data gone.
+- [ ] **Submit for Review.**
+
+Planned changes before submission (Jordan's call — these come first):
+- [ ] **Push notifications** — still in design/think-through. (Expo push was always a deferred
+  follow-up; `activity_events` table can feed it. Needs: expo-notifications, device-token storage,
+  a sender — likely an Edge Function triggered on new activity rows. APNs key is auto-managed by
+  EAS.) Adding a new native capability means a fresh `eas build` + new TestFlight build before submit.
+- [ ] Other product changes (TBD).
+
+> Note: everything entered in App Store Connect persists on the "1.0 Prepare for Submission" draft
+> and pre-fills future versions (description, keywords, screenshots, privacy, review info all carry
+> over; only "What's New" is per-version). Taking time before submitting loses nothing.
 
 ---
 
@@ -112,7 +142,7 @@ TestFlight (Phases 0–4) needs **no App Review**. A public listing does. These 
   removes Supabase's built-in rate limit. Ample for review + a club; revisit a higher-volume provider
   (Resend/Postmark/SES) only if usage outgrows Gmail's daily cap.
 - **Privacy policy URL — page DONE, needs deploy + paste.** Page at `app/public/privacy.html`
-  → publishes to `https://jordanreticker.github.io/music-club-app/privacy.html` on the next web
+  → publishes to `https://for-the-record-mc.github.io/music-club-app/privacy.html` on the next web
   deploy (push to main, or run the "Deploy web" workflow). Then paste that URL into App Store
   Connect → App Information → Privacy Policy URL.
 - **Nutrition labels.** App Store Connect → App Privacy → fill the data-collection questionnaire:

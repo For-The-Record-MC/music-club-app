@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       activity_events: {
@@ -257,6 +282,7 @@ export type Database = {
           club_id: string
           id: string
           joined_at: string
+          notifications_muted: boolean
           profile_id: string
           role: string
         }
@@ -264,6 +290,7 @@ export type Database = {
           club_id: string
           id?: string
           joined_at?: string
+          notifications_muted?: boolean
           profile_id: string
           role?: string
         }
@@ -271,6 +298,7 @@ export type Database = {
           club_id?: string
           id?: string
           joined_at?: string
+          notifications_muted?: boolean
           profile_id?: string
           role?: string
         }
@@ -600,6 +628,8 @@ export type Database = {
           id: string
           meeting_at: string | null
           meeting_date: string | null
+          meeting_reminder_1h_sent_at: string | null
+          meeting_reminder_24h_sent_at: string | null
           meeting_time_location: string | null
           meeting_url: string | null
           number: number
@@ -619,6 +649,8 @@ export type Database = {
           id?: string
           meeting_at?: string | null
           meeting_date?: string | null
+          meeting_reminder_1h_sent_at?: string | null
+          meeting_reminder_24h_sent_at?: string | null
           meeting_time_location?: string | null
           meeting_url?: string | null
           number: number
@@ -638,6 +670,8 @@ export type Database = {
           id?: string
           meeting_at?: string | null
           meeting_date?: string | null
+          meeting_reminder_1h_sent_at?: string | null
+          meeting_reminder_24h_sent_at?: string | null
           meeting_time_location?: string | null
           meeting_url?: string | null
           number?: number
@@ -775,6 +809,41 @@ export type Database = {
             columns: ["cycle_id"]
             isOneToOne: false
             referencedRelation: "cycles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_preferences: {
+        Row: {
+          announcements: boolean
+          lifecycle: boolean
+          mentions: boolean
+          profile_id: string
+          social: boolean
+          updated_at: string
+        }
+        Insert: {
+          announcements?: boolean
+          lifecycle?: boolean
+          mentions?: boolean
+          profile_id: string
+          social?: boolean
+          updated_at?: string
+        }
+        Update: {
+          announcements?: boolean
+          lifecycle?: boolean
+          mentions?: boolean
+          profile_id?: string
+          social?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_preferences_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -939,6 +1008,35 @@ export type Database = {
           id?: string
         }
         Relationships: []
+      }
+      push_tokens: {
+        Row: {
+          platform: string
+          profile_id: string
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          platform: string
+          profile_id: string
+          token: string
+          updated_at?: string
+        }
+        Update: {
+          platform?: string
+          profile_id?: string
+          token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_tokens_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ratings: {
         Row: {
@@ -1487,6 +1585,8 @@ export type Database = {
           id: string
           meeting_at: string | null
           meeting_date: string | null
+          meeting_reminder_1h_sent_at: string | null
+          meeting_reminder_24h_sent_at: string | null
           meeting_time_location: string | null
           meeting_url: string | null
           number: number
@@ -1561,9 +1661,14 @@ export type Database = {
       }
       list_showdown: { Args: { p_cycle: string }; Returns: Json }
       mark_activity_read: { Args: { p_club: string }; Returns: undefined }
+      my_announcement_quota: { Args: { p_club: string }; Returns: Json }
       my_song_quota: { Args: { p_club: string }; Returns: Json }
       notify_comment_mentions: {
         Args: { p_club: string; p_payload?: Json; p_recipients: string[] }
+        Returns: undefined
+      }
+      post_announcement: {
+        Args: { p_body: string; p_club: string; p_title: string }
         Returns: undefined
       }
       publish_activity_event: {
@@ -1579,6 +1684,8 @@ export type Database = {
           id: string
           meeting_at: string | null
           meeting_date: string | null
+          meeting_reminder_1h_sent_at: string | null
+          meeting_reminder_24h_sent_at: string | null
           meeting_time_location: string | null
           meeting_url: string | null
           number: number
@@ -1599,6 +1706,11 @@ export type Database = {
         }
       }
       rotate_invite_code: { Args: { p_club: string }; Returns: string }
+      send_meeting_reminders: { Args: never; Returns: undefined }
+      set_club_mute: {
+        Args: { p_club: string; p_muted: boolean }
+        Returns: undefined
+      }
       set_concert_review: {
         Args: {
           p_concert: string
@@ -1657,6 +1769,8 @@ export type Database = {
           id: string
           meeting_at: string | null
           meeting_date: string | null
+          meeting_reminder_1h_sent_at: string | null
+          meeting_reminder_24h_sent_at: string | null
           meeting_time_location: string | null
           meeting_url: string | null
           number: number
@@ -1835,6 +1949,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },

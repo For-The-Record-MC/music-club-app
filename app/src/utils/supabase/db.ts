@@ -851,6 +851,44 @@ export const activity = {
       p_recipients: recipientIds,
       p_payload: payload,
     }),
+  // Owner/admin custom broadcast. Server enforces role + per-club 3/24h cap.
+  postAnnouncement: (clubId: string, title: string, body: string) =>
+    supabase.rpc('post_announcement', { p_club: clubId, p_title: title, p_body: body }),
+  announcementQuota: (clubId: string) =>
+    supabase.rpc('my_announcement_quota', { p_club: clubId }),
+};
+
+// Expo push tokens, one row per (member, device platform). Registered on login
+// from native apps only — web never gets a token (see utils/push.ts).
+export type PushToken = Tables<'push_tokens'>;
+export const pushTokens = {
+  register: (profileId: string, platform: 'ios' | 'android', token: string) =>
+    supabase.from('push_tokens').upsert(
+      { profile_id: profileId, platform, token, updated_at: new Date().toISOString() },
+      { onConflict: 'profile_id,platform' },
+    ),
+  remove: (profileId: string, platform: 'ios' | 'android') =>
+    supabase.from('push_tokens').delete().eq('profile_id', profileId).eq('platform', platform),
+};
+
+// Per-member notification category switches. An absent row means "defaults"
+// (mentions/lifecycle/announcements on, social off) — the server coalesces the
+// same way, so we only upsert once the member changes something.
+export type NotificationPreferences = Tables<'notification_preferences'>;
+export const notificationPrefs = {
+  get: (profileId: string) =>
+    supabase.from('notification_preferences').select('*').eq('profile_id', profileId).maybeSingle(),
+  upsert: (profileId: string, prefs: Partial<TablesUpdate<'notification_preferences'>>) =>
+    supabase.from('notification_preferences').upsert(
+      { ...prefs, profile_id: profileId, updated_at: new Date().toISOString() },
+      { onConflict: 'profile_id' },
+    ),
+  // Per-club mute lives on the caller's membership row. Reading is plain RLS;
+  // writing goes through set_club_mute (members can't UPDATE their own row).
+  listMyMutes: (profileId: string) =>
+    supabase.from('club_members').select('club_id, notifications_muted').eq('profile_id', profileId),
+  setMute: (clubId: string, muted: boolean) =>
+    supabase.rpc('set_club_mute', { p_club: clubId, p_muted: muted }),
 };
 
 // The club's all-time favorites — 1–3 enshrined per cycle close by the

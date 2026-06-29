@@ -38,7 +38,14 @@
           }
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#080808"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

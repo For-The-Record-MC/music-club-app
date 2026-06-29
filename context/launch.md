@@ -14,7 +14,7 @@ free tier while using the default provider).
 - **Templates:** Confirmation, Magic Link, and Recovery all set to show `{{ .Token }}` (the 6-digit code the app's `verifyOtp` expects). Note: a brand-new email signing up hits the **Confirmation** template, not Magic Link — both must carry the token.
 - **Managed via the Management API**, not the dashboard: `PATCH https://api.supabase.com/v1/projects/<ref>/config/auth` with `SUPABASE_ACCESS_TOKEN`. `smtp_port` must be a **string**. The Gmail App Password lives only in Supabase's server-side config — never in the repo. Rotate/revoke it at myaccount.google.com/apppasswords.
 - **To change the template wording later:** PATCH `mailer_templates_magic_link_content` / `mailer_templates_confirmation_content` (keep `{{ .Token }}`).
-- **Site URL:** set Authentication → URL Configuration → Site URL = `https://jordanreticker.github.io/music-club-app/` for correctness (OTP itself doesn't need redirects).
+- **Site URL:** set Authentication → URL Configuration → Site URL = `https://for-the-record-mc.github.io/music-club-app/` for correctness (OTP itself doesn't need redirects).
 
 ## 2. Admin / dev login (no email)
 

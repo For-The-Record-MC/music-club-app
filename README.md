@@ -23,4 +23,4 @@ Requires `app/.env.local` (gitignored) — see [context/tech-stack.md](context/t
 ## Deploy
 
 Every push to `main` builds the web export via GitHub Actions and publishes to
-GitHub Pages: https://jordanreticker.github.io/music-club-app/
+GitHub Pages: https://for-the-record-mc.github.io/music-club-app/

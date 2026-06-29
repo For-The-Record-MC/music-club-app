@@ -37,7 +37,7 @@ npx tsc --noEmit    # type check (no test suite)
 
 ## Deploy
 
-- **Web:** every push to `main` runs `.github/workflows/deploy-web.yml` → `expo export --platform web` → GitHub Pages at https://jordanreticker.github.io/music-club-app/. Build-time env comes from repo Actions secrets `EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_ANON_KEY`.
+- **Web:** every push to `main` runs `.github/workflows/deploy-web.yml` → `expo export --platform web` → GitHub Pages at https://for-the-record-mc.github.io/music-club-app/. Build-time env comes from repo Actions secrets `EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_ANON_KEY`.
 - **Native:** EAS/TestFlight deferred until later phases.
 
 ## Local prerequisites

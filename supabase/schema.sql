@@ -63,7 +63,8 @@ CREATE TABLE club_members (
   club_id uuid NOT NULL,
   profile_id uuid NOT NULL,
   role text NOT NULL DEFAULT 'member'::text,
-  joined_at timestamp with time zone NOT NULL DEFAULT now()
+  joined_at timestamp with time zone NOT NULL DEFAULT now(),
+  notifications_muted boolean NOT NULL DEFAULT false
 );
 
 CREATE TABLE clubs (
@@ -151,7 +152,9 @@ CREATE TABLE cycles (
   spotify_playlist_id text,
   spotify_playlist_url text,
   spotify_highlights_playlist_id text,
-  spotify_highlights_playlist_url text
+  spotify_highlights_playlist_url text,
+  meeting_reminder_24h_sent_at timestamp with time zone,
+  meeting_reminder_1h_sent_at timestamp with time zone
 );
 
 CREATE TABLE feed_posts (
@@ -177,6 +180,15 @@ CREATE TABLE meeting_posts (
   author_id uuid NOT NULL,
   text text NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE notification_preferences (
+  profile_id uuid NOT NULL,
+  mentions boolean NOT NULL DEFAULT true,
+  lifecycle boolean NOT NULL DEFAULT true,
+  social boolean NOT NULL DEFAULT false,
+  announcements boolean NOT NULL DEFAULT true,
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
 );
 
 CREATE TABLE post_comments (
@@ -218,6 +230,13 @@ CREATE TABLE profiles (
   avatar_album_url text,
   email text,
   can_use_personal_spotify boolean NOT NULL DEFAULT false
+);
+
+CREATE TABLE push_tokens (
+  profile_id uuid NOT NULL,
+  platform text NOT NULL,
+  token text NOT NULL,
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
 );
 
 CREATE TABLE ratings (
@@ -500,6 +519,10 @@ ALTER TABLE meeting_posts ADD CONSTRAINT meeting_posts_pkey PRIMARY KEY (id);
 
 ALTER TABLE meeting_posts ADD CONSTRAINT meeting_posts_text_check CHECK (((char_length(TRIM(BOTH FROM text)) >= 1) AND (char_length(TRIM(BOTH FROM text)) <= 2000)));
 
+ALTER TABLE notification_preferences ADD CONSTRAINT notification_preferences_pkey PRIMARY KEY (profile_id);
+
+ALTER TABLE notification_preferences ADD CONSTRAINT notification_preferences_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
 ALTER TABLE post_comments ADD CONSTRAINT post_comments_author_id_fkey FOREIGN KEY (author_id) REFERENCES profiles(id) ON DELETE CASCADE;
 
 ALTER TABLE post_comments ADD CONSTRAINT post_comments_pkey PRIMARY KEY (id);
@@ -541,6 +564,12 @@ ALTER TABLE profiles ADD CONSTRAINT profiles_display_name_check CHECK (((display
 ALTER TABLE profiles ADD CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 ALTER TABLE profiles ADD CONSTRAINT profiles_pkey PRIMARY KEY (id);
+
+ALTER TABLE push_tokens ADD CONSTRAINT push_tokens_pkey PRIMARY KEY (profile_id, platform);
+
+ALTER TABLE push_tokens ADD CONSTRAINT push_tokens_platform_check CHECK ((platform = ANY (ARRAY['ios'::text, 'android'::text])));
+
+ALTER TABLE push_tokens ADD CONSTRAINT push_tokens_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
 
 ALTER TABLE ratings ADD CONSTRAINT ratings_album_id_fkey FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE CASCADE;
 
@@ -720,6 +749,8 @@ CREATE INDEX meeting_posts_cycle_idx ON public.meeting_posts USING btree (cycle_
 CREATE INDEX post_comments_post_idx ON public.post_comments USING btree (post_id, created_at);
 
 CREATE INDEX post_reactions_post_idx ON public.post_reactions USING btree (post_id);
+
+CREATE INDEX push_tokens_token_idx ON public.push_tokens USING btree (token);
 
 CREATE INDEX ratings_album_idx ON public.ratings USING btree (album_id);
 
@@ -936,6 +967,18 @@ CREATE POLICY meeting_posts_select ON meeting_posts AS PERMISSIVE FOR SELECT TO 
    FROM cycles c
   WHERE ((c.id = meeting_posts.cycle_id) AND is_club_member(c.club_id)))));
 
+ALTER TABLE notification_preferences ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY notification_preferences_insert ON notification_preferences AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK ((profile_id = auth.uid()));
+
+CREATE POLICY notification_preferences_select ON notification_preferences AS PERMISSIVE FOR SELECT TO authenticated
+  USING ((profile_id = auth.uid()));
+
+CREATE POLICY notification_preferences_update ON notification_preferences AS PERMISSIVE FOR UPDATE TO authenticated
+  USING ((profile_id = auth.uid()))
+  WITH CHECK ((profile_id = auth.uid()));
+
 ALTER TABLE post_comments ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY post_comments_delete ON post_comments AS PERMISSIVE FOR DELETE TO authenticated
@@ -983,6 +1026,21 @@ CREATE POLICY profiles_select ON profiles AS PERMISSIVE FOR SELECT TO authentica
 CREATE POLICY profiles_update ON profiles AS PERMISSIVE FOR UPDATE TO authenticated
   USING ((id = auth.uid()))
   WITH CHECK ((id = auth.uid()));
+
+ALTER TABLE push_tokens ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY push_tokens_delete ON push_tokens AS PERMISSIVE FOR DELETE TO authenticated
+  USING ((profile_id = auth.uid()));
+
+CREATE POLICY push_tokens_insert ON push_tokens AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK ((profile_id = auth.uid()));
+
+CREATE POLICY push_tokens_select ON push_tokens AS PERMISSIVE FOR SELECT TO authenticated
+  USING ((profile_id = auth.uid()));
+
+CREATE POLICY push_tokens_update ON push_tokens AS PERMISSIVE FOR UPDATE TO authenticated
+  USING ((profile_id = auth.uid()))
+  WITH CHECK ((profile_id = auth.uid()));
 
 ALTER TABLE ratings ENABLE ROW LEVEL SECURITY;
 
@@ -2069,6 +2127,28 @@ end;
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.my_announcement_quota(p_club uuid)
+ RETURNS json
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_used int;
+begin
+  if public.club_role(p_club) not in ('owner', 'admin') then
+    raise exception 'Admin access required';
+  end if;
+  select count(*) into v_used
+  from activity_events
+  where club_id = p_club
+    and event_type = 'club_announcement'
+    and created_at >= now() - interval '24 hours';
+  return json_build_object('limit', 3, 'used', v_used);
+end;
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.my_song_quota(p_club uuid)
  RETURNS json
  LANGUAGE plpgsql
@@ -2127,6 +2207,79 @@ begin
       select 1 from club_members m
       where m.club_id = p_club and m.profile_id = r
     );
+end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.notify_send_push()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_url text;
+  v_secret text;
+begin
+  begin
+    select decrypted_secret into v_url from vault.decrypted_secrets where name = 'send_push_url';
+    select decrypted_secret into v_secret from vault.decrypted_secrets where name = 'send_push_secret';
+    if v_url is null or v_secret is null then
+      return new;  -- push not configured → no-op
+    end if;
+
+    perform net.http_post(
+      url := v_url,
+      headers := jsonb_build_object('Content-Type', 'application/json', 'x-push-secret', v_secret),
+      body := jsonb_build_object('event_id', new.id)
+    );
+  exception when others then
+    -- swallow: never let push delivery break the inserting transaction
+    null;
+  end;
+  return new;
+end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.post_announcement(p_club uuid, p_title text, p_body text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_title text := nullif(btrim(coalesce(p_title, '')), '');
+  v_body text := btrim(coalesce(p_body, ''));
+  v_recent int;
+begin
+  if public.club_role(p_club) not in ('owner', 'admin') then
+    raise exception 'Only owners and admins can post announcements';
+  end if;
+  if char_length(v_body) < 1 then
+    raise exception 'Announcement message cannot be empty';
+  end if;
+  if char_length(v_body) > 500 then
+    raise exception 'Announcement message is too long (max 500 characters)';
+  end if;
+  if v_title is not null and char_length(v_title) > 80 then
+    raise exception 'Announcement title is too long (max 80 characters)';
+  end if;
+
+  select count(*) into v_recent
+  from activity_events
+  where club_id = p_club
+    and event_type = 'club_announcement'
+    and created_at >= now() - interval '24 hours';
+  if v_recent >= 3 then
+    raise exception 'This club has hit its limit of 3 announcements per day.'
+      using errcode = 'check_violation';
+  end if;
+
+  perform public.publish_activity_event(
+    p_club, 'club_announcement',
+    jsonb_build_object('title', v_title, 'body', v_body)
+  );
 end;
 $function$
 ;
@@ -2193,6 +2346,73 @@ begin
   where id = p_club
   returning invite_code into v_code;
   return v_code;
+end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.send_meeting_reminders()
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  c record;
+begin
+  -- 24-hours-out window
+  for c in
+    select id, club_id, number from cycles
+    where status = 'open' and revealed_at is null and meeting_at is not null
+      and meeting_at > now() and meeting_at <= now() + interval '24 hours'
+      and meeting_reminder_24h_sent_at is null
+  loop
+    insert into activity_events (club_id, actor_id, recipient_id, event_type, payload)
+    select c.club_id, null, m.profile_id, 'meeting_reminder',
+           jsonb_build_object('cycle_number', c.number, 'window', '24h')
+    from club_members m
+    where m.club_id = c.club_id
+      and not exists (
+        select 1 from rsvps r
+        where r.cycle_id = c.id and r.profile_id = m.profile_id and r.status = 'no'
+      );
+    update cycles set meeting_reminder_24h_sent_at = now() where id = c.id;
+  end loop;
+
+  -- 1-hour-out window (same recipients, tighter timing)
+  for c in
+    select id, club_id, number from cycles
+    where status = 'open' and revealed_at is null and meeting_at is not null
+      and meeting_at > now() and meeting_at <= now() + interval '1 hour'
+      and meeting_reminder_1h_sent_at is null
+  loop
+    insert into activity_events (club_id, actor_id, recipient_id, event_type, payload)
+    select c.club_id, null, m.profile_id, 'meeting_reminder',
+           jsonb_build_object('cycle_number', c.number, 'window', '1h')
+    from club_members m
+    where m.club_id = c.club_id
+      and not exists (
+        select 1 from rsvps r
+        where r.cycle_id = c.id and r.profile_id = m.profile_id and r.status = 'no'
+      );
+    update cycles set meeting_reminder_1h_sent_at = now() where id = c.id;
+  end loop;
+end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.set_club_mute(p_club uuid, p_muted boolean)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not public.is_club_member(p_club) then
+    raise exception 'Not a club member';
+  end if;
+  update club_members
+    set notifications_muted = coalesce(p_muted, false)
+  where club_id = p_club and profile_id = auth.uid();
 end;
 $function$
 ;
@@ -2365,6 +2585,14 @@ begin
     jsonb_build_object('cycle_number', v_cycle.number, 'picker_id', v_picker, 'picker_name', v_name)
   );
 
+  -- Targeted nudge to the winner (skipped for them in the broadcast push by the
+  -- actor-exclusion, surfaced here as a personal "you're up").
+  insert into activity_events (club_id, actor_id, recipient_id, event_type, payload)
+  values (
+    p_club, auth.uid(), v_picker, 'you_are_picker',
+    jsonb_build_object('cycle_number', v_cycle.number)
+  );
+
   return v_cycle;
 end;
 $function$
@@ -2407,6 +2635,8 @@ begin
 
   select * into v_row from streaming_connections where club_id = p_club;
   if not found then
+    -- No personal connection. can_connect true → owner may connect; false →
+    -- the club is served automatically by the shared app account.
     return json_build_object('connected', false, 'can_connect', v_can_connect);
   end if;
   return json_build_object(
@@ -2536,6 +2766,8 @@ $function$
 -- =====================================================
 -- TRIGGERS
 -- =====================================================
+
+CREATE TRIGGER activity_events_push AFTER INSERT ON public.activity_events FOR EACH ROW EXECUTE FUNCTION notify_send_push();
 
 CREATE TRIGGER album_impressions_lock_initial BEFORE UPDATE ON public.album_impressions FOR EACH ROW EXECUTE FUNCTION lock_initial_score();
 

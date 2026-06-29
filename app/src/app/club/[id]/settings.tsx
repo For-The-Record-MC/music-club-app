@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { Avatar, Badge, Button, Card, InlineNote, Label, Screen, TextField } from '@/components/ui';
@@ -11,6 +11,7 @@ import { clubEmojis, fonts, radius } from '@/theme';
 import { confirmAsync } from '@/utils/confirm';
 import { memberName } from '@/utils/memberName';
 import {
+  activity,
   clubMembers,
   clubs,
   DEFAULT_LEADERBOARD_WEIGHTS,
@@ -51,6 +52,41 @@ export default function ClubSettings() {
 
   const [error, setError] = useState<string | null>(null);
   const [rotated, setRotated] = useState(false);
+
+  // Announcement composer.
+  const [announceBody, setAnnounceBody] = useState('');
+  const [announceTitle, setAnnounceTitle] = useState('');
+  const [announcing, setAnnouncing] = useState(false);
+  const [announceErr, setAnnounceErr] = useState<string | null>(null);
+  const [announceSent, setAnnounceSent] = useState(false);
+  const [announceQuota, setAnnounceQuota] = useState<{ limit: number; used: number } | null>(null);
+
+  const loadQuota = useCallback(async () => {
+    if (!club) return;
+    const { data } = await activity.announcementQuota(club.id);
+    if (data) setAnnounceQuota(data as { limit: number; used: number });
+  }, [club]);
+
+  useEffect(() => {
+    if (club && isAdmin) loadQuota();
+  }, [club, isAdmin, loadQuota]);
+
+  const sendAnnouncement = async () => {
+    if (!club || !announceBody.trim()) return;
+    setAnnouncing(true);
+    setAnnounceErr(null);
+    const { error: err } = await activity.postAnnouncement(club.id, announceTitle.trim(), announceBody.trim());
+    setAnnouncing(false);
+    if (err) {
+      setAnnounceErr(err.message);
+      return;
+    }
+    setAnnounceTitle('');
+    setAnnounceBody('');
+    setAnnounceSent(true);
+    setTimeout(() => setAnnounceSent(false), 2200);
+    loadQuota();
+  };
 
   useEffect(() => {
     if (!club) return;
@@ -201,6 +237,47 @@ export default function ClubSettings() {
           style={{ marginTop: 16 }}
         />
         {error ? <InlineNote text={error} tone="error" /> : null}
+      </Card>
+
+      {/* Announce — owner + admin broadcast to the whole club */}
+      <Card style={{ marginTop: 14 }}>
+        <Label>📣 Announce to the club</Label>
+        <Text style={[styles.limitDesc, { color: palette.text2, marginBottom: 10 }]}>
+          Sends a notification to every member (unless they've muted this club).
+        </Text>
+        <TextField
+          value={announceTitle}
+          onChangeText={setAnnounceTitle}
+          maxLength={80}
+          placeholder="Title (optional)"
+        />
+        <View style={{ height: 8 }} />
+        <TextField
+          value={announceBody}
+          onChangeText={setAnnounceBody}
+          maxLength={500}
+          placeholder="What's the news?"
+          multiline
+          style={{ minHeight: 80, textAlignVertical: 'top' }}
+        />
+        {announceQuota ? (
+          <InlineNote
+            text={
+              announceQuota.used >= announceQuota.limit
+                ? `You've used all ${announceQuota.limit} announcements for today.`
+                : `${announceQuota.limit - announceQuota.used} of ${announceQuota.limit} announcements left today.`
+            }
+            tone={announceQuota.used >= announceQuota.limit ? 'error' : 'muted'}
+          />
+        ) : null}
+        <Button
+          title={announceSent ? '✓ Sent' : 'Send announcement'}
+          onPress={sendAnnouncement}
+          loading={announcing}
+          disabled={!announceBody.trim() || (announceQuota?.used ?? 0) >= (announceQuota?.limit ?? 3)}
+          style={{ marginTop: 12 }}
+        />
+        {announceErr ? <InlineNote text={announceErr} tone="error" /> : null}
       </Card>
 
       {/* Leaderboard scoring */}
