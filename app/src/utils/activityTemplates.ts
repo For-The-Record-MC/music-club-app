@@ -52,6 +52,15 @@ export function renderActivity(event: ActivityEvent, actorName: string | null): 
         text: `Meeting's coming up for cycle ${p.cycle_number ?? '?'} — rate the albums first.`,
         target: HOME,
       };
+    case 'participation_nudge': {
+      const gaps = participationGapPhrases(p);
+      const onlyShowdown = Number(p.unrated ?? 0) === 0 && (p.needs_submission || p.needs_votes);
+      return {
+        icon: '📋',
+        text: `Before the cycle ${p.cycle_number ?? '?'} meeting, you still need to: ${gaps.join(' · ')}.`,
+        target: onlyShowdown ? { pathname: '/feed', params: { tab: 'showdown' } } : HOME,
+      };
+    }
     case 'ratings_revealed':
       return { icon: '🎙️', text: `Ratings for cycle ${p.cycle_number ?? '?'} are revealed!`, target: HOME };
     case 'cycle_closed':
@@ -112,6 +121,18 @@ export function renderActivity(event: ActivityEvent, actorName: string | null): 
     default:
       return { icon: '•', text: `${who} did something.` };
   }
+}
+
+// The human phrases for a participation_nudge's open gaps. Mirrors
+// participationGapPhrases in supabase/functions/_shared/pushTemplate.ts — keep
+// the two in sync (bell wording vs OS push wording).
+function participationGapPhrases(p: Record<string, any>): string[] {
+  const gaps: string[] = [];
+  const unrated = Number(p.unrated ?? 0);
+  if (unrated > 0) gaps.push(`rate ${unrated} album${unrated === 1 ? '' : 's'}`);
+  if (p.needs_submission) gaps.push('submit a Showdown song');
+  if (p.needs_votes) gaps.push('vote in the Showdown');
+  return gaps;
 }
 
 export function timeAgo(iso: string): string {

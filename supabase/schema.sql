@@ -154,7 +154,8 @@ CREATE TABLE cycles (
   spotify_highlights_playlist_id text,
   spotify_highlights_playlist_url text,
   meeting_reminder_24h_sent_at timestamp with time zone,
-  meeting_reminder_1h_sent_at timestamp with time zone
+  meeting_reminder_1h_sent_at timestamp with time zone,
+  participation_nudge_72h_sent_at timestamp with time zone
 );
 
 CREATE TABLE feed_posts (
@@ -310,10 +311,19 @@ CREATE TABLE showdowns (
   created_at timestamp with time zone NOT NULL DEFAULT now()
 );
 
+CREATE TABLE song_note_reactions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  song_note_id uuid NOT NULL,
+  profile_id uuid NOT NULL,
+  value text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE song_note_shares (
   album_id uuid NOT NULL,
   profile_id uuid NOT NULL,
-  created_at timestamp with time zone NOT NULL DEFAULT now()
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  mode text NOT NULL DEFAULT 'now'::text
 );
 
 CREATE TABLE song_notes (
@@ -659,7 +669,19 @@ ALTER TABLE showdowns ADD CONSTRAINT showdowns_theme_text_check CHECK (((char_le
 
 ALTER TABLE showdowns ADD CONSTRAINT showdowns_winner_fk FOREIGN KEY (winner_submission_id) REFERENCES showdown_submissions(id) ON DELETE SET NULL;
 
+ALTER TABLE song_note_reactions ADD CONSTRAINT song_note_reactions_pkey PRIMARY KEY (id);
+
+ALTER TABLE song_note_reactions ADD CONSTRAINT song_note_reactions_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE song_note_reactions ADD CONSTRAINT song_note_reactions_song_note_id_fkey FOREIGN KEY (song_note_id) REFERENCES song_notes(id) ON DELETE CASCADE;
+
+ALTER TABLE song_note_reactions ADD CONSTRAINT song_note_reactions_song_note_id_profile_id_key UNIQUE (song_note_id, profile_id);
+
+ALTER TABLE song_note_reactions ADD CONSTRAINT song_note_reactions_value_check CHECK ((value = ANY (ARRAY['support'::text, 'disagree'::text, 'love'::text])));
+
 ALTER TABLE song_note_shares ADD CONSTRAINT song_note_shares_album_id_fkey FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE CASCADE;
+
+ALTER TABLE song_note_shares ADD CONSTRAINT song_note_shares_mode_check CHECK ((mode = ANY (ARRAY['now'::text, 'at_reveal'::text])));
 
 ALTER TABLE song_note_shares ADD CONSTRAINT song_note_shares_pkey PRIMARY KEY (album_id, profile_id);
 
@@ -763,6 +785,8 @@ CREATE INDEX showdown_theme_ideas_club_idx ON public.showdown_theme_ideas USING 
 CREATE INDEX showdown_votes_submission_idx ON public.showdown_votes USING btree (submission_id);
 
 CREATE INDEX showdowns_club_idx ON public.showdowns USING btree (club_id);
+
+CREATE INDEX song_note_reactions_note_idx ON public.song_note_reactions USING btree (song_note_id);
 
 CREATE INDEX song_notes_album_profile_idx ON public.song_notes USING btree (album_id, profile_id);
 
@@ -1105,6 +1129,29 @@ ALTER TABLE showdowns ENABLE ROW LEVEL SECURITY;
 CREATE POLICY showdowns_select ON showdowns AS PERMISSIVE FOR SELECT TO authenticated
   USING (is_club_member(club_id));
 
+ALTER TABLE song_note_reactions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY song_note_reactions_delete ON song_note_reactions AS PERMISSIVE FOR DELETE TO authenticated
+  USING ((profile_id = auth.uid()));
+
+CREATE POLICY song_note_reactions_insert ON song_note_reactions AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (((profile_id = auth.uid()) AND (EXISTS ( SELECT 1
+   FROM ((song_notes n
+     JOIN albums a ON ((a.id = n.album_id)))
+     JOIN cycles c ON ((c.id = a.cycle_id)))
+  WHERE ((n.id = song_note_reactions.song_note_id) AND is_club_member(c.club_id))))));
+
+CREATE POLICY song_note_reactions_select ON song_note_reactions AS PERMISSIVE FOR SELECT TO authenticated
+  USING ((EXISTS ( SELECT 1
+   FROM ((song_notes n
+     JOIN albums a ON ((a.id = n.album_id)))
+     JOIN cycles c ON ((c.id = a.cycle_id)))
+  WHERE ((n.id = song_note_reactions.song_note_id) AND is_club_member(c.club_id)))));
+
+CREATE POLICY song_note_reactions_update ON song_note_reactions AS PERMISSIVE FOR UPDATE TO authenticated
+  USING ((profile_id = auth.uid()))
+  WITH CHECK ((profile_id = auth.uid()));
+
 ALTER TABLE song_note_shares ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY song_note_shares_delete ON song_note_shares AS PERMISSIVE FOR DELETE TO authenticated
@@ -1122,6 +1169,13 @@ CREATE POLICY song_note_shares_select ON song_note_shares AS PERMISSIVE FOR SELE
      JOIN cycles c ON ((c.id = a.cycle_id)))
   WHERE ((a.id = song_note_shares.album_id) AND is_club_member(c.club_id)))));
 
+CREATE POLICY song_note_shares_update ON song_note_shares AS PERMISSIVE FOR UPDATE TO authenticated
+  USING ((profile_id = auth.uid()))
+  WITH CHECK (((profile_id = auth.uid()) AND (EXISTS ( SELECT 1
+   FROM (albums a
+     JOIN cycles c ON ((c.id = a.cycle_id)))
+  WHERE ((a.id = song_note_shares.album_id) AND is_club_member(c.club_id))))));
+
 ALTER TABLE song_notes ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY song_notes_delete ON song_notes AS PERMISSIVE FOR DELETE TO authenticated
@@ -1138,7 +1192,7 @@ CREATE POLICY song_notes_select ON song_notes AS PERMISSIVE FOR SELECT TO authen
    FROM ((song_note_shares s
      JOIN albums a ON ((a.id = s.album_id)))
      JOIN cycles c ON ((c.id = a.cycle_id)))
-  WHERE ((s.album_id = song_notes.album_id) AND (s.profile_id = song_notes.profile_id) AND is_club_member(c.club_id))))));
+  WHERE ((s.album_id = song_notes.album_id) AND (s.profile_id = song_notes.profile_id) AND is_club_member(c.club_id) AND ((s.mode = 'now'::text) OR (c.revealed_at IS NOT NULL)))))));
 
 CREATE POLICY song_notes_update ON song_notes AS PERMISSIVE FOR UPDATE TO authenticated
   USING ((profile_id = auth.uid()))
@@ -2242,6 +2296,57 @@ end;
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.participation_gaps(p_cycle uuid, p_member uuid)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  with unrated as (
+    select count(*)::int as n
+    from albums a
+    where a.cycle_id = p_cycle
+      and not exists (
+        select 1 from ratings r where r.album_id = a.id and r.profile_id = p_member
+      )
+  ),
+  sd as (select id from showdowns where cycle_id = p_cycle),
+  needs_sub as (
+    select exists (select 1 from sd)
+       and not exists (
+         select 1 from showdown_submissions s
+         join sd on sd.id = s.showdown_id
+         where s.profile_id = p_member
+       ) as v
+  ),
+  needs_vote as (
+    select exists (select 1 from sd)
+       and exists (
+         select 1 from showdown_submissions s
+         join sd on sd.id = s.showdown_id
+         where s.profile_id <> p_member
+       )
+       and not exists (
+         select 1 from showdown_votes v
+         join showdown_submissions s on s.id = v.submission_id
+         join sd on sd.id = s.showdown_id
+         where v.profile_id = p_member
+       ) as v
+  )
+  select case
+    when (select n from unrated) = 0
+      and not (select v from needs_sub)
+      and not (select v from needs_vote)
+    then null
+    else jsonb_build_object(
+      'unrated', (select n from unrated),
+      'needs_submission', (select v from needs_sub),
+      'needs_votes', (select v from needs_vote)
+    )
+  end;
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.post_announcement(p_club uuid, p_title text, p_body text)
  RETURNS void
  LANGUAGE plpgsql
@@ -2359,13 +2464,46 @@ AS $function$
 declare
   c record;
 begin
-  -- 24-hours-out window
+  -- 72-hours-out: participation nudges to members with open gaps.
+  for c in
+    select id, club_id, number from cycles
+    where status = 'open' and revealed_at is null and meeting_at is not null
+      and meeting_at > now() and meeting_at <= now() + interval '72 hours'
+      and participation_nudge_72h_sent_at is null
+  loop
+    insert into activity_events (club_id, actor_id, recipient_id, event_type, payload)
+    select c.club_id, null, m.profile_id, 'participation_nudge',
+           public.participation_gaps(c.id, m.profile_id)
+             || jsonb_build_object('cycle_number', c.number, 'window', '72h')
+    from club_members m
+    where m.club_id = c.club_id
+      and not exists (
+        select 1 from rsvps r
+        where r.cycle_id = c.id and r.profile_id = m.profile_id and r.status = 'no'
+      )
+      and public.participation_gaps(c.id, m.profile_id) is not null;
+    update cycles set participation_nudge_72h_sent_at = now() where id = c.id;
+  end loop;
+
+  -- 24-hours-out: gap members get the nudge; everyone else gets the generic ping.
   for c in
     select id, club_id, number from cycles
     where status = 'open' and revealed_at is null and meeting_at is not null
       and meeting_at > now() and meeting_at <= now() + interval '24 hours'
       and meeting_reminder_24h_sent_at is null
   loop
+    insert into activity_events (club_id, actor_id, recipient_id, event_type, payload)
+    select c.club_id, null, m.profile_id, 'participation_nudge',
+           public.participation_gaps(c.id, m.profile_id)
+             || jsonb_build_object('cycle_number', c.number, 'window', '24h')
+    from club_members m
+    where m.club_id = c.club_id
+      and not exists (
+        select 1 from rsvps r
+        where r.cycle_id = c.id and r.profile_id = m.profile_id and r.status = 'no'
+      )
+      and public.participation_gaps(c.id, m.profile_id) is not null;
+
     insert into activity_events (club_id, actor_id, recipient_id, event_type, payload)
     select c.club_id, null, m.profile_id, 'meeting_reminder',
            jsonb_build_object('cycle_number', c.number, 'window', '24h')
@@ -2374,11 +2512,13 @@ begin
       and not exists (
         select 1 from rsvps r
         where r.cycle_id = c.id and r.profile_id = m.profile_id and r.status = 'no'
-      );
+      )
+      and public.participation_gaps(c.id, m.profile_id) is null;
+
     update cycles set meeting_reminder_24h_sent_at = now() where id = c.id;
   end loop;
 
-  -- 1-hour-out window (same recipients, tighter timing)
+  -- 1-hour-out: simple "meeting soon" ping to everyone not RSVP'd 'no'.
   for c in
     select id, club_id, number from cycles
     where status = 'open' and revealed_at is null and meeting_at is not null

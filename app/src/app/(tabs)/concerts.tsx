@@ -177,19 +177,47 @@ export default function Concerts() {
   const [showCompleted, setShowCompleted] = useState(false);
   const [view, setView] = useState<'list' | 'calendar'>('list');
 
-  const { upcoming, completed } = useMemo(() => {
-    const up = rows.filter((c) => !c.completed_at);
-    const done = rows
-      .filter((c) => c.completed_at)
-      .sort((a, b) => (b.completed_at ?? '').localeCompare(a.completed_at ?? ''));
-    return { upcoming: up, completed: done };
+  // A show is "past" once it's been marked complete OR its date has slipped by
+  // (a dateless "TBA" show stays upcoming until someone reviews it). Upcoming
+  // sorts soonest-first (TBA last); past sorts most-recent-first.
+  const { upcoming, past } = useMemo(() => {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const isPast = (c: ConcertRow) => {
+      if (c.completed_at) return true;
+      const when = concertWhen(c);
+      return when != null && when.getTime() < startOfToday.getTime();
+    };
+    const up = rows
+      .filter((c) => !isPast(c))
+      .sort((a, b) => {
+        const aw = concertWhen(a);
+        const bw = concertWhen(b);
+        if (!aw && !bw) return 0;
+        if (!aw) return 1;
+        if (!bw) return -1;
+        return aw.getTime() - bw.getTime();
+      });
+    const pastRows = rows.filter(isPast).sort((a, b) => {
+      const at = a.completed_at ?? a.concert_date ?? '';
+      const bt = b.completed_at ?? b.concert_date ?? '';
+      return bt.localeCompare(at);
+    });
+    return { upcoming: up, past: pastRows };
   }, [rows]);
 
-  // A linked-to concert that's already completed lives in the collapsed section —
+  // A linked-to concert that's already past lives in the collapsed section —
   // open it so the scroll/highlight lands somewhere visible.
   useEffect(() => {
-    if (focus && completed.some((c) => c.id === focus)) setShowCompleted(true);
-  }, [focus, completed]);
+    if (focus && past.some((c) => c.id === focus)) setShowCompleted(true);
+  }, [focus, past]);
+
+  const isThisMonth = useCallback((c: ConcertRow) => {
+    const when = concertWhen(c);
+    if (!when) return false;
+    const now = new Date();
+    return when.getFullYear() === now.getFullYear() && when.getMonth() === now.getMonth();
+  }, []);
 
   const startAdd = () => {
     setEditingId(null);
@@ -362,31 +390,31 @@ export default function Concerts() {
         </Card>
       )}
 
-      {upcoming.length === 0 && completed.length === 0 ? (
+      {upcoming.length === 0 && past.length === 0 ? (
         <InlineNote text="No concerts yet — add a show and see who's in." />
       ) : null}
 
       {upcoming.map((c) => (
         <View key={c.id} onLayout={onItemLayout(c.id)}>
-          <ConcertCard concert={c} userId={userId} isAdmin={isAdmin} memberInfo={memberInfo} mentionMembers={mentionMembers} shareClubs={otherClubs} onEdit={startEdit} onChange={refresh} highlight={c.id === focus} />
+          <ConcertCard concert={c} userId={userId} isAdmin={isAdmin} memberInfo={memberInfo} mentionMembers={mentionMembers} shareClubs={otherClubs} onEdit={startEdit} onChange={refresh} highlight={c.id === focus} thisMonth={isThisMonth(c)} />
         </View>
       ))}
 
-      {completed.length > 0 ? (
+      {past.length > 0 ? (
         <>
           <Pressable
             onPress={() => setShowCompleted((s) => !s)}
             style={[styles.completedHead, { borderColor: palette.border }]}
           >
             <Text style={[styles.completedTitle, { color: palette.text2 }]}>
-              ✓ Completed shows ({completed.length})
+              Past shows ({past.length})
             </Text>
             <Text style={{ color: palette.text3 }}>{showCompleted ? '▾' : '▸'}</Text>
           </Pressable>
           {showCompleted
-            ? completed.map((c) => (
+            ? past.map((c) => (
                 <View key={c.id} onLayout={onItemLayout(c.id)}>
-                  <ConcertCard concert={c} userId={userId} isAdmin={isAdmin} memberInfo={memberInfo} mentionMembers={mentionMembers} shareClubs={otherClubs} onEdit={startEdit} onChange={refresh} highlight={c.id === focus} />
+                  <ConcertCard concert={c} userId={userId} isAdmin={isAdmin} memberInfo={memberInfo} mentionMembers={mentionMembers} shareClubs={otherClubs} onEdit={startEdit} onChange={refresh} highlight={c.id === focus} past />
                 </View>
               ))
             : null}
@@ -475,6 +503,8 @@ function ConcertCard({
   onEdit,
   onChange,
   highlight = false,
+  past = false,
+  thisMonth = false,
 }: {
   concert: ConcertRow;
   userId: string | null;
@@ -485,6 +515,8 @@ function ConcertCard({
   onEdit: (c: ConcertRow) => void;
   onChange: () => void;
   highlight?: boolean;
+  past?: boolean;
+  thisMonth?: boolean;
 }) {
   const { palette } = useTheme();
   const glow = useGlow(highlight);
@@ -532,9 +564,14 @@ function ConcertCard({
   };
 
   return (
-    <Card style={glow ? { borderColor: palette.amber } : undefined}>
+    <Card style={StyleSheet.flatten([glow ? { borderColor: palette.amber } : null, past && styles.pastCard])}>
       <View style={styles.cHead}>
         <View style={{ flex: 1, minWidth: 0 }}>
+          {thisMonth && !past ? (
+            <Text style={[styles.thisMonth, { color: palette.teal, backgroundColor: palette.tealBg }]}>
+              THIS MONTH
+            </Text>
+          ) : null}
           <Text style={[styles.cArtist, { color: palette.text1 }]}>{concert.artist}</Text>
           {concert.venue ? <Text style={[styles.cVenue, { color: palette.text2 }]}>{concert.venue}</Text> : null}
           <Text style={[styles.cMeta, { color: palette.text3 }]}>
@@ -909,6 +946,18 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   segText: { fontFamily: fonts.monoMedium, fontSize: 10, letterSpacing: 0.3 },
+  pastCard: { opacity: 0.6 },
+  thisMonth: {
+    alignSelf: 'flex-start',
+    fontFamily: fonts.monoMedium,
+    fontSize: 8,
+    letterSpacing: 1,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginBottom: 5,
+  },
   cHead: { flexDirection: 'row', alignItems: 'flex-start' },
   cArtist: { fontFamily: fonts.sansBold, fontSize: 15, marginBottom: 2 },
   cVenue: { fontFamily: fonts.sans, fontSize: 12, marginBottom: 2 },

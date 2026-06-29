@@ -10,6 +10,9 @@ import { useTheme } from '@/hooks/use-theme';
 import { fonts, radius } from '@/theme';
 import { cycles as cyclesDb, streaming, type Cycle, type CycleHighlights } from '@/utils/supabase/db';
 
+// Ranked lists collapse to this many rows by default, with a "show more" toggle.
+const COLLAPSE = 5;
+
 // History detail: a closed cycle's highlights — album scores & winner, the
 // combined-signal top songs, standout reviews, and popular feed shares.
 export default function CycleHighlightsScreen() {
@@ -22,6 +25,9 @@ export default function CycleHighlightsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
+  // Long ranked lists collapse to the first 5 by default.
+  const [showAllTop, setShowAllTop] = useState(false);
+  const [showAllSaved, setShowAllSaved] = useState(false);
 
   const isAdmin = myRole === 'owner' || myRole === 'admin';
 
@@ -263,7 +269,7 @@ export default function CycleHighlightsScreen() {
             <>
               <Label>Most saved to libraries</Label>
               <Card>
-                {data.most_saved.map((s, i) => (
+                {(showAllSaved ? data.most_saved : data.most_saved.slice(0, COLLAPSE)).map((s, i) => (
                   <View
                     key={`${s.album_id}-${s.track_name}`}
                     style={[
@@ -286,6 +292,11 @@ export default function CycleHighlightsScreen() {
                   </View>
                 ))}
               </Card>
+              <ShowMoreRow
+                total={data.most_saved.length}
+                expanded={showAllSaved}
+                onToggle={() => setShowAllSaved((v) => !v)}
+              />
             </>
           ) : null}
 
@@ -306,50 +317,6 @@ export default function CycleHighlightsScreen() {
                     <Text numberOfLines={1} style={[styles.lyricMeta, { color: palette.text3 }]}>
                       {fl.display_name ?? '(no name)'} · {fl.context}
                     </Text>
-                  </View>
-                ))}
-              </Card>
-            </>
-          ) : null}
-
-          {/* ── Top songs ─────────────────────────────────────────────── */}
-          {data.top_songs.length > 0 ? (
-            <>
-              <Label>Top songs</Label>
-              <Card>
-                {data.top_songs.map((s, i) => (
-                  <View
-                    key={`${s.source}-${s.post_id ?? s.album_id}-${s.title}-${i}`}
-                    style={[styles.songRow, i > 0 && { borderTopColor: palette.border, borderTopWidth: StyleSheet.hairlineWidth }]}
-                  >
-                    <Text style={[styles.rank, { color: palette.text3 }]}>{i + 1}</Text>
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text numberOfLines={1} style={[styles.songTitle, { color: palette.text1 }]}>
-                        {s.title}
-                      </Text>
-                      {s.artist ? (
-                        <Text numberOfLines={1} style={[styles.songArtist, { color: palette.text2 }]}>
-                          {s.artist}
-                        </Text>
-                      ) : null}
-                    </View>
-                    <View
-                      style={[
-                        styles.songTag,
-                        s.source === 'album'
-                          ? { backgroundColor: palette.purpleBg }
-                          : { backgroundColor: palette.tealBg },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.songTagText,
-                          { color: s.source === 'album' ? palette.purple : palette.teal },
-                        ]}
-                      >
-                        {s.source === 'album' ? 'ALBUM' : 'FEED'}
-                      </Text>
-                    </View>
                   </View>
                 ))}
               </Card>
@@ -386,6 +353,55 @@ export default function CycleHighlightsScreen() {
                   <Text style={[styles.reviewText, { color: palette.text1 }]}>{rv.review}</Text>
                 </Card>
               ))}
+            </>
+          ) : null}
+
+          {/* ── Top songs ─────────────────────────────────────────────── */}
+          {data.top_songs.length > 0 ? (
+            <>
+              <Label>Top songs</Label>
+              <Card>
+                {(showAllTop ? data.top_songs : data.top_songs.slice(0, COLLAPSE)).map((s, i) => (
+                  <View
+                    key={`${s.source}-${s.post_id ?? s.album_id}-${s.title}-${i}`}
+                    style={[styles.songRow, i > 0 && { borderTopColor: palette.border, borderTopWidth: StyleSheet.hairlineWidth }]}
+                  >
+                    <Text style={[styles.rank, { color: palette.text3 }]}>{i + 1}</Text>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text numberOfLines={1} style={[styles.songTitle, { color: palette.text1 }]}>
+                        {s.title}
+                      </Text>
+                      {s.artist ? (
+                        <Text numberOfLines={1} style={[styles.songArtist, { color: palette.text2 }]}>
+                          {s.artist}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <View
+                      style={[
+                        styles.songTag,
+                        s.source === 'album'
+                          ? { backgroundColor: palette.purpleBg }
+                          : { backgroundColor: palette.tealBg },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.songTagText,
+                          { color: s.source === 'album' ? palette.purple : palette.teal },
+                        ]}
+                      >
+                        {s.source === 'album' ? 'ALBUM' : 'FEED'}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </Card>
+              <ShowMoreRow
+                total={data.top_songs.length}
+                expanded={showAllTop}
+                onToggle={() => setShowAllTop((v) => !v)}
+              />
             </>
           ) : null}
 
@@ -465,6 +481,31 @@ export default function CycleHighlightsScreen() {
   );
 }
 
+// "Show N more / Show less" toggle under a list collapsed to COLLAPSE rows.
+// Renders nothing when the list is short enough to show in full.
+function ShowMoreRow({
+  total,
+  expanded,
+  onToggle,
+}: {
+  total: number;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const { palette } = useTheme();
+  if (total <= COLLAPSE) return null;
+  return (
+    <Pressable
+      onPress={onToggle}
+      style={[styles.showMore, { borderColor: palette.border }]}
+    >
+      <Text style={[styles.showMoreText, { color: palette.text2 }]}>
+        {expanded ? '▴ Show less' : `▾ Show ${total - COLLAPSE} more`}
+      </Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   topbar: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
   back: { fontSize: 22, paddingHorizontal: 4 },
@@ -538,4 +579,13 @@ const styles = StyleSheet.create({
   },
   playlistPlayIcon: { color: '#1DB954', fontSize: 11, marginLeft: 1 },
   playlistBtnText: { fontFamily: fonts.sansBold, fontSize: 14, color: '#fff', letterSpacing: 0.2 },
+  showMore: {
+    alignItems: 'center',
+    paddingVertical: 10,
+    marginTop: 6,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderStyle: 'dashed',
+  },
+  showMoreText: { fontFamily: fonts.monoMedium, fontSize: 12 },
 });

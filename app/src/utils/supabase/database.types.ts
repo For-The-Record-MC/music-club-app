@@ -633,6 +633,7 @@ export type Database = {
           meeting_time_location: string | null
           meeting_url: string | null
           number: number
+          participation_nudge_72h_sent_at: string | null
           picker_id: string
           revealed_at: string | null
           spotify_highlights_playlist_id: string | null
@@ -654,6 +655,7 @@ export type Database = {
           meeting_time_location?: string | null
           meeting_url?: string | null
           number: number
+          participation_nudge_72h_sent_at?: string | null
           picker_id: string
           revealed_at?: string | null
           spotify_highlights_playlist_id?: string | null
@@ -675,6 +677,7 @@ export type Database = {
           meeting_time_location?: string | null
           meeting_url?: string | null
           number?: number
+          participation_nudge_72h_sent_at?: string | null
           picker_id?: string
           revealed_at?: string | null
           spotify_highlights_playlist_id?: string | null
@@ -1369,20 +1372,62 @@ export type Database = {
           },
         ]
       }
+      song_note_reactions: {
+        Row: {
+          created_at: string
+          id: string
+          profile_id: string
+          song_note_id: string
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          profile_id: string
+          song_note_id: string
+          value: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          profile_id?: string
+          song_note_id?: string
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "song_note_reactions_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "song_note_reactions_song_note_id_fkey"
+            columns: ["song_note_id"]
+            isOneToOne: false
+            referencedRelation: "song_notes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       song_note_shares: {
         Row: {
           album_id: string
           created_at: string
+          mode: string
           profile_id: string
         }
         Insert: {
           album_id: string
           created_at?: string
+          mode?: string
           profile_id: string
         }
         Update: {
           album_id?: string
           created_at?: string
+          mode?: string
           profile_id?: string
         }
         Relationships: [
@@ -1590,6 +1635,7 @@ export type Database = {
           meeting_time_location: string | null
           meeting_url: string | null
           number: number
+          participation_nudge_72h_sent_at: string | null
           picker_id: string
           revealed_at: string | null
           spotify_highlights_playlist_id: string | null
@@ -1667,6 +1713,10 @@ export type Database = {
         Args: { p_club: string; p_payload?: Json; p_recipients: string[] }
         Returns: undefined
       }
+      participation_gaps: {
+        Args: { p_cycle: string; p_member: string }
+        Returns: Json
+      }
       post_announcement: {
         Args: { p_body: string; p_club: string; p_title: string }
         Returns: undefined
@@ -1689,6 +1739,7 @@ export type Database = {
           meeting_time_location: string | null
           meeting_url: string | null
           number: number
+          participation_nudge_72h_sent_at: string | null
           picker_id: string
           revealed_at: string | null
           spotify_highlights_playlist_id: string | null
@@ -1774,6 +1825,7 @@ export type Database = {
           meeting_time_location: string | null
           meeting_url: string | null
           number: number
+          participation_nudge_72h_sent_at: string | null
           picker_id: string
           revealed_at: string | null
           spotify_highlights_playlist_id: string | null

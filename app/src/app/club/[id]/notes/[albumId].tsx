@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle } from 'react-native';
 
 import { VibeTagPicker } from '@/components/VibeTagPicker';
 import { Avatar, Button, Card, InlineNote, Screen, Slider, TextField } from '@/components/ui';
@@ -14,11 +14,15 @@ import { openLyrics } from '@/utils/genius';
 import {
   albumImpressions as impressionsDb,
   albums as albumsDb,
+  songNoteReactions as noteReactionsDb,
   songNoteShares as sharesDb,
   songNotes as songNotesDb,
   vibeTags as vibeTagsDb,
+  SONG_NOTE_REACTIONS,
   type Album,
+  type ShareMode,
   type SongNote,
+  type SongNoteReactionValue,
   type Thumb,
 } from '@/utils/supabase/db';
 
@@ -102,9 +106,13 @@ export default function SongNotesEditor() {
   const [initialReview, setInitialReview] = useState('');
   const [initialScore, setInitialScore] = useState<number | null>(null);
   const [initialLocked, setInitialLocked] = useState(false);
-  const [sharing, setSharing] = useState(false);
+  const [shareMode, setShareMode] = useState<ShareMode | null>(null);
   const [showOthers, setShowOthers] = useState(false);
   const [others, setOthers] = useState<OthersNote[]>([]);
+  // Reactions on others' shared notes, keyed by song_note id.
+  const [noteReactions, setNoteReactions] = useState<
+    Record<string, { profile_id: string; value: SongNoteReactionValue }[]>
+  >({});
   const [saveState, setSaveState] = useState<'idle' | 'pending' | 'saving' | 'saved' | 'error'>(
     'idle',
   );
@@ -163,9 +171,10 @@ export default function SongNotesEditor() {
       }
       setCatalog(merged);
     });
-    sharesDb
-      .listForAlbums([albumId])
-      .then(({ data }) => setSharing((data ?? []).some((s) => s.profile_id === userId)));
+    sharesDb.listForAlbums([albumId]).then(({ data }) => {
+      const mine = (data ?? []).find((s) => s.profile_id === userId);
+      setShareMode((mine?.mode as ShareMode | undefined) ?? null);
+    });
   }, [albumId, userId, loadMine]);
 
   const tracks = useMemo(() => parseTracks(album?.tracks), [album]);
@@ -276,8 +285,19 @@ export default function SongNotesEditor() {
 
   const loadOthers = useCallback(async () => {
     if (!albumId || !userId) return;
-    const { data } = await songNotesDb.listVisible(albumId);
+    const [{ data }, { data: rx }] = await Promise.all([
+      songNotesDb.listVisible(albumId),
+      noteReactionsDb.listForAlbum(albumId),
+    ]);
     setOthers(((data ?? []) as OthersNote[]).filter((n) => n.profile_id !== userId));
+    const map: Record<string, { profile_id: string; value: SongNoteReactionValue }[]> = {};
+    for (const r of rx ?? []) {
+      (map[r.song_note_id] ??= []).push({
+        profile_id: r.profile_id,
+        value: r.value as SongNoteReactionValue,
+      });
+    }
+    setNoteReactions(map);
   }, [albumId, userId]);
 
   const toggleShowOthers = () => {
@@ -286,15 +306,28 @@ export default function SongNotesEditor() {
     if (next && others.length === 0) loadOthers();
   };
 
-  const toggleSharing = async () => {
+  const changeShareMode = async (next: ShareMode | null) => {
     if (!albumId || !userId) return;
-    const next = !sharing;
-    setSharing(next);
+    const prev = shareMode;
+    setShareMode(next); // optimistic
     const { error: err } = await sharesDb.set(albumId, userId, next);
     if (err) {
-      setSharing(!next);
+      setShareMode(prev);
       setError(err.message);
     }
+  };
+
+  const reactToNote = async (noteId: string, value: SongNoteReactionValue) => {
+    if (!userId) return;
+    const mine = noteReactions[noteId]?.find((r) => r.profile_id === userId);
+    // Optimistic: toggle off if re-tapping the same value, else set/replace.
+    setNoteReactions((prev) => {
+      const rest = (prev[noteId] ?? []).filter((r) => r.profile_id !== userId);
+      const next = mine?.value === value ? rest : [...rest, { profile_id: userId, value }];
+      return { ...prev, [noteId]: next };
+    });
+    if (mine?.value === value) await noteReactionsDb.clear(noteId, userId);
+    else await noteReactionsDb.set(noteId, userId, value);
   };
 
   const setDraft = (trackNumber: number, patch: Partial<Draft>) => {
@@ -390,8 +423,8 @@ export default function SongNotesEditor() {
         ) : null}
       </View>
 
+      <ShareModeControl mode={shareMode} onChange={changeShareMode} />
       <View style={styles.toggleRow}>
-        <Toggle active={sharing} onPress={toggleSharing} onLabel="🔓 Sharing" offLabel="🔒 Private" />
         <Toggle
           active={showOthers}
           onPress={toggleShowOthers}
@@ -482,14 +515,15 @@ export default function SongNotesEditor() {
                 </Pressable>
                 <Pressable
                   onPress={() => setDraft(t.trackNumber, { savedToLibrary: !d.savedToLibrary })}
+                  accessibilityLabel={d.savedToLibrary ? 'Saved to your library' : 'Save to your library'}
                   style={[
                     styles.thumb,
                     { borderColor: palette.border },
-                    d.savedToLibrary && { backgroundColor: palette.amberBg, borderColor: palette.amber },
+                    d.savedToLibrary && { backgroundColor: palette.tealBg, borderColor: palette.teal },
                   ]}
                 >
-                  <Text style={{ fontSize: 15, color: d.savedToLibrary ? palette.amber : palette.text3 }}>
-                    {d.savedToLibrary ? '★' : '☆'}
+                  <Text style={{ fontSize: 15, color: d.savedToLibrary ? palette.teal : palette.text3 }}>
+                    {d.savedToLibrary ? '✓' : '+'}
                   </Text>
                 </Pressable>
                 <Pressable
@@ -632,9 +666,11 @@ export default function SongNotesEditor() {
                       ) : null}
                       {o.thumb ? <Text style={{ fontSize: 12 }}>{o.thumb === 'up' ? '👍' : '👎'}</Text> : null}
                       {o.comment ? (
-                        <Text numberOfLines={3} style={[styles.otherComment, { color: palette.text1 }]}>
-                          {o.comment}
-                        </Text>
+                        <ExpandableText
+                          text={o.comment}
+                          limit={3}
+                          style={[styles.otherComment, { color: palette.text1 }]}
+                        />
                       ) : null}
                       {o.favorite_lyric ? (
                         <Text style={[styles.otherLyric, { color: palette.text2 }]}>
@@ -646,6 +682,11 @@ export default function SongNotesEditor() {
                           {o.vibe_tags.join(' · ')}
                         </Text>
                       ) : null}
+                      <NoteReactions
+                        reactions={noteReactions[o.id] ?? []}
+                        mine={userId}
+                        onReact={(value) => reactToNote(o.id, value)}
+                      />
                     </View>
                   ))}
                 </View>
@@ -660,12 +701,128 @@ export default function SongNotesEditor() {
       ) : null}
 
       <Text style={[styles.footNote, { color: palette.text3 }]}>
-        {sharing
-          ? 'Shared with the club: your comments, favorite lyrics, and vibe tags for this album.'
-          : 'Private to you. Flip “Sharing” to let the club read your comments, favorite lyrics, and vibe tags.'}
+        {shareMode === 'now'
+          ? 'Shared now: the club can read your comments, favorite lyrics, and vibe tags for this album.'
+          : shareMode === 'at_reveal'
+            ? 'Shared at reveal: your comments, favorite lyrics, and vibe tags unlock for the club when this cycle is revealed.'
+            : 'Private to you. Choose “At reveal” or “Now” to let the club read your comments, favorite lyrics, and vibe tags.'}
       </Text>
       {error ? <InlineNote text={error} tone="error" /> : null}
     </Screen>
+  );
+}
+
+// A shared note's general comment, clamped to `limit` lines with a "more/less"
+// toggle. Measures the full line count once (first layout, unclamped) so the
+// toggle only appears when the text actually overflows.
+function ExpandableText({
+  text,
+  limit = 3,
+  style,
+}: {
+  text: string;
+  limit?: number;
+  style?: StyleProp<TextStyle>;
+}) {
+  const { palette } = useTheme();
+  const [expanded, setExpanded] = useState(false);
+  const [totalLines, setTotalLines] = useState<number | null>(null);
+  const truncatable = totalLines != null && totalLines > limit;
+  return (
+    <View style={styles.expandable}>
+      <Text
+        style={style}
+        numberOfLines={totalLines == null ? undefined : expanded ? undefined : limit}
+        onTextLayout={(e) => {
+          if (totalLines == null) setTotalLines(e.nativeEvent.lines.length);
+        }}
+      >
+        {text}
+      </Text>
+      {truncatable ? (
+        <Pressable onPress={() => setExpanded((v) => !v)} hitSlop={6}>
+          <Text style={[styles.moreLink, { color: palette.text3 }]}>{expanded ? 'less ▴' : 'more ▾'}</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+// Three-way sharing: Private (no row), At reveal, or Now. "At reveal" keeps the
+// notes hidden until the cycle is revealed (enforced by the read policy).
+function ShareModeControl({
+  mode,
+  onChange,
+}: {
+  mode: ShareMode | null;
+  onChange: (m: ShareMode | null) => void;
+}) {
+  const { palette } = useTheme();
+  const opts: { key: ShareMode | null; label: string }[] = [
+    { key: null, label: '🔒 Private' },
+    { key: 'at_reveal', label: '🕓 At reveal' },
+    { key: 'now', label: '🔓 Now' },
+  ];
+  return (
+    <View style={styles.shareModeRow}>
+      {opts.map((o) => {
+        const active = mode === o.key;
+        return (
+          <Pressable
+            key={String(o.key)}
+            onPress={() => onChange(o.key)}
+            style={[
+              styles.shareSeg,
+              { backgroundColor: palette.card2, borderColor: palette.border },
+              active && { backgroundColor: palette.tealBg, borderColor: palette.teal },
+            ]}
+          >
+            <Text style={[styles.shareSegText, { color: active ? palette.teal : palette.text2 }]}>
+              {o.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+// Support / disagree / love on a shared note. Tapping your current reaction
+// clears it; tapping another replaces it.
+function NoteReactions({
+  reactions,
+  mine,
+  onReact,
+}: {
+  reactions: { profile_id: string; value: SongNoteReactionValue }[];
+  mine: string | null;
+  onReact: (value: SongNoteReactionValue) => void;
+}) {
+  const { palette } = useTheme();
+  const myValue = mine ? reactions.find((r) => r.profile_id === mine)?.value : undefined;
+  return (
+    <View style={styles.noteReactRow}>
+      {SONG_NOTE_REACTIONS.map(({ value, emoji }) => {
+        const count = reactions.filter((r) => r.value === value).length;
+        const active = myValue === value;
+        return (
+          <Pressable
+            key={value}
+            onPress={() => onReact(value)}
+            style={[
+              styles.noteReactBtn,
+              { borderColor: palette.border },
+              active && { borderColor: palette.teal, backgroundColor: palette.tealBg },
+            ]}
+          >
+            <Text style={{ fontSize: 12 }}>{emoji}</Text>
+            {count > 0 ? (
+              <Text style={[styles.noteReactCount, { color: palette.text2 }]}>{count}</Text>
+            ) : null}
+          </Pressable>
+        );
+      })}
+    </View>
   );
 }
 
@@ -703,6 +860,26 @@ const styles = StyleSheet.create({
   eyebrow: { fontFamily: fonts.sansMedium, fontSize: 9, letterSpacing: 3, marginBottom: 2 },
   title: { fontFamily: fonts.sansBold, fontSize: 17 },
   art: { width: 44, height: 44, borderRadius: radius.sm },
+  shareModeRow: { flexDirection: 'row', gap: 6, marginBottom: 10 },
+  shareSeg: {
+    flex: 1,
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  shareSegText: { fontFamily: fonts.monoMedium, fontSize: 11 },
+  noteReactRow: { flexBasis: '100%', flexDirection: 'row', gap: 6, marginTop: 6 },
+  noteReactBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 14,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  noteReactCount: { fontFamily: fonts.monoMedium, fontSize: 10 },
   toggleRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
   toggle: {
     flex: 1,
@@ -781,7 +958,9 @@ const styles = StyleSheet.create({
   otherRow: { flexDirection: 'row', alignItems: 'center', gap: 7, flexWrap: 'wrap' },
   otherName: { fontFamily: fonts.sansMedium, fontSize: 12 },
   otherScore: { fontFamily: fonts.sansBold, fontSize: 12 },
-  otherComment: { flexBasis: '100%', fontFamily: fonts.sans, fontSize: 12, lineHeight: 17 },
+  otherComment: { fontFamily: fonts.sans, fontSize: 12, lineHeight: 17 },
+  expandable: { flexBasis: '100%' },
+  moreLink: { fontFamily: fonts.monoMedium, fontSize: 10, marginTop: 3 },
   otherLyric: { flexBasis: '100%', fontFamily: fonts.sans, fontSize: 12, fontStyle: 'italic' },
   otherVibes: { flexBasis: '100%', fontFamily: fonts.mono, fontSize: 10 },
   autosave: { fontFamily: fonts.monoMedium, fontSize: 10, textAlign: 'center', marginBottom: 12 },
