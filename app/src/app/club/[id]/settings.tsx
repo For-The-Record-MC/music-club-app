@@ -2,7 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
-import { Avatar, Badge, Button, Card, InlineNote, Label, Screen, TextField } from '@/components/ui';
+import { Avatar, Badge, BottomSheet, Button, Card, InlineNote, Label, Screen, TextField } from '@/components/ui';
 import { useTheme } from '@/hooks/use-theme';
 import { useClubData, type MemberRow } from '@/hooks/useClubData';
 import { useAuthStore } from '@/stores/authStore';
@@ -10,6 +10,7 @@ import { useCurrentClubStore } from '@/stores/currentClubStore';
 import { clubEmojis, fonts, radius } from '@/theme';
 import { confirmAsync } from '@/utils/confirm';
 import { memberName } from '@/utils/memberName';
+import { COMMON_TIMEZONES, timezoneLabel } from '@/utils/timezone';
 import {
   activity,
   clubMembers,
@@ -47,6 +48,9 @@ export default function ClubSettings() {
   const [emoji, setEmoji] = useState('🎵');
   const [limitOn, setLimitOn] = useState(false);
   const [limitText, setLimitText] = useState('5');
+  // null = fall back to each viewer's device timezone for meeting times.
+  const [tz, setTz] = useState<string | null>(null);
+  const [tzSheet, setTzSheet] = useState(false);
   const [savingDetails, setSavingDetails] = useState(false);
   const [savedDetails, setSavedDetails] = useState(false);
 
@@ -95,6 +99,7 @@ export default function ClubSettings() {
     const cap = club.song_limit_per_cycle;
     setLimitOn(cap != null);
     if (cap != null) setLimitText(String(cap));
+    setTz(club.meeting_timezone ?? null);
   }, [club]);
 
   // Members can't be here — bounce them home.
@@ -122,6 +127,7 @@ export default function ClubSettings() {
       name: name.trim(),
       emoji,
       song_limit_per_cycle: cap,
+      meeting_timezone: tz,
     });
     setSavingDetails(false);
     if (err) {
@@ -230,6 +236,18 @@ export default function ClubSettings() {
           <Text style={[styles.limitUnit, { color: palette.text3 }]}>Unlimited — no cap.</Text>
         )}
 
+        <Label>{'\n'}Meeting timezone</Label>
+        <Text style={[styles.limitDesc, { color: palette.text2, marginBottom: 8 }]}>
+          The timezone meeting times (and the time poll) are shown in.
+        </Text>
+        <Pressable
+          onPress={() => setTzSheet(true)}
+          style={[styles.tzField, { backgroundColor: palette.card2, borderColor: palette.border }]}
+        >
+          <Text style={[styles.tzValue, { color: palette.text1 }]}>{timezoneLabel(tz)}</Text>
+          <Text style={[styles.tzChevron, { color: palette.teal }]}>change ▾</Text>
+        </Pressable>
+
         <Button
           title={savedDetails ? '✓ Saved' : 'Save changes'}
           onPress={saveDetails}
@@ -238,6 +256,35 @@ export default function ClubSettings() {
         />
         {error ? <InlineNote text={error} tone="error" /> : null}
       </Card>
+
+      <BottomSheet visible={tzSheet} onClose={() => setTzSheet(false)}>
+        <Label>Meeting timezone</Label>
+        <Pressable
+          onPress={() => {
+            setTz(null);
+            setTzSheet(false);
+          }}
+          style={styles.tzRow}
+        >
+          <Text style={[styles.tzRowText, { color: !tz ? palette.teal : palette.text1 }]}>
+            Device timezone (auto)
+          </Text>
+        </Pressable>
+        {COMMON_TIMEZONES.map((t) => (
+          <Pressable
+            key={t.value}
+            onPress={() => {
+              setTz(t.value);
+              setTzSheet(false);
+            }}
+            style={styles.tzRow}
+          >
+            <Text style={[styles.tzRowText, { color: tz === t.value ? palette.teal : palette.text1 }]}>
+              {t.label}
+            </Text>
+          </Pressable>
+        ))}
+      </BottomSheet>
 
       {/* Announce — owner + admin broadcast to the whole club */}
       <Card style={{ marginTop: 14 }}>
@@ -455,6 +502,19 @@ const styles = StyleSheet.create({
   limitDesc: { flex: 1, fontFamily: fonts.sans, fontSize: 13, lineHeight: 18 },
   limitInputRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10 },
   limitUnit: { fontFamily: fonts.mono, fontSize: 11, marginTop: 6 },
+  tzField: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.md,
+    paddingVertical: 12,
+    paddingHorizontal: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  tzValue: { fontFamily: fonts.sansMedium, fontSize: 14 },
+  tzChevron: { fontFamily: fonts.monoMedium, fontSize: 11 },
+  tzRow: { paddingVertical: 11, paddingHorizontal: 4 },
+  tzRowText: { fontFamily: fonts.sansMedium, fontSize: 15 },
   weightRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 },
   weightLabel: { flex: 1, fontFamily: fonts.sansMedium, fontSize: 13 },
   memberRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },

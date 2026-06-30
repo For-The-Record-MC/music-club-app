@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { concerts, type Concert, type ConcertStatus } from '@/utils/supabase/db';
 
 export interface ConcertRow extends Concert {
-  profiles: { display_name: string | null; avatar_color: number; avatar_url: string | null } | null;
+  profiles: { display_name: string | null; email: string | null; avatar_color: number; avatar_url: string | null } | null;
   concert_interest: { profile_id: string; status: ConcertStatus }[];
   concert_comments: { count: number }[];
 }

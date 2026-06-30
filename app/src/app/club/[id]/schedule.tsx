@@ -96,6 +96,12 @@ export default function Schedule() {
             </Text>
           </Pressable>
           <Button title="Save meeting" onPress={save} loading={busy} style={{ marginTop: 16 }} />
+          <Button
+            title="🗳 Let members vote on a time"
+            variant="ghost"
+            onPress={() => router.push(`/club/${id}/meeting-poll`)}
+            style={{ marginTop: 8 }}
+          />
           {when ? (
             <Text style={[styles.preview, { color: palette.text3 }]}>
               {when.toLocaleString(undefined, {

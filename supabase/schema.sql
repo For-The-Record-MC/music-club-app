@@ -79,7 +79,8 @@ CREATE TABLE clubs (
   song_limit_per_cycle integer,
   leaderboard_weights jsonb NOT NULL DEFAULT jsonb_build_object('songs_shared', 3, 'interactions_given', 1, 'ratings_given', 2, 'concerts_added', 2, 'meetings_attended', 5, 'albums_chosen', 4),
   spotify_favorites_playlist_id text,
-  spotify_favorites_playlist_url text
+  spotify_favorites_playlist_url text,
+  meeting_timezone text
 );
 
 CREATE TABLE concert_comments (
@@ -183,6 +184,20 @@ CREATE TABLE meeting_posts (
   cycle_id uuid NOT NULL,
   author_id uuid NOT NULL,
   text text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE meeting_time_options (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  cycle_id uuid NOT NULL,
+  proposed_by uuid NOT NULL,
+  slot_at timestamp with time zone NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE meeting_time_votes (
+  option_id uuid NOT NULL,
+  profile_id uuid NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now()
 );
 
@@ -534,6 +549,20 @@ ALTER TABLE meeting_posts ADD CONSTRAINT meeting_posts_pkey PRIMARY KEY (id);
 
 ALTER TABLE meeting_posts ADD CONSTRAINT meeting_posts_text_check CHECK (((char_length(TRIM(BOTH FROM text)) >= 1) AND (char_length(TRIM(BOTH FROM text)) <= 2000)));
 
+ALTER TABLE meeting_time_options ADD CONSTRAINT meeting_time_options_cycle_id_fkey FOREIGN KEY (cycle_id) REFERENCES cycles(id) ON DELETE CASCADE;
+
+ALTER TABLE meeting_time_options ADD CONSTRAINT meeting_time_options_cycle_id_slot_at_key UNIQUE (cycle_id, slot_at);
+
+ALTER TABLE meeting_time_options ADD CONSTRAINT meeting_time_options_pkey PRIMARY KEY (id);
+
+ALTER TABLE meeting_time_options ADD CONSTRAINT meeting_time_options_proposed_by_fkey FOREIGN KEY (proposed_by) REFERENCES profiles(id);
+
+ALTER TABLE meeting_time_votes ADD CONSTRAINT meeting_time_votes_option_id_fkey FOREIGN KEY (option_id) REFERENCES meeting_time_options(id) ON DELETE CASCADE;
+
+ALTER TABLE meeting_time_votes ADD CONSTRAINT meeting_time_votes_pkey PRIMARY KEY (option_id, profile_id);
+
+ALTER TABLE meeting_time_votes ADD CONSTRAINT meeting_time_votes_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
 ALTER TABLE notification_preferences ADD CONSTRAINT notification_preferences_pkey PRIMARY KEY (profile_id);
 
 ALTER TABLE notification_preferences ADD CONSTRAINT notification_preferences_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
@@ -779,6 +808,8 @@ CREATE INDEX feed_posts_suggestion_idx ON public.feed_posts USING btree (club_id
 
 CREATE INDEX meeting_posts_cycle_idx ON public.meeting_posts USING btree (cycle_id, created_at);
 
+CREATE INDEX meeting_time_options_cycle_idx ON public.meeting_time_options USING btree (cycle_id);
+
 CREATE INDEX post_comments_post_idx ON public.post_comments USING btree (post_id, created_at);
 
 CREATE INDEX post_reactions_post_idx ON public.post_reactions USING btree (post_id);
@@ -1009,6 +1040,32 @@ CREATE POLICY meeting_posts_select ON meeting_posts AS PERMISSIVE FOR SELECT TO 
   USING ((EXISTS ( SELECT 1
    FROM cycles c
   WHERE ((c.id = meeting_posts.cycle_id) AND is_club_member(c.club_id)))));
+
+ALTER TABLE meeting_time_options ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY mto_delete ON meeting_time_options AS PERMISSIVE FOR DELETE TO authenticated
+  USING (((proposed_by = auth.uid()) OR (club_role(cycle_club(cycle_id)) = ANY (ARRAY['owner'::text, 'admin'::text]))));
+
+CREATE POLICY mto_insert ON meeting_time_options AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (((proposed_by = auth.uid()) AND is_club_member(cycle_club(cycle_id))));
+
+CREATE POLICY mto_select ON meeting_time_options AS PERMISSIVE FOR SELECT TO authenticated
+  USING (is_club_member(cycle_club(cycle_id)));
+
+ALTER TABLE meeting_time_votes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY mtv_delete ON meeting_time_votes AS PERMISSIVE FOR DELETE TO authenticated
+  USING ((profile_id = auth.uid()));
+
+CREATE POLICY mtv_insert ON meeting_time_votes AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (((profile_id = auth.uid()) AND is_club_member(cycle_club(( SELECT o.cycle_id
+   FROM meeting_time_options o
+  WHERE (o.id = meeting_time_votes.option_id))))));
+
+CREATE POLICY mtv_select ON meeting_time_votes AS PERMISSIVE FOR SELECT TO authenticated
+  USING (is_club_member(cycle_club(( SELECT o.cycle_id
+   FROM meeting_time_options o
+  WHERE (o.id = meeting_time_votes.option_id)))));
 
 ALTER TABLE notification_preferences ENABLE ROW LEVEL SECURITY;
 
@@ -1636,6 +1693,16 @@ end;
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.cycle_club(p_cycle uuid)
+ RETURNS uuid
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select club_id from cycles where id = p_cycle;
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.delete_showdown_submission(p_showdown uuid)
  RETURNS void
  LANGUAGE plpgsql
@@ -2022,7 +2089,7 @@ begin
       select json_agg(json_build_object(
         'album_id', rv.album_id, 'album_title', rv.album_title, 'kind', rv.kind,
         'profile_id', rv.profile_id, 'score', rv.score, 'review', rv.review,
-        'display_name', p.display_name, 'avatar_color', p.avatar_color, 'avatar_url', p.avatar_url
+        'display_name', p.display_name, 'email', p.email, 'avatar_color', p.avatar_color, 'avatar_url', p.avatar_url
       ))
       from reviews rv left join profiles p on p.id = rv.profile_id
     ), '[]'::json),
@@ -2030,7 +2097,7 @@ begin
       select json_agg(json_build_object(
         'album_id', tk.album_id, 'album_title', tk.album_title, 'profile_id', tk.profile_id,
         'score', tk.score, 'take', tk.one_sentence_take,
-        'display_name', p.display_name, 'avatar_color', p.avatar_color, 'avatar_url', p.avatar_url
+        'display_name', p.display_name, 'email', p.email, 'avatar_color', p.avatar_color, 'avatar_url', p.avatar_url
       ) order by tk.slot, tk.score desc)
       from takes tk left join profiles p on p.id = tk.profile_id
     ), '[]'::json),
@@ -2041,7 +2108,7 @@ begin
     'favorite_lyrics', coalesce((
       select json_agg(json_build_object(
         'album_id', fl.album_id, 'context', fl.context, 'lyric', fl.lyric,
-        'display_name', p.display_name, 'avatar_color', p.avatar_color, 'avatar_url', p.avatar_url
+        'display_name', p.display_name, 'email', p.email, 'avatar_color', p.avatar_color, 'avatar_url', p.avatar_url
       ))
       from fav_lyrics fl left join profiles p on p.id = fl.profile_id
     ), '[]'::json),
@@ -2069,7 +2136,7 @@ begin
       select json_agg(json_build_object(
         'profile_id', h.profile_id, 'album_id', h.album_id, 'album_title', h.album_title,
         'preference_reason', h.preference_reason, 'other_album_merit', h.other_album_merit,
-        'display_name', p.display_name, 'avatar_color', p.avatar_color, 'avatar_url', p.avatar_url
+        'display_name', p.display_name, 'email', p.email, 'avatar_color', p.avatar_color, 'avatar_url', p.avatar_url
       ))
       from h2h h left join profiles p on p.id = h.profile_id
     ), '[]'::json),

@@ -12,7 +12,7 @@ import { feed, type FeedPost } from '@/utils/supabase/db';
 import { fonts } from '@/theme';
 
 interface SuggestionRow extends FeedPost {
-  profiles: { display_name: string | null; avatar_color: number; avatar_url: string | null } | null;
+  profiles: { display_name: string | null; email: string | null; avatar_color: number; avatar_url: string | null } | null;
 }
 
 // The album-suggestion backlog — the picker draws from this when their spin

@@ -37,6 +37,7 @@ export default function RsvpScreen() {
       members.map((m) => ({
         profile_id: m.profile_id,
         display_name: m.profiles?.display_name ?? null,
+        email: m.profiles?.email ?? null,
         avatar_color: m.profiles?.avatar_color ?? 0,
         avatar_url: m.profiles?.avatar_url ?? null,
       })),
@@ -239,7 +240,7 @@ export default function RsvpScreen() {
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <View style={styles.boardMeta}>
                         <Text style={[styles.boardAuthor, { color: palette.text1 }]}>
-                          {p.profiles?.display_name ?? '(no name)'}
+                          {memberName(p.profiles?.display_name, p.profiles?.email)}
                         </Text>
                         <Text style={[styles.boardTime, { color: palette.text3 }]}>
                           {timeAgo(p.created_at)}

@@ -8,6 +8,7 @@ import { useClubData } from '@/hooks/useClubData';
 import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { fonts, radius } from '@/theme';
+import { memberName } from '@/utils/memberName';
 import { cycles as cyclesDb, streaming, type Cycle, type CycleHighlights } from '@/utils/supabase/db';
 
 // Ranked lists collapse to this many rows by default, with a "show more" toggle.
@@ -198,7 +199,7 @@ export default function CycleHighlightsScreen() {
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={[styles.takeText, { color: palette.text1 }]}>“{tk.take}”</Text>
                       <Text numberOfLines={1} style={[styles.takeMeta, { color: palette.text3 }]}>
-                        {tk.display_name ?? '(no name)'} · {tk.album_title}
+                        {memberName(tk.display_name, tk.email)} · {tk.album_title}
                       </Text>
                     </View>
                     <Text style={[styles.takeScore, { color: palette.teal }]}>{tk.score}</Text>
@@ -223,7 +224,7 @@ export default function CycleHighlightsScreen() {
                     />
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text numberOfLines={1} style={[styles.reviewName, { color: palette.text1 }]}>
-                        {h.display_name ?? '(no name)'}
+                        {memberName(h.display_name, h.email)}
                       </Text>
                       <Text numberOfLines={1} style={[styles.reviewAlbum, { color: palette.text3 }]}>
                         👑 preferred {h.album_title}
@@ -315,7 +316,7 @@ export default function CycleHighlightsScreen() {
                   >
                     <Text style={[styles.lyricText, { color: palette.text1 }]}>“{fl.lyric}”</Text>
                     <Text numberOfLines={1} style={[styles.lyricMeta, { color: palette.text3 }]}>
-                      {fl.display_name ?? '(no name)'} · {fl.context}
+                      {memberName(fl.display_name, fl.email)} · {fl.context}
                     </Text>
                   </View>
                 ))}
@@ -338,7 +339,7 @@ export default function CycleHighlightsScreen() {
                     />
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text numberOfLines={1} style={[styles.reviewName, { color: palette.text1 }]}>
-                        {rv.display_name ?? '(no name)'}
+                        {memberName(rv.display_name, rv.email)}
                       </Text>
                       <Text numberOfLines={1} style={[styles.reviewAlbum, { color: palette.text3 }]}>
                         {rv.kind === 'high' ? '▲ highest' : '▼ lowest'} · {rv.album_title}

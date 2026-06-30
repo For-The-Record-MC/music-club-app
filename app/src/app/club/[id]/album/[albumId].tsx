@@ -9,6 +9,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
 import { fonts, radius } from '@/theme';
 import { confirmAsync } from '@/utils/confirm';
+import { memberName } from '@/utils/memberName';
 import {
   albums as albumsDb,
   archive as archiveDb,
@@ -25,7 +26,7 @@ import {
 import type { MemberRow } from '@/hooks/useClubData';
 
 interface RevealedRating extends Rating {
-  profiles: { display_name: string | null; avatar_color: number; avatar_url: string | null } | null;
+  profiles: { display_name: string | null; email: string | null; avatar_color: number; avatar_url: string | null } | null;
 }
 
 // Album detail — where the visibility ladder lives:
@@ -211,7 +212,7 @@ export default function AlbumDetail() {
                   size={28}
                 />
                 <Text style={[styles.checkName, { color: palette.text1 }]}>
-                  {m.profiles?.display_name ?? '(no name)'}
+                  {memberName(m.profiles?.display_name, m.profiles?.email)}
                 </Text>
                 <Text
                   style={[
@@ -245,7 +246,7 @@ export default function AlbumDetail() {
                 />
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={[styles.revealName, { color: palette.text1 }]}>
-                    {r.profiles?.display_name ?? '(no name)'}
+                    {memberName(r.profiles?.display_name, r.profiles?.email)}
                   </Text>
                   {r.initial_score != null ? (
                     <Text style={[styles.driftLine, { color: palette.text3 }]}>
@@ -409,7 +410,7 @@ function ArchiveClaimRow({
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={[styles.claimLabel, { color: palette.text3 }]}>PICKED BY</Text>
             <Text style={[styles.claimName, { color: palette.text1 }]}>
-              {claimer.profiles?.display_name ?? '(no name)'}
+              {memberName(claimer.profiles?.display_name, claimer.profiles?.email)}
             </Text>
           </View>
         </View>
@@ -467,7 +468,7 @@ function ArchiveClaimRow({
                 size={26}
               />
               <Text style={[styles.pickName, { color: palette.text1 }]}>
-                {m.profiles?.display_name ?? '(no name)'}
+                {memberName(m.profiles?.display_name, m.profiles?.email)}
               </Text>
               {m.profile_id === album.claimed_by ? (
                 <Text style={{ color: palette.teal, fontFamily: fonts.monoMedium, fontSize: 11 }}>current</Text>

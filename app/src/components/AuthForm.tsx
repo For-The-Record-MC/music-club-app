@@ -99,10 +99,13 @@ export function AuthForm({ subtitle }: { subtitle?: string }) {
             autoCapitalize="none"
             autoComplete="email"
             keyboardType="email-address"
-            onSubmitEditing={sendCode}
+            onSubmitEditing={goToPassword}
           />
-          <Button title="Email me a code" onPress={sendCode} loading={busy} />
-          <Button title="I have a password" variant="ghost" onPress={goToPassword} />
+          <Button title="Log in with password" onPress={goToPassword} />
+          <Button title="Email me a code instead" variant="ghost" onPress={sendCode} loading={busy} />
+          <Text style={[styles.hint, { color: palette.text3 }]}>
+            New here? Use “Email me a code” for your first sign-in, then set a password in your profile.
+          </Text>
         </View>
       ) : step === 'code' ? (
         <View style={styles.fields}>

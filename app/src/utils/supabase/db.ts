@@ -198,6 +198,7 @@ export interface CycleHighlights {
     score: number;
     review: string;
     display_name: string | null;
+    email: string | null;
     avatar_color: number;
     avatar_url: string | null;
   }[];
@@ -208,6 +209,7 @@ export interface CycleHighlights {
     score: number;
     take: string;
     display_name: string | null;
+    email: string | null;
     avatar_color: number;
     avatar_url: string | null;
   }[];
@@ -217,6 +219,7 @@ export interface CycleHighlights {
     context: string;
     lyric: string;
     display_name: string | null;
+    email: string | null;
     avatar_color: number;
     avatar_url: string | null;
   }[];
@@ -242,6 +245,7 @@ export interface CycleHighlights {
     preference_reason: string | null;
     other_album_merit: string | null;
     display_name: string | null;
+    email: string | null;
     avatar_color: number;
     avatar_url: string | null;
   }[];
@@ -308,6 +312,7 @@ export const clubs = {
       emoji?: string;
       song_limit_per_cycle?: number | null;
       leaderboard_weights?: LeaderboardWeights;
+      meeting_timezone?: string | null;
     },
   ) =>
     supabase
@@ -453,6 +458,37 @@ export const cycles = {
     supabase.rpc('get_cycle_highlights', { p_cycle: cycleId }),
 };
 
+// A proposed meeting slot with its votes embedded (one row per voter). The UI
+// derives the tally + whether the current member is in.
+export type MeetingTimeOption = Tables<'meeting_time_options'> & {
+  meeting_time_votes: { profile_id: string }[];
+};
+
+// Meeting time poll — members propose candidate slots for a cycle and vote on
+// the ones that work. The admin locks a winner via cycles.scheduleMeeting.
+export const meetingPoll = {
+  listOptions: (cycleId: string) =>
+    supabase
+      .from('meeting_time_options')
+      .select('*, meeting_time_votes(profile_id)')
+      .eq('cycle_id', cycleId)
+      .order('slot_at', { ascending: true }),
+  addOption: (cycleId: string, proposedBy: string, slotAt: string) =>
+    supabase
+      .from('meeting_time_options')
+      .insert({ cycle_id: cycleId, proposed_by: proposedBy, slot_at: slotAt }),
+  removeOption: (id: string) =>
+    supabase.from('meeting_time_options').delete().eq('id', id),
+  vote: (optionId: string, profileId: string) =>
+    supabase.from('meeting_time_votes').insert({ option_id: optionId, profile_id: profileId }),
+  unvote: (optionId: string, profileId: string) =>
+    supabase
+      .from('meeting_time_votes')
+      .delete()
+      .eq('option_id', optionId)
+      .eq('profile_id', profileId),
+};
+
 // Jukebox Showdown — the optional per-cycle themed song contest. Reads go
 // through list_showdown (blind until reveal); writes go through the RPCs.
 export const showdown = {
@@ -531,7 +567,7 @@ export const albums = {
 // the albums + ratings spine but carry no slot/reveal ritual; claimed_by names
 // the member who originally picked the album. See ARCHIVE_PLAN.md.
 export interface ArchiveAlbum extends Album {
-  claimer: { display_name: string | null; avatar_color: number; avatar_url: string | null } | null;
+  claimer: { display_name: string | null; email: string | null; avatar_color: number; avatar_url: string | null } | null;
 }
 
 export const archive = {
@@ -540,7 +576,7 @@ export const archive = {
     supabase
       .from('albums')
       .select(
-        '*, cycles!inner(club_id, kind), claimer:profiles!albums_claimed_by_fkey(display_name, avatar_color, avatar_url)',
+        '*, cycles!inner(club_id, kind), claimer:profiles!albums_claimed_by_fkey(display_name, email, avatar_color, avatar_url)',
       )
       .eq('cycles.club_id', clubId)
       .eq('cycles.kind', 'archive')
@@ -609,7 +645,7 @@ export const ratings = {
   listRevealed: (albumId: string) =>
     supabase
       .from('ratings')
-      .select('*, profiles(display_name, avatar_color, avatar_url)')
+      .select('*, profiles(display_name, email, avatar_color, avatar_url)')
       .eq('album_id', albumId)
       .order('score', { ascending: false }),
   // The visibility-gated aggregate (see context/database-schema.md).
@@ -644,7 +680,7 @@ export const songNotes = {
   listVisible: (albumId: string) =>
     supabase
       .from('song_notes')
-      .select('*, profiles(display_name, avatar_color, avatar_url)')
+      .select('*, profiles(display_name, email, avatar_color, avatar_url)')
       .eq('album_id', albumId)
       .order('track_number'),
   // Upsert a batch of touched tracks in one round-trip.
@@ -779,7 +815,7 @@ export const rsvps = {
   listByCycle: (cycleId: string) =>
     supabase
       .from('rsvps')
-      .select('*, profiles(display_name, avatar_color, avatar_url)')
+      .select('*, profiles(display_name, email, avatar_color, avatar_url)')
       .eq('cycle_id', cycleId),
   set: (cycleId: string, profileId: string, status: RsvpStatus) =>
     supabase
@@ -804,13 +840,13 @@ export const feed = {
   list: (clubId: string) =>
     supabase
       .from('feed_posts')
-      .select('*, profiles(display_name, avatar_color, avatar_url), post_reactions(emoji, profile_id), post_comments(count)')
+      .select('*, profiles(display_name, email, avatar_color, avatar_url), post_reactions(emoji, profile_id), post_comments(count)')
       .eq('club_id', clubId)
       .order('created_at', { ascending: false }),
   suggestions: (clubId: string) =>
     supabase
       .from('feed_posts')
-      .select('*, profiles(display_name, avatar_color, avatar_url)')
+      .select('*, profiles(display_name, email, avatar_color, avatar_url)')
       .eq('club_id', clubId)
       .eq('is_album_suggestion', true)
       .order('created_at', { ascending: false }),
@@ -855,7 +891,7 @@ export const comments = {
   listByPost: (postId: string) =>
     supabase
       .from('post_comments')
-      .select('*, profiles(display_name, avatar_color, avatar_url)')
+      .select('*, profiles(display_name, email, avatar_color, avatar_url)')
       .eq('post_id', postId)
       .order('created_at'),
   add: (postId: string, authorId: string, text: string) =>
@@ -869,7 +905,7 @@ export const meetingPosts = {
   listByCycle: (cycleId: string) =>
     supabase
       .from('meeting_posts')
-      .select('*, profiles(display_name, avatar_color, avatar_url)')
+      .select('*, profiles(display_name, email, avatar_color, avatar_url)')
       .eq('cycle_id', cycleId)
       .order('created_at'),
   add: (cycleId: string, authorId: string, text: string) =>
@@ -884,7 +920,7 @@ export const concerts = {
     supabase
       .from('concerts')
       .select(
-        '*, profiles(display_name, avatar_color, avatar_url), concert_interest(profile_id, status), concert_comments(count)',
+        '*, profiles(display_name, email, avatar_color, avatar_url), concert_interest(profile_id, status), concert_comments(count)',
       )
       .eq('club_id', clubId)
       .order('concert_date', { nullsFirst: false }),
@@ -933,7 +969,7 @@ export const concertComments = {
   listByConcert: (concertId: string) =>
     supabase
       .from('concert_comments')
-      .select('*, profiles(display_name, avatar_color, avatar_url)')
+      .select('*, profiles(display_name, email, avatar_color, avatar_url)')
       .eq('concert_id', concertId)
       .order('created_at'),
   add: (concertId: string, authorId: string, text: string) =>

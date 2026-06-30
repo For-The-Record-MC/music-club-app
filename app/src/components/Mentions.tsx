@@ -10,6 +10,7 @@ import { Avatar, TextField } from './ui';
 export interface MentionMember {
   profile_id: string;
   display_name: string | null;
+  email: string | null;
   avatar_color: number;
   avatar_url: string | null;
 }

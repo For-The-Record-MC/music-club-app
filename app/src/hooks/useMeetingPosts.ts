@@ -4,7 +4,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { meetingPosts, type MeetingPost } from '@/utils/supabase/db';
 
 export interface MeetingPostRow extends MeetingPost {
-  profiles: { display_name: string | null; avatar_color: number; avatar_url: string | null } | null;
+  profiles: { display_name: string | null; email: string | null; avatar_color: number; avatar_url: string | null } | null;
 }
 
 // The meeting board for a cycle: posts (oldest-first, chat-style) plus add/remove.

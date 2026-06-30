@@ -11,6 +11,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { fonts, radius } from '@/theme';
 import { confirmAsync } from '@/utils/confirm';
 import { openLyrics } from '@/utils/genius';
+import { memberName } from '@/utils/memberName';
 import {
   albumImpressions as impressionsDb,
   albums as albumsDb,
@@ -44,7 +45,7 @@ interface Draft {
 }
 
 interface OthersNote extends SongNote {
-  profiles: { display_name: string | null; avatar_color: number; avatar_url: string | null } | null;
+  profiles: { display_name: string | null; email: string | null; avatar_color: number; avatar_url: string | null } | null;
 }
 
 function parseTracks(json: unknown): Track[] {
@@ -657,7 +658,7 @@ export default function SongNotesEditor() {
                         size={22}
                       />
                       <Text style={[styles.otherName, { color: palette.text2 }]}>
-                        {o.profiles?.display_name ?? '(no name)'}
+                        {memberName(o.profiles?.display_name, o.profiles?.email)}
                       </Text>
                       {o.rating != null ? (
                         <Text style={[styles.otherScore, { color: scoreColor(o.rating) }]}>

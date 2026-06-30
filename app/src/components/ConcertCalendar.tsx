@@ -9,7 +9,7 @@ import { fonts, radius } from '@/theme';
 
 type MemberInfo = Map<
   string,
-  { display_name: string | null; avatar_color: number; avatar_url: string | null }
+  { display_name: string | null; email: string | null; avatar_color: number; avatar_url: string | null }
 >;
 
 const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];

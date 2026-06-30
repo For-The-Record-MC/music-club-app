@@ -15,6 +15,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
 import { useCurrentClubStore } from '@/stores/currentClubStore';
 import { confirmAsync } from '@/utils/confirm';
+import { memberName } from '@/utils/memberName';
 import {
   activity,
   concertComments as commentsDb,
@@ -133,11 +134,12 @@ export default function Concerts() {
   const memberInfo = useMemo(() => {
     const m = new Map<
       string,
-      { display_name: string | null; avatar_color: number; avatar_url: string | null }
+      { display_name: string | null; email: string | null; avatar_color: number; avatar_url: string | null }
     >();
     members.forEach((mem) =>
       m.set(mem.profile_id, {
         display_name: mem.profiles?.display_name ?? null,
+        email: mem.profiles?.email ?? null,
         avatar_color: mem.profiles?.avatar_color ?? 0,
         avatar_url: mem.profiles?.avatar_url ?? null,
       }),
@@ -149,6 +151,7 @@ export default function Concerts() {
       members.map((mem) => ({
         profile_id: mem.profile_id,
         display_name: mem.profiles?.display_name ?? null,
+        email: mem.profiles?.email ?? null,
         avatar_color: mem.profiles?.avatar_color ?? 0,
         avatar_url: mem.profiles?.avatar_url ?? null,
       })),
@@ -466,7 +469,7 @@ function InterestGroup({
 }: {
   label: string;
   people: { profile_id: string; status: ConcertStatus }[];
-  memberInfo: Map<string, { display_name: string | null; avatar_color: number; avatar_url: string | null }>;
+  memberInfo: Map<string, { display_name: string | null; email: string | null; avatar_color: number; avatar_url: string | null }>;
   color: string;
 }) {
   const { palette } = useTheme();
@@ -509,7 +512,7 @@ function ConcertCard({
   concert: ConcertRow;
   userId: string | null;
   isAdmin: boolean;
-  memberInfo: Map<string, { display_name: string | null; avatar_color: number; avatar_url: string | null }>;
+  memberInfo: Map<string, { display_name: string | null; email: string | null; avatar_color: number; avatar_url: string | null }>;
   mentionMembers: MentionMember[];
   shareClubs: ClubLite[];
   onEdit: (c: ConcertRow) => void;
@@ -735,7 +738,7 @@ function ConcertCard({
 }
 
 interface CommentRow extends ConcertComment {
-  profiles: { display_name: string | null; avatar_color: number; avatar_url: string | null } | null;
+  profiles: { display_name: string | null; email: string | null; avatar_color: number; avatar_url: string | null } | null;
 }
 
 function ConcertComments({
@@ -798,10 +801,10 @@ function ConcertComments({
     <View style={[styles.comments, { borderTopColor: palette.border }]}>
       {rows.map((c) => (
         <View key={c.id} style={styles.commentRow}>
-          <Avatar name={c.profiles?.display_name ?? null} colorIndex={c.profiles?.avatar_color ?? 0} imageUrl={c.profiles?.avatar_url} size={24} />
+          <Avatar name={memberName(c.profiles?.display_name, c.profiles?.email)} colorIndex={c.profiles?.avatar_color ?? 0} imageUrl={c.profiles?.avatar_url} size={24} />
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={[styles.commentName, { color: palette.text2 }]}>
-              {c.profiles?.display_name ?? '(no name)'}
+              {memberName(c.profiles?.display_name, c.profiles?.email)}
             </Text>
             <MentionText
               text={c.text}

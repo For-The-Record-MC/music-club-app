@@ -5,7 +5,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { activity, type ActivityEvent } from '@/utils/supabase/db';
 
 export interface ActivityRow extends ActivityEvent {
-  profiles: { display_name: string | null; avatar_color: number; avatar_url: string | null } | null;
+  profiles: { display_name: string | null; email: string | null; avatar_color: number; avatar_url: string | null } | null;
 }
 
 // Activity events + unread count (events newer than the member's last_read_at).

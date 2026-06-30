@@ -7,6 +7,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { useClubData } from '@/hooks/useClubData';
 import { useAuthStore } from '@/stores/authStore';
 import { fonts } from '@/theme';
+import { memberName } from '@/utils/memberName';
 import { cycles } from '@/utils/supabase/db';
 
 type Phase = 'idle' | 'spinning' | 'done';
@@ -44,7 +45,7 @@ export default function Wheel() {
         .filter((m) => !!m)
         .map((m) => ({
           profileId: m!.profile_id,
-          name: m!.profiles?.display_name ?? '(no name)',
+          name: memberName(m!.profiles?.display_name, m!.profiles?.email),
           color: m!.profiles?.avatar_color ?? 0,
         })),
     [poolIds, members],

@@ -46,6 +46,10 @@ export function Screen({
       ref={scrollRef}
       style={{ flex: 1, backgroundColor: palette.bg }}
       contentContainerStyle={[styles.pageContent, { paddingTop: insets.top + 20 }]}
+      // Without this, a tap on an inline search result (profile tracks, album
+      // cover, concert search) is swallowed to dismiss the keyboard instead of
+      // registering — the row feels "unclickable" until you tap twice.
+      keyboardShouldPersistTaps="handled"
       // Let the pull-to-refresh gesture work even when content is shorter than
       // the screen — without this, iOS won't bounce (and won't trigger refresh)
       // on sparse screens like an empty feed or a quiet activity list.

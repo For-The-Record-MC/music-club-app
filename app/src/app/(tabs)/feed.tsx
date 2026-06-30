@@ -19,6 +19,7 @@ import { resolveAppleAlbum, resolveAppleTrack, searchAlbums as searchItunesAlbum
 import { resolveSpotifyAlbum, resolveSpotifyTrack, searchAlbums as searchSpotifyAlbums, searchSongs as searchSpotify } from '@/utils/spotify';
 import { timeAgo } from '@/utils/activityTemplates';
 import { confirmAsync } from '@/utils/confirm';
+import { memberName } from '@/utils/memberName';
 import { normKey } from '@/utils/normalize';
 import {
   activity,
@@ -135,6 +136,7 @@ export default function Feed() {
       members.map((m) => ({
         profile_id: m.profile_id,
         display_name: m.profiles?.display_name ?? null,
+        email: m.profiles?.email ?? null,
         avatar_color: m.profiles?.avatar_color ?? 0,
         avatar_url: m.profiles?.avatar_url ?? null,
       })),
@@ -738,7 +740,7 @@ function PostCard({
   const sharedFrom = sharedFromOf(post);
   const [commentText, setCommentText] = useState('');
   const [commentRows, setCommentRows] = useState<
-    { id: string; text: string; author_id: string; profiles: { display_name: string | null; avatar_color: number; avatar_url: string | null } | null }[]
+    { id: string; text: string; author_id: string; profiles: { display_name: string | null; email: string | null; avatar_color: number; avatar_url: string | null } | null }[]
   >([]);
 
   const myReaction = post.post_reactions.find((r) => r.profile_id === userId)?.emoji as
@@ -823,7 +825,7 @@ function PostCard({
           <Avatar name={post.profiles?.display_name ?? null} colorIndex={post.profiles?.avatar_color ?? 0} imageUrl={post.profiles?.avatar_url} size={32} />
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={[styles.postAuthor, { color: palette.text1 }]}>
-              {post.profiles?.display_name ?? '(no name)'}
+              {memberName(post.profiles?.display_name, post.profiles?.email)}
             </Text>
             <Text style={[styles.postTime, { color: palette.text3 }]}>{timeAgo(post.created_at)}</Text>
           </View>
@@ -919,7 +921,7 @@ function PostCard({
                   hitSlop={4}
                 >
                   <Text style={[styles.commentAuthor, { color: palette.text1 }]}>
-                    {c.profiles?.display_name ?? '(no name)'}
+                    {memberName(c.profiles?.display_name, c.profiles?.email)}
                   </Text>
                 </Pressable>
                 <MentionText
@@ -965,7 +967,7 @@ function PostCard({
               size={28}
             />
             <Text style={[styles.reactorName, { color: palette.text1 }]}>
-              {member?.display_name ?? '(no name)'}
+              {memberName(member?.display_name, member?.email)}
             </Text>
           </View>
         ))}

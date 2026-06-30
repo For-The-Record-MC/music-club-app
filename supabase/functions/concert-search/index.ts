@@ -52,25 +52,44 @@ Deno.serve(async (req) => {
     let term = ''
     // countryCode defaults to 'US'; the app passes '' to search worldwide.
     let countryCode = 'US'
+    // Optional US state filter (e.g. 'NY'); ignored when searching worldwide.
+    let stateCode = ''
+    // Optional date-range bounds (YYYY-MM-DD). startDate defaults to "now" so
+    // past events are never returned; endDate is open-ended unless provided.
+    let startDate = ''
+    let endDate = ''
+    // Zero-based page index for "Load more" paging.
+    let page = 0
     try {
       const body = await req.json()
       term = String(body?.term ?? '').trim()
       if (typeof body?.countryCode === 'string') countryCode = body.countryCode
+      if (typeof body?.stateCode === 'string') stateCode = body.stateCode.trim()
+      if (typeof body?.startDate === 'string') startDate = body.startDate.trim()
+      if (typeof body?.endDate === 'string') endDate = body.endDate.trim()
+      if (Number.isFinite(body?.page)) page = Math.max(0, Math.floor(body.page))
     } catch {
       return json({ ok: false, message: 'Invalid request body' }, 400)
     }
-    if (term.length < 1) return json({ results: [] })
+    if (term.length < 1) return json({ results: [], page: 0, totalPages: 0 })
 
+    // Lower bound is the later of "now" and any requested start date, so the
+    // range filter can never surface events that have already happened.
+    const nowIso = `${new Date().toISOString().slice(0, 19)}Z`
+    const startIso = startDate ? `${startDate}T00:00:00Z` : nowIso
     const params = new URLSearchParams({
       apikey: apiKey,
       keyword: term,
       classificationName: 'music',
-      size: '12',
+      size: '20',
+      page: String(page),
       sort: 'date,asc',
-      // Only events that haven't happened yet.
-      startDateTime: `${new Date().toISOString().slice(0, 19)}Z`,
+      startDateTime: startIso > nowIso ? startIso : nowIso,
     })
+    if (endDate) params.set('endDateTime', `${endDate}T23:59:59Z`)
     if (countryCode) params.set('countryCode', countryCode)
+    // Ticketmaster only honors stateCode alongside a countryCode.
+    if (countryCode && stateCode) params.set('stateCode', stateCode)
 
     const url = `https://app.ticketmaster.com/discovery/v2/events.json?${params}`
     const res = await fetch(url)
@@ -78,7 +97,9 @@ Deno.serve(async (req) => {
       const snippet = (await res.text().catch(() => '')).slice(0, 300)
       return json({ ok: false, message: `Ticketmaster search failed (${res.status}): ${snippet}` }, 502)
     }
-    return json({ results: normalize(await res.json()) })
+    const payload = await res.json()
+    const totalPages = Number(payload?.page?.totalPages ?? 0)
+    return json({ results: normalize(payload), page, totalPages })
   } catch (e) {
     return json({ ok: false, message: e instanceof Error ? e.message : String(e) }, 500)
   }

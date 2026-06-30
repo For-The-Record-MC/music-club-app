@@ -504,6 +504,12 @@ export default function HomeTab() {
                 />
               ) : null}
             </View>
+            <Button
+              title={cycle.meeting_at ? '🗳 Vote on a new time' : '🗳 Vote on a time'}
+              variant="ghost"
+              onPress={() => router.push(`/club/${club.id}/meeting-poll`)}
+              style={{ marginTop: 8 }}
+            />
             {isAdmin ? (
               <Button
                 title={cycle.meeting_at ? 'Edit meeting' : 'Set the meeting'}

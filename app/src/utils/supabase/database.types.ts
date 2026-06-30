@@ -339,6 +339,7 @@ export type Database = {
           id: string
           invite_code: string
           leaderboard_weights: Json
+          meeting_timezone: string | null
           name: string
           owner_id: string
           song_limit_per_cycle: number | null
@@ -351,6 +352,7 @@ export type Database = {
           id?: string
           invite_code?: string
           leaderboard_weights?: Json
+          meeting_timezone?: string | null
           name: string
           owner_id: string
           song_limit_per_cycle?: number | null
@@ -363,6 +365,7 @@ export type Database = {
           id?: string
           invite_code?: string
           leaderboard_weights?: Json
+          meeting_timezone?: string | null
           name?: string
           owner_id?: string
           song_limit_per_cycle?: number | null
@@ -828,6 +831,78 @@ export type Database = {
             columns: ["cycle_id"]
             isOneToOne: false
             referencedRelation: "cycles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meeting_time_options: {
+        Row: {
+          created_at: string
+          cycle_id: string
+          id: string
+          proposed_by: string
+          slot_at: string
+        }
+        Insert: {
+          created_at?: string
+          cycle_id: string
+          id?: string
+          proposed_by: string
+          slot_at: string
+        }
+        Update: {
+          created_at?: string
+          cycle_id?: string
+          id?: string
+          proposed_by?: string
+          slot_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_time_options_cycle_id_fkey"
+            columns: ["cycle_id"]
+            isOneToOne: false
+            referencedRelation: "cycles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_time_options_proposed_by_fkey"
+            columns: ["proposed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meeting_time_votes: {
+        Row: {
+          created_at: string
+          option_id: string
+          profile_id: string
+        }
+        Insert: {
+          created_at?: string
+          option_id: string
+          profile_id: string
+        }
+        Update: {
+          created_at?: string
+          option_id?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_time_votes_option_id_fkey"
+            columns: ["option_id"]
+            isOneToOne: false
+            referencedRelation: "meeting_time_options"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_time_votes_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1740,6 +1815,7 @@ export type Database = {
           id: string
           invite_code: string
           leaderboard_weights: Json
+          meeting_timezone: string | null
           name: string
           owner_id: string
           song_limit_per_cycle: number | null
@@ -1753,6 +1829,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      cycle_club: { Args: { p_cycle: string }; Returns: string }
       delete_showdown_submission: {
         Args: { p_showdown: string }
         Returns: undefined
@@ -1802,6 +1879,7 @@ export type Database = {
           id: string
           invite_code: string
           leaderboard_weights: Json
+          meeting_timezone: string | null
           name: string
           owner_id: string
           song_limit_per_cycle: number | null
