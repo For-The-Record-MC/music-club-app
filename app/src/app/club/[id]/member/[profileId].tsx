@@ -13,6 +13,7 @@ import { fonts, radius } from '@/theme';
 import { memberName } from '@/utils/memberName';
 import {
   albums as albumsDb,
+  archive as archiveDb,
   feed as feedDb,
   leaderboard,
   profiles as profilesDb,
@@ -48,17 +49,19 @@ export default function MemberProfile() {
   const [profileRow, setProfileRow] = useState<Profile | null>(null);
   const [tracks, setTracks] = useState<ProfileTrack[]>([]);
   const [picks, setPicks] = useState<PickedAlbum[]>([]);
+  const [archivePicks, setArchivePicks] = useState<Album[]>([]);
   const [albumAvgs, setAlbumAvgs] = useState<Record<string, number>>({});
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     if (!id || !profileId) return;
-    const [boardRes, profileRes, tracksRes, picksRes, postsRes] = await Promise.all([
+    const [boardRes, profileRes, tracksRes, picksRes, archiveRes, postsRes] = await Promise.all([
       leaderboard.get(id),
       profilesDb.getById(profileId),
       tracksDb.listByProfile(profileId),
       albumsDb.listByMember(id, profileId),
+      archiveDb.listByMember(id, profileId),
       feedDb.listByAuthor(id, profileId),
     ]);
     setBoard((boardRes.data as LeaderboardRow[] | null) ?? []);
@@ -66,6 +69,7 @@ export default function MemberProfile() {
     setTracks((tracksRes.data ?? []) as ProfileTrack[]);
     const pickRows = (picksRes.data ?? []) as PickedAlbum[];
     setPicks(pickRows);
+    setArchivePicks((archiveRes.data ?? []) as Album[]);
     setPosts((postsRes.data ?? []) as FeedPost[]);
 
     // Per-album averages, only for revealed cycles (RLS returns nothing else).
@@ -298,6 +302,35 @@ export default function MemberProfile() {
               </Pressable>
             );
           })}
+        </>
+      ) : null}
+
+      {/* Pre-FTR picks — archive albums they claimed. Cosmetic identity only;
+          never counted in the competitive stats above. */}
+      {archivePicks.length > 0 ? (
+        <>
+          <Text style={[styles.section, { color: palette.text2 }]}>PRE-FTR PICKS</Text>
+          {archivePicks.map((a) => (
+            <Pressable key={a.id} onPress={() => router.push(`/club/${id}/album/${a.id}`)}>
+              <Card style={{ marginBottom: 8 }}>
+                <View style={styles.trackRow}>
+                  {a.artwork_url ? (
+                    <Image source={{ uri: a.artwork_url }} style={styles.trackArt} contentFit="cover" />
+                  ) : (
+                    <View style={[styles.trackArt, { backgroundColor: palette.surface }]} />
+                  )}
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={[styles.trackName, { color: palette.text1 }]} numberOfLines={1}>
+                      {a.title}
+                    </Text>
+                    <Text style={[styles.trackArtist, { color: palette.text2 }]} numberOfLines={1}>
+                      {a.artist}
+                    </Text>
+                  </View>
+                </View>
+              </Card>
+            </Pressable>
+          ))}
         </>
       ) : null}
 

@@ -335,6 +335,14 @@ export default function ClubSettings() {
         );
       })}
 
+      {/* The Archive — curate pre-club albums (owner + admin) */}
+      <Label>{'\n'}The Archive</Label>
+      <Button
+        title="📚 Add pre-club albums"
+        variant="ghost"
+        onPress={() => router.push(`/club/${club.id}/archive`)}
+      />
+
       {/* Streaming (owner only) */}
       {isOwner ? (
         <>

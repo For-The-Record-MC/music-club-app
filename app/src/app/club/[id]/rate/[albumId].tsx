@@ -64,17 +64,21 @@ export default function RateAlbum() {
   const [error, setError] = useState<string | null>(null);
   const [songNotes, setSongNotes] = useState<SongNote[]>([]);
   const [notesOpen, setNotesOpen] = useState(false);
-  // Ratings freeze at reveal — once the cycle is revealed/closed, this screen is read-only.
+  // Ratings freeze at reveal — once the cycle is revealed/closed, this screen is
+  // read-only. Archive albums are the exception: always editable (no ritual).
   const [locked, setLocked] = useState(false);
+  const [isArchive, setIsArchive] = useState(false);
 
   useEffect(() => {
     if (!albumId || !userId) return;
     albumsDb.get(albumId).then(({ data }) => {
       setAlbum(data ?? null);
       if (data) {
-        cyclesDb
-          .get(data.cycle_id)
-          .then(({ data: c }) => setLocked(!!c && (c.status !== 'open' || !!c.revealed_at)));
+        cyclesDb.get(data.cycle_id).then(({ data: c }) => {
+          const archive = c?.kind === 'archive';
+          setIsArchive(archive);
+          setLocked(!!c && !archive && (c.status !== 'open' || !!c.revealed_at));
+        });
       }
     });
     songNotesDb.mine(albumId, userId).then(({ data }) =>
@@ -194,8 +198,9 @@ export default function RateAlbum() {
       return;
     }
     // If the member has now reviewed BOTH albums in the cycle, send them to the
-    // head-to-head compare step; otherwise straight to the album page.
-    if (album) {
+    // head-to-head compare step; otherwise straight to the album page. Archive
+    // albums have no sibling slot, so skip the compare bounce entirely.
+    if (album && !isArchive) {
       const { data: cycleAlbums } = await albumsDb.listByCycle(album.cycle_id);
       const other = (cycleAlbums ?? []).find((a) => a.id !== albumId);
       if (other) {

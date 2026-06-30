@@ -171,12 +171,14 @@ export type Database = {
           apple_url: string | null
           artist: string
           artwork_url: string | null
+          claimed_by: string | null
           created_at: string
           cycle_id: string
           id: string
           itunes_collection_id: number | null
           set_by: string
-          slot: number
+          slot: number | null
+          spotify_album_id: string | null
           spotify_url: string | null
           title: string
           tracks: Json | null
@@ -186,12 +188,14 @@ export type Database = {
           apple_url?: string | null
           artist?: string
           artwork_url?: string | null
+          claimed_by?: string | null
           created_at?: string
           cycle_id: string
           id?: string
           itunes_collection_id?: number | null
           set_by: string
-          slot: number
+          slot?: number | null
+          spotify_album_id?: string | null
           spotify_url?: string | null
           title: string
           tracks?: Json | null
@@ -201,18 +205,27 @@ export type Database = {
           apple_url?: string | null
           artist?: string
           artwork_url?: string | null
+          claimed_by?: string | null
           created_at?: string
           cycle_id?: string
           id?: string
           itunes_collection_id?: number | null
           set_by?: string
-          slot?: number
+          slot?: number | null
+          spotify_album_id?: string | null
           spotify_url?: string | null
           title?: string
           tracks?: Json | null
           year?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "albums_claimed_by_fkey"
+            columns: ["claimed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "albums_cycle_id_fkey"
             columns: ["cycle_id"]
@@ -626,6 +639,7 @@ export type Database = {
           club_id: string
           created_at: string
           id: string
+          kind: string
           meeting_at: string | null
           meeting_date: string | null
           meeting_reminder_1h_sent_at: string | null
@@ -648,6 +662,7 @@ export type Database = {
           club_id: string
           created_at?: string
           id?: string
+          kind?: string
           meeting_at?: string | null
           meeting_date?: string | null
           meeting_reminder_1h_sent_at?: string | null
@@ -670,6 +685,7 @@ export type Database = {
           club_id?: string
           created_at?: string
           id?: string
+          kind?: string
           meeting_at?: string | null
           meeting_date?: string | null
           meeting_reminder_1h_sent_at?: string | null
@@ -1616,10 +1632,71 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_archive_album: {
+        Args: {
+          p_apple_url?: string
+          p_artist?: string
+          p_artwork_url?: string
+          p_club: string
+          p_spotify_url?: string
+          p_title: string
+          p_tracks?: Json
+          p_year?: number
+        }
+        Returns: {
+          apple_url: string | null
+          artist: string
+          artwork_url: string | null
+          claimed_by: string | null
+          created_at: string
+          cycle_id: string
+          id: string
+          itunes_collection_id: number | null
+          set_by: string
+          slot: number | null
+          spotify_album_id: string | null
+          spotify_url: string | null
+          title: string
+          tracks: Json | null
+          year: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "albums"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       album_has_ratings: { Args: { p_album: string }; Returns: boolean }
       cast_showdown_vote: {
         Args: { p_submission: string; p_value: number }
         Returns: undefined
+      }
+      claim_archive_album: {
+        Args: { p_album: string; p_profile?: string }
+        Returns: {
+          apple_url: string | null
+          artist: string
+          artwork_url: string | null
+          claimed_by: string | null
+          created_at: string
+          cycle_id: string
+          id: string
+          itunes_collection_id: number | null
+          set_by: string
+          slot: number | null
+          spotify_album_id: string | null
+          spotify_url: string | null
+          title: string
+          tracks: Json | null
+          year: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "albums"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       close_cycle: {
         Args: { p_cycle: string }
@@ -1628,6 +1705,7 @@ export type Database = {
           club_id: string
           created_at: string
           id: string
+          kind: string
           meeting_at: string | null
           meeting_date: string | null
           meeting_reminder_1h_sent_at: string | null
@@ -1682,6 +1760,38 @@ export type Database = {
       generate_invite_code: { Args: never; Returns: string }
       get_album_summary: { Args: { p_album: string }; Returns: Json }
       get_cycle_highlights: { Args: { p_cycle: string }; Returns: Json }
+      get_or_create_archive_cycle: {
+        Args: { p_club: string }
+        Returns: {
+          closed_at: string | null
+          club_id: string
+          created_at: string
+          id: string
+          kind: string
+          meeting_at: string | null
+          meeting_date: string | null
+          meeting_reminder_1h_sent_at: string | null
+          meeting_reminder_24h_sent_at: string | null
+          meeting_time_location: string | null
+          meeting_url: string | null
+          number: number
+          participation_nudge_72h_sent_at: string | null
+          picker_id: string
+          revealed_at: string | null
+          spotify_highlights_playlist_id: string | null
+          spotify_highlights_playlist_url: string | null
+          spotify_playlist_id: string | null
+          spotify_playlist_url: string | null
+          start_date: string
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "cycles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       get_showdown_history: { Args: { p_club: string }; Returns: Json }
       is_club_member: { Args: { p_club: string }; Returns: boolean }
       join_club: {
@@ -1732,6 +1842,7 @@ export type Database = {
           club_id: string
           created_at: string
           id: string
+          kind: string
           meeting_at: string | null
           meeting_date: string | null
           meeting_reminder_1h_sent_at: string | null
@@ -1818,6 +1929,7 @@ export type Database = {
           club_id: string
           created_at: string
           id: string
+          kind: string
           meeting_at: string | null
           meeting_date: string | null
           meeting_reminder_1h_sent_at: string | null
@@ -1842,6 +1954,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      spotify_album_id_from_url: { Args: { p_url: string }; Returns: string }
       streaming_disconnect: { Args: { p_club: string }; Returns: undefined }
       streaming_status: { Args: { p_club: string }; Returns: Json }
       submit_showdown_song: {

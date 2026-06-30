@@ -34,7 +34,7 @@ CREATE TABLE album_impressions (
 CREATE TABLE albums (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   cycle_id uuid NOT NULL,
-  slot integer NOT NULL,
+  slot integer,
   title text NOT NULL,
   artist text NOT NULL DEFAULT ''::text,
   year integer,
@@ -44,7 +44,9 @@ CREATE TABLE albums (
   spotify_url text,
   tracks jsonb,
   set_by uuid NOT NULL,
-  created_at timestamp with time zone NOT NULL DEFAULT now()
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  claimed_by uuid,
+  spotify_album_id text
 );
 
 CREATE TABLE club_favorite_tracks (
@@ -155,7 +157,8 @@ CREATE TABLE cycles (
   spotify_highlights_playlist_url text,
   meeting_reminder_24h_sent_at timestamp with time zone,
   meeting_reminder_1h_sent_at timestamp with time zone,
-  participation_nudge_72h_sent_at timestamp with time zone
+  participation_nudge_72h_sent_at timestamp with time zone,
+  kind text NOT NULL DEFAULT 'standard'::text
 );
 
 CREATE TABLE feed_posts (
@@ -397,15 +400,15 @@ ALTER TABLE album_impressions ADD CONSTRAINT album_impressions_pkey PRIMARY KEY 
 
 ALTER TABLE album_impressions ADD CONSTRAINT album_impressions_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
 
-ALTER TABLE albums ADD CONSTRAINT albums_cycle_id_fkey FOREIGN KEY (cycle_id) REFERENCES cycles(id) ON DELETE CASCADE;
+ALTER TABLE albums ADD CONSTRAINT albums_claimed_by_fkey FOREIGN KEY (claimed_by) REFERENCES profiles(id);
 
-ALTER TABLE albums ADD CONSTRAINT albums_cycle_id_slot_key UNIQUE (cycle_id, slot);
+ALTER TABLE albums ADD CONSTRAINT albums_cycle_id_fkey FOREIGN KEY (cycle_id) REFERENCES cycles(id) ON DELETE CASCADE;
 
 ALTER TABLE albums ADD CONSTRAINT albums_pkey PRIMARY KEY (id);
 
 ALTER TABLE albums ADD CONSTRAINT albums_set_by_fkey FOREIGN KEY (set_by) REFERENCES profiles(id);
 
-ALTER TABLE albums ADD CONSTRAINT albums_slot_check CHECK ((slot = ANY (ARRAY[1, 2])));
+ALTER TABLE albums ADD CONSTRAINT albums_slot_check CHECK (((slot IS NULL) OR (slot = ANY (ARRAY[1, 2]))));
 
 ALTER TABLE albums ADD CONSTRAINT albums_title_check CHECK (((char_length(TRIM(BOTH FROM title)) >= 1) AND (char_length(TRIM(BOTH FROM title)) <= 200)));
 
@@ -498,6 +501,8 @@ ALTER TABLE cycle_preferences ADD CONSTRAINT cycle_preferences_profile_id_fkey F
 ALTER TABLE cycles ADD CONSTRAINT cycles_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
 
 ALTER TABLE cycles ADD CONSTRAINT cycles_club_id_number_key UNIQUE (club_id, number);
+
+ALTER TABLE cycles ADD CONSTRAINT cycles_kind_check CHECK ((kind = ANY (ARRAY['standard'::text, 'archive'::text])));
 
 ALTER TABLE cycles ADD CONSTRAINT cycles_picker_id_fkey FOREIGN KEY (picker_id) REFERENCES profiles(id);
 
@@ -732,7 +737,11 @@ CREATE INDEX activity_events_club_idx ON public.activity_events USING btree (clu
 
 CREATE INDEX activity_events_recipient_idx ON public.activity_events USING btree (recipient_id, created_at DESC) WHERE (recipient_id IS NOT NULL);
 
+CREATE UNIQUE INDEX albums_archive_spotify_uniq ON public.albums USING btree (cycle_id, spotify_album_id) WHERE ((slot IS NULL) AND (spotify_album_id IS NOT NULL));
+
 CREATE INDEX albums_cycle_idx ON public.albums USING btree (cycle_id);
+
+CREATE UNIQUE INDEX albums_cycle_slot_uniq ON public.albums USING btree (cycle_id, slot) WHERE (slot IS NOT NULL);
 
 CREATE INDEX club_favorite_tracks_club_idx ON public.club_favorite_tracks USING btree (club_id, added_at DESC);
 
@@ -757,6 +766,8 @@ CREATE INDEX cycle_guests_cycle_idx ON public.cycle_guests USING btree (cycle_id
 CREATE INDEX cycle_preferences_cycle_idx ON public.cycle_preferences USING btree (cycle_id);
 
 CREATE INDEX cycles_club_idx ON public.cycles USING btree (club_id);
+
+CREATE UNIQUE INDEX cycles_one_archive_idx ON public.cycles USING btree (club_id) WHERE (kind = 'archive'::text);
 
 CREATE UNIQUE INDEX cycles_one_open_idx ON public.cycles USING btree (club_id) WHERE (status = 'open'::text);
 
@@ -827,6 +838,14 @@ CREATE POLICY album_impressions_update ON album_impressions AS PERMISSIVE FOR UP
   WHERE ((a.id = album_impressions.album_id) AND is_club_member(c.club_id))))));
 
 ALTER TABLE albums ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY albums_archive_manage ON albums AS PERMISSIVE FOR ALL TO authenticated
+  USING ((EXISTS ( SELECT 1
+   FROM cycles c
+  WHERE ((c.id = albums.cycle_id) AND (c.kind = 'archive'::text) AND (club_role(c.club_id) = ANY (ARRAY['owner'::text, 'admin'::text]))))))
+  WITH CHECK ((EXISTS ( SELECT 1
+   FROM cycles c
+  WHERE ((c.id = albums.cycle_id) AND (c.kind = 'archive'::text) AND (club_role(c.club_id) = ANY (ARRAY['owner'::text, 'admin'::text]))))));
 
 CREATE POLICY albums_select ON albums AS PERMISSIVE FOR SELECT TO authenticated
   USING ((EXISTS ( SELECT 1
@@ -1072,13 +1091,13 @@ CREATE POLICY ratings_delete ON ratings AS PERMISSIVE FOR DELETE TO authenticate
   USING (((profile_id = auth.uid()) AND (EXISTS ( SELECT 1
    FROM (albums a
      JOIN cycles c ON ((c.id = a.cycle_id)))
-  WHERE ((a.id = ratings.album_id) AND (c.status = 'open'::text) AND (c.revealed_at IS NULL))))));
+  WHERE ((a.id = ratings.album_id) AND ((c.kind = 'archive'::text) OR ((c.status = 'open'::text) AND (c.revealed_at IS NULL))))))));
 
 CREATE POLICY ratings_insert ON ratings AS PERMISSIVE FOR INSERT TO authenticated
   WITH CHECK (((profile_id = auth.uid()) AND (EXISTS ( SELECT 1
    FROM (albums a
      JOIN cycles c ON ((c.id = a.cycle_id)))
-  WHERE ((a.id = ratings.album_id) AND (c.status = 'open'::text) AND (c.revealed_at IS NULL) AND is_club_member(c.club_id))))));
+  WHERE ((a.id = ratings.album_id) AND is_club_member(c.club_id) AND ((c.kind = 'archive'::text) OR ((c.status = 'open'::text) AND (c.revealed_at IS NULL))))))));
 
 CREATE POLICY ratings_select ON ratings AS PERMISSIVE FOR SELECT TO authenticated
   USING (((profile_id = auth.uid()) OR (EXISTS ( SELECT 1
@@ -1091,7 +1110,7 @@ CREATE POLICY ratings_update ON ratings AS PERMISSIVE FOR UPDATE TO authenticate
   WITH CHECK (((profile_id = auth.uid()) AND (EXISTS ( SELECT 1
    FROM (albums a
      JOIN cycles c ON ((c.id = a.cycle_id)))
-  WHERE ((a.id = ratings.album_id) AND (c.status = 'open'::text) AND (c.revealed_at IS NULL) AND is_club_member(c.club_id))))));
+  WHERE ((a.id = ratings.album_id) AND is_club_member(c.club_id) AND ((c.kind = 'archive'::text) OR ((c.status = 'open'::text) AND (c.revealed_at IS NULL))))))));
 
 ALTER TABLE rsvps ENABLE ROW LEVEL SECURITY;
 
@@ -1216,6 +1235,42 @@ CREATE POLICY vibe_tags_select ON vibe_tags AS PERMISSIVE FOR SELECT TO authenti
 -- FUNCTIONS & PROCEDURES
 -- =====================================================
 
+CREATE OR REPLACE FUNCTION public.add_archive_album(p_club uuid, p_title text, p_artist text DEFAULT ''::text, p_year integer DEFAULT NULL::integer, p_artwork_url text DEFAULT NULL::text, p_spotify_url text DEFAULT NULL::text, p_apple_url text DEFAULT NULL::text, p_tracks jsonb DEFAULT NULL::jsonb)
+ RETURNS albums
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_cycle public.cycles;
+  v_album public.albums;
+begin
+  if public.club_role(p_club) not in ('owner', 'admin') then
+    raise exception 'Admin access required';
+  end if;
+
+  v_cycle := public.get_or_create_archive_cycle(p_club);
+
+  begin
+    insert into albums (
+      cycle_id, slot, title, artist, year, artwork_url,
+      spotify_url, apple_url, tracks, spotify_album_id, set_by
+    )
+    values (
+      v_cycle.id, null, trim(p_title), coalesce(p_artist, ''), p_year, p_artwork_url,
+      p_spotify_url, p_apple_url, p_tracks,
+      public.spotify_album_id_from_url(p_spotify_url), auth.uid()
+    )
+    returning * into v_album;
+  exception when unique_violation then
+    raise exception 'That album is already in the Archive';
+  end;
+
+  return v_album;
+end;
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.album_has_ratings(p_album uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -1296,6 +1351,63 @@ begin
   insert into showdown_votes (submission_id, profile_id, value)
   values (p_submission, auth.uid(), p_value)
   on conflict (submission_id, profile_id) do update set value = excluded.value;
+end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.claim_archive_album(p_album uuid, p_profile uuid DEFAULT NULL::uuid)
+ RETURNS albums
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_club uuid;
+  v_kind text;
+  v_current uuid;
+  v_is_admin boolean;
+  v_album public.albums;
+begin
+  select c.club_id, c.kind, a.claimed_by
+  into v_club, v_kind, v_current
+  from albums a
+  join cycles c on c.id = a.cycle_id
+  where a.id = p_album;
+  if not found then
+    raise exception 'Album not found';
+  end if;
+  if v_kind <> 'archive' then
+    raise exception 'Not an archive album';
+  end if;
+  if not public.is_club_member(v_club) then
+    raise exception 'Not a club member';
+  end if;
+
+  v_is_admin := public.club_role(v_club) in ('owner', 'admin');
+
+  if v_is_admin then
+    -- Admin may assign to any member (p_profile = their id) or clear (null).
+    if p_profile is not null and not exists (
+      select 1 from club_members where club_id = v_club and profile_id = p_profile
+    ) then
+      raise exception 'That person is not a club member';
+    end if;
+  else
+    -- Member: claim an unclaimed album for themselves (p_profile = auth.uid())
+    -- or release their own (p_profile = null). Nothing else.
+    if not (
+      (v_current is null and p_profile = auth.uid())
+      or (v_current = auth.uid() and p_profile is null)
+    ) then
+      raise exception 'You can only claim an unclaimed album or release your own';
+    end if;
+  end if;
+
+  update albums set claimed_by = p_profile
+  where id = p_album
+  returning * into v_album;
+
+  return v_album;
 end;
 $function$
 ;
@@ -1971,6 +2083,41 @@ begin
   ) into v_result;
 
   return v_result;
+end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.get_or_create_archive_cycle(p_club uuid)
+ RETURNS cycles
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_cycle public.cycles;
+begin
+  if public.club_role(p_club) not in ('owner', 'admin') then
+    raise exception 'Admin access required';
+  end if;
+
+  select * into v_cycle
+  from cycles where club_id = p_club and kind = 'archive';
+  if found then
+    return v_cycle;
+  end if;
+
+  insert into cycles (club_id, number, picker_id, status, kind, revealed_at)
+  values (
+    p_club,
+    0,
+    (select owner_id from clubs where id = p_club),
+    'closed',
+    'archive',
+    now()
+  )
+  returning * into v_cycle;
+
+  return v_cycle;
 end;
 $function$
 ;
@@ -2735,6 +2882,15 @@ begin
 
   return v_cycle;
 end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.spotify_album_id_from_url(p_url text)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE
+AS $function$
+  select (regexp_match(p_url, 'album/([A-Za-z0-9]+)'))[1];
 $function$
 ;
 

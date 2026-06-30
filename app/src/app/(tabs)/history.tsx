@@ -10,10 +10,12 @@ import { useTheme } from '@/hooks/use-theme';
 import { useCurrentClubStore } from '@/stores/currentClubStore';
 import { fonts, radius } from '@/theme';
 import {
+  archive as archiveDb,
   clubFavorites as favoritesDb,
   cycles as cyclesDb,
   showdown as showdownDb,
   type Album,
+  type ArchiveAlbum,
   type ClubFavoriteTrack,
   type Cycle,
   type ShowdownHistoryRow,
@@ -33,18 +35,21 @@ export default function HistoryTab() {
   const [closed, setClosed] = useState<ClosedCycle[]>([]);
   const [favorites, setFavorites] = useState<ClubFavoriteTrack[]>([]);
   const [showdowns, setShowdowns] = useState<ShowdownHistoryRow[]>([]);
+  const [archived, setArchived] = useState<ArchiveAlbum[]>([]);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
     if (!clubId) return;
-    const [{ data }, { data: favs }, { data: sd }] = await Promise.all([
+    const [{ data }, { data: favs }, { data: sd }, { data: arch }] = await Promise.all([
       cyclesDb.listClosed(clubId),
       favoritesDb.listByClub(clubId),
       showdownDb.history(clubId),
+      archiveDb.list(clubId),
     ]);
     setClosed((data ?? []) as ClosedCycle[]);
     setFavorites((favs ?? []) as ClubFavoriteTrack[]);
     setShowdowns((sd as ShowdownHistoryRow[] | null) ?? []);
+    setArchived((arch ?? []) as unknown as ArchiveAlbum[]);
     setLoading(false);
   }, [clubId]);
 
@@ -163,7 +168,7 @@ export default function HistoryTab() {
         closed.map((c) => {
           const picker = members.find((m) => m.profile_id === c.picker_id);
           const pickerName = picker?.profiles?.display_name ?? 'someone';
-          const albums = c.albums.slice().sort((a, b) => a.slot - b.slot);
+          const albums = c.albums.slice().sort((a, b) => (a.slot ?? 0) - (b.slot ?? 0));
           return (
             <Pressable
               key={c.id}
@@ -208,6 +213,49 @@ export default function HistoryTab() {
           );
         })
       )}
+
+      {archived.length > 0 ? (
+        <>
+          <View style={{ marginTop: 18 }}>
+            <Label>The Archive · before the club</Label>
+          </View>
+          <View style={styles.archiveGrid}>
+            {archived.map((a) => {
+              const claimer = a.claimer;
+              return (
+                <Pressable
+                  key={a.id}
+                  onPress={() => router.push(`/club/${clubId}/album/${a.id}`)}
+                  style={({ pressed }) => [styles.archiveCard, pressed && { opacity: 0.7 }]}
+                >
+                  {a.artwork_url ? (
+                    <Image source={{ uri: a.artwork_url }} style={styles.archiveArt} contentFit="cover" />
+                  ) : (
+                    <View style={[styles.archiveArt, styles.artFallback, { backgroundColor: palette.purpleBg }]}>
+                      <Text style={{ fontSize: 22 }}>🎵</Text>
+                    </View>
+                  )}
+                  <Text numberOfLines={1} style={[styles.archiveTitle, { color: palette.text1 }]}>
+                    {a.title}
+                  </Text>
+                  <Text numberOfLines={1} style={[styles.archiveArtist, { color: palette.text3 }]}>
+                    {a.artist}
+                  </Text>
+                  {claimer ? (
+                    <Text numberOfLines={1} style={[styles.archiveClaimer, { color: palette.teal }]}>
+                      {claimer.display_name ?? 'claimed'}
+                    </Text>
+                  ) : (
+                    <View style={[styles.claimChip, { backgroundColor: palette.tealBg }]}>
+                      <Text style={[styles.claimChipText, { color: palette.teal }]}>CLAIM</Text>
+                    </View>
+                  )}
+                </Pressable>
+              );
+            })}
+          </View>
+        </>
+      ) : null}
     </Screen>
   );
 }
@@ -256,4 +304,12 @@ const styles = StyleSheet.create({
   },
   playlistPlayIcon: { color: '#1DB954', fontSize: 11, marginLeft: 1 },
   playlistBtnText: { fontFamily: fonts.sansBold, fontSize: 14, color: '#fff', letterSpacing: 0.2 },
+  archiveGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 2 },
+  archiveCard: { width: '31%', minWidth: 96 },
+  archiveArt: { width: '100%', aspectRatio: 1, borderRadius: radius.sm, marginBottom: 5 },
+  archiveTitle: { fontFamily: fonts.sansMedium, fontSize: 12 },
+  archiveArtist: { fontFamily: fonts.sans, fontSize: 11, marginTop: 1 },
+  archiveClaimer: { fontFamily: fonts.monoMedium, fontSize: 10, marginTop: 3 },
+  claimChip: { alignSelf: 'flex-start', borderRadius: radius.sm, paddingHorizontal: 6, paddingVertical: 2, marginTop: 3 },
+  claimChipText: { fontFamily: fonts.monoMedium, fontSize: 9, letterSpacing: 1 },
 });

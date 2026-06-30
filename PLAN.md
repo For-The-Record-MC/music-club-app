@@ -25,6 +25,7 @@ functions, `context/` doc index.
 | 14 | The wheel | **Server RPC randomness**: `spin_wheel(club_id)` computes eligibility, picks randomly in Postgres, creates the cycle atomically (unique partial index = one open cycle per club). Client wheel animation is choreographed to land on the returned winner. |
 | 15 | Notifications | **In-app activity feed only** (event rows + client-side templates, Pindejos Market-Moves style) powering a bell with unread state. Expo push deferred; same events table can feed it later. |
 | 16 | Logistics | Build in **this repo**. New Supabase project already created by Jordan (credentials provided when prompted). `index.html` moves to `legacy/` as the **design reference** — its theme (DM Sans/Mono, dark/light palettes, card system) gets ported to the Expo theme. |
+| 17 | The Archive | **Pre-club album shelf.** Albums a club listened to before the app, held in one `kind='archive'` cycle (reuses `albums`+`ratings`). Claimable (`claimed_by`, single claimer, admins reassign), always-open/always-public reviews, Spotify-linked. Pinned section on the History tab (hidden when empty); admin "Add to Archive" screen for all clubs; founding club seeded via `supabase/scripts/seed-archive.mjs`. Reviews count toward album average but not cycle leaderboards; claims are cosmetic ("Pre-FTR picks" on profiles). Fully silent (no notifications). Full breakdown in `ARCHIVE_PLAN.md`. |
 
 ### Assumed defaults (flag if wrong)
 - Scores are integers 1–10 (no halves).

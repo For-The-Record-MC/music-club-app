@@ -427,6 +427,7 @@ export const cycles = {
       .select('*, albums(*)')
       .eq('club_id', clubId)
       .eq('status', 'closed')
+      .eq('kind', 'standard') // exclude the archive cycle (it's closed too)
       .order('number', { ascending: false }),
   // meeting_at is a full timestamp (calendar-ready); meeting_time_location is
   // the free-text location; meeting_url is an optional video-call link.
@@ -512,15 +513,80 @@ export const albums = {
       .select('*, cycles!inner(club_id, number, revealed_at, status)')
       .eq('set_by', profileId)
       .eq('cycles.club_id', clubId)
+      .eq('cycles.kind', 'standard') // archive picks surface separately (claimed_by, not set_by)
       .order('created_at', { ascending: false }),
   // Every album the club has already picked, excluding the current cycle —
-  // powers the soft "already done in Cycle N" resubmission warning.
+  // powers the soft "already done in Cycle N" resubmission warning. Archive
+  // albums (number 0) are excluded so they never trigger a bogus warning.
   priorPicks: (clubId: string, excludeCycleId: string) =>
     supabase
       .from('albums')
-      .select('title, artist, cycles!inner(club_id, number)')
+      .select('title, artist, cycles!inner(club_id, number, kind)')
       .eq('cycles.club_id', clubId)
+      .eq('cycles.kind', 'standard')
       .neq('cycle_id', excludeCycleId),
+};
+
+// The Archive — pre-club albums in the club's single archive cycle. They reuse
+// the albums + ratings spine but carry no slot/reveal ritual; claimed_by names
+// the member who originally picked the album. See ARCHIVE_PLAN.md.
+export interface ArchiveAlbum extends Album {
+  claimer: { display_name: string | null; avatar_color: number; avatar_url: string | null } | null;
+}
+
+export const archive = {
+  // Every archive album for a club, unclaimed-first then alphabetical by artist.
+  list: (clubId: string) =>
+    supabase
+      .from('albums')
+      .select(
+        '*, cycles!inner(club_id, kind), claimer:profiles!albums_claimed_by_fkey(display_name, avatar_color, avatar_url)',
+      )
+      .eq('cycles.club_id', clubId)
+      .eq('cycles.kind', 'archive')
+      .order('claimed_by', { nullsFirst: true })
+      .order('artist', { ascending: true }),
+  // Albums a member has claimed (their "Pre-FTR picks").
+  listByMember: (clubId: string, profileId: string) =>
+    supabase
+      .from('albums')
+      .select('*, cycles!inner(club_id, kind)')
+      .eq('claimed_by', profileId)
+      .eq('cycles.club_id', clubId)
+      .eq('cycles.kind', 'archive')
+      .order('artist', { ascending: true }),
+  // Admin-only: add one album to the club's archive (creates the archive cycle
+  // lazily). Pass a Spotify-resolved album.
+  add: (
+    clubId: string,
+    album: {
+      title: string;
+      artist?: string;
+      year?: number | null;
+      artworkUrl?: string | null;
+      spotifyUrl?: string | null;
+      appleUrl?: string | null;
+      tracks?: Json | null;
+    },
+  ) =>
+    supabase.rpc('add_archive_album', {
+      p_club: clubId,
+      p_title: album.title,
+      p_artist: album.artist ?? '',
+      p_year: album.year ?? undefined,
+      p_artwork_url: album.artworkUrl ?? undefined,
+      p_spotify_url: album.spotifyUrl ?? undefined,
+      p_apple_url: album.appleUrl ?? undefined,
+      p_tracks: (album.tracks ?? undefined) as Json | undefined,
+    }),
+  // Claim (null→self), release (self→null), or — for admins — reassign to any
+  // member. Omit profileId to claim for yourself / release your own.
+  claim: (albumId: string, profileId?: string | null) =>
+    supabase.rpc('claim_archive_album', { p_album: albumId, p_profile: profileId ?? undefined }),
+  // Admin management of a mis-matched / unwanted archive album.
+  update: (albumId: string, patch: TablesUpdate<'albums'>) =>
+    supabase.from('albums').update(patch).eq('id', albumId),
+  remove: (albumId: string) => supabase.from('albums').delete().eq('id', albumId),
 };
 
 export const ratings = {

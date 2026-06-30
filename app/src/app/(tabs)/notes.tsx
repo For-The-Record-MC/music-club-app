@@ -51,7 +51,7 @@ export default function NotesTab() {
       list.push({ ...open, albums: a ?? [] });
     }
     for (const c of (closed ?? []) as CycleWithAlbums[]) {
-      list.push({ ...c, albums: (c.albums ?? []).slice().sort((x, y) => x.slot - y.slot) });
+      list.push({ ...c, albums: (c.albums ?? []).slice().sort((x, y) => (x.slot ?? 0) - (y.slot ?? 0)) });
     }
     setCycles(list);
     // Keep the current pick only if it belongs to THIS club's cycles; otherwise

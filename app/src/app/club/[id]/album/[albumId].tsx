@@ -8,8 +8,10 @@ import { useClubData } from '@/hooks/useClubData';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
 import { fonts, radius } from '@/theme';
+import { confirmAsync } from '@/utils/confirm';
 import {
   albums as albumsDb,
+  archive as archiveDb,
   cycles as cyclesDb,
   ratings as ratingsDb,
   songNoteShares as songNoteSharesDb,
@@ -20,6 +22,7 @@ import {
   type Rating,
   type SongNote,
 } from '@/utils/supabase/db';
+import type { MemberRow } from '@/hooks/useClubData';
 
 interface RevealedRating extends Rating {
   profiles: { display_name: string | null; avatar_color: number; avatar_url: string | null } | null;
@@ -34,7 +37,8 @@ export default function AlbumDetail() {
   const router = useRouter();
   const { palette } = useTheme();
   const userId = useAuthStore((s) => s.userId);
-  const { members } = useClubData(id);
+  const { members, myRole } = useClubData(id);
+  const isAdmin = myRole === 'owner' || myRole === 'admin';
 
   const [album, setAlbum] = useState<Album | null>(null);
   const [cycle, setCycle] = useState<Cycle | null>(null);
@@ -110,8 +114,11 @@ export default function AlbumDetail() {
   }
 
   const mineSubmitted = summary?.mine_submitted ?? false;
+  // Archive albums have no cycle ritual: reviews are always-open + always-public.
+  const isArchive = cycle?.kind === 'archive';
   // Ratings freeze at reveal, not close — once revealed_at is set, no more edits.
   const isOpen = cycle?.status === 'open' && !cycle?.revealed_at;
+  const canRate = isArchive || isOpen;
   const submittedSet = new Set(summary?.submitted ?? []);
 
   return (
@@ -121,7 +128,7 @@ export default function AlbumDetail() {
           <Text style={[styles.back, { color: palette.text2 }]}>←</Text>
         </Pressable>
         <Text style={[styles.eyebrow, { color: palette.text3 }]}>
-          {cycle ? `CYCLE ${cycle.number} · ALBUM ${album.slot}` : ''}
+          {isArchive ? 'THE ARCHIVE' : cycle ? `CYCLE ${cycle.number} · ALBUM ${album.slot}` : ''}
         </Text>
       </View>
 
@@ -151,7 +158,17 @@ export default function AlbumDetail() {
         </View>
       </Card>
 
-      {isOpen ? (
+      {isArchive ? (
+        <ArchiveClaimRow
+          album={album}
+          members={members}
+          userId={userId}
+          isAdmin={isAdmin}
+          onChanged={refresh}
+        />
+      ) : null}
+
+      {canRate ? (
         <Button
           title={mineSubmitted ? '✏️ Edit your rating' : '⭐ Rate this album'}
           onPress={() => router.push(`/club/${id}/rate/${albumId}`)}
@@ -174,7 +191,11 @@ export default function AlbumDetail() {
       />
 
       <Label>
-        {summary?.revealed ? 'The reveal' : `Submitted (${summary?.count ?? 0}/${members.length})`}
+        {isArchive
+          ? 'Reviews'
+          : summary?.revealed
+            ? 'The reveal'
+            : `Submitted (${summary?.count ?? 0}/${members.length})`}
       </Label>
 
       {!summary?.revealed ? (
@@ -334,10 +355,137 @@ export default function AlbumDetail() {
               ) : null}
             </Card>
           ))}
-          {revealed.length === 0 ? <InlineNote text="No ratings were submitted." /> : null}
+          {revealed.length === 0 ? (
+            <InlineNote
+              text={isArchive ? 'No reviews yet — be the first to drop one.' : 'No ratings were submitted.'}
+            />
+          ) : null}
         </>
       )}
     </Screen>
+  );
+}
+
+// The claim affordance on an archive album: who picked it back in the day.
+// Members claim an unclaimed album for themselves or release their own; admins
+// can assign it to any member or clear it.
+function ArchiveClaimRow({
+  album,
+  members,
+  userId,
+  isAdmin,
+  onChanged,
+}: {
+  album: Album;
+  members: MemberRow[];
+  userId: string | null;
+  isAdmin: boolean;
+  onChanged: () => void;
+}) {
+  const { palette } = useTheme();
+  const [picking, setPicking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const claimer = members.find((m) => m.profile_id === album.claimed_by);
+  const mine = album.claimed_by != null && album.claimed_by === userId;
+
+  const run = async (fn: () => PromiseLike<{ error: unknown }>) => {
+    setBusy(true);
+    const { error } = await fn();
+    setBusy(false);
+    setPicking(false);
+    if (!error) onChanged();
+  };
+
+  return (
+    <Card style={{ marginBottom: 8 }}>
+      {claimer ? (
+        <View style={styles.claimRow}>
+          <Avatar
+            name={claimer.profiles?.display_name ?? null}
+            colorIndex={claimer.profiles?.avatar_color ?? 0}
+            imageUrl={claimer.profiles?.avatar_url}
+            size={32}
+          />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={[styles.claimLabel, { color: palette.text3 }]}>PICKED BY</Text>
+            <Text style={[styles.claimName, { color: palette.text1 }]}>
+              {claimer.profiles?.display_name ?? '(no name)'}
+            </Text>
+          </View>
+        </View>
+      ) : (
+        <Text style={[styles.claimPrompt, { color: palette.text2 }]}>
+          Were you the one who brought this album to the club?
+        </Text>
+      )}
+
+      {!album.claimed_by && userId ? (
+        <Button
+          title="🙋 Claim this album"
+          variant="ghost"
+          disabled={busy}
+          onPress={() => run(() => archiveDb.claim(album.id, userId))}
+          style={{ marginTop: 8 }}
+        />
+      ) : mine ? (
+        <Button
+          title="Release my claim"
+          variant="ghost"
+          disabled={busy}
+          onPress={async () => {
+            if (await confirmAsync('Release claim', 'Make this album unclaimed again?')) {
+              run(() => archiveDb.claim(album.id, null));
+            }
+          }}
+          style={{ marginTop: 8 }}
+        />
+      ) : null}
+
+      {isAdmin ? (
+        <Button
+          title={picking ? 'Cancel' : album.claimed_by ? 'Reassign (admin)' : 'Assign to a member (admin)'}
+          variant="ghost"
+          disabled={busy}
+          onPress={() => setPicking((p) => !p)}
+          style={{ marginTop: 8 }}
+        />
+      ) : null}
+
+      {picking ? (
+        <View style={{ marginTop: 6 }}>
+          {members.map((m) => (
+            <Pressable
+              key={m.id}
+              disabled={busy}
+              onPress={() => run(() => archiveDb.claim(album.id, m.profile_id))}
+              style={({ pressed }) => [styles.pickRow, pressed && { opacity: 0.6 }]}
+            >
+              <Avatar
+                name={m.profiles?.display_name ?? null}
+                colorIndex={m.profiles?.avatar_color ?? 0}
+                imageUrl={m.profiles?.avatar_url}
+                size={26}
+              />
+              <Text style={[styles.pickName, { color: palette.text1 }]}>
+                {m.profiles?.display_name ?? '(no name)'}
+              </Text>
+              {m.profile_id === album.claimed_by ? (
+                <Text style={{ color: palette.teal, fontFamily: fonts.monoMedium, fontSize: 11 }}>current</Text>
+              ) : null}
+            </Pressable>
+          ))}
+          {album.claimed_by ? (
+            <Pressable
+              disabled={busy}
+              onPress={() => run(() => archiveDb.claim(album.id, null))}
+              style={({ pressed }) => [styles.pickRow, pressed && { opacity: 0.6 }]}
+            >
+              <Text style={[styles.pickName, { color: palette.coral, marginLeft: 0 }]}>Clear claim</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+    </Card>
   );
 }
 
@@ -376,4 +524,10 @@ const styles = StyleSheet.create({
   noteTrack: { fontFamily: fonts.sansMedium, fontSize: 12, maxWidth: '60%' },
   noteScore: { fontFamily: fonts.sansBold, fontSize: 12 },
   noteComment: { flexBasis: '100%', fontFamily: fonts.sans, fontSize: 12, lineHeight: 17 },
+  claimRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  claimLabel: { fontFamily: fonts.monoMedium, fontSize: 8, letterSpacing: 1 },
+  claimName: { fontFamily: fonts.sansBold, fontSize: 14 },
+  claimPrompt: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 19 },
+  pickRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7 },
+  pickName: { flex: 1, fontFamily: fonts.sansMedium, fontSize: 13 },
 });
