@@ -79,6 +79,7 @@ export default function HomeTab() {
     return pickFeaturedSong(thisCycle);
   }, [feedPosts, cycle]);
   const [copied, setCopied] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pastCycleCount, setPastCycleCount] = useState(0);
@@ -177,6 +178,17 @@ export default function HomeTab() {
       setTimeout(() => setCopied(false), 2000);
     } else {
       await Share.share({ message: `Join "${club.name}" on For The Record MC: ${url}` });
+    }
+  };
+  const shareCode = async () => {
+    if (Platform.OS === 'web') {
+      await Clipboard.setStringAsync(club.invite_code);
+      setCodeCopied(true);
+      setTimeout(() => setCodeCopied(false), 2000);
+    } else {
+      await Share.share({
+        message: `Join "${club.name}" on For The Record MC with invite code: ${club.invite_code}`,
+      });
     }
   };
 
@@ -551,6 +563,11 @@ export default function HomeTab() {
           title={copied ? '✓ Copied!' : Platform.OS === 'web' ? '📋 Copy invite link' : 'Share invite link'}
           variant="ghost"
           onPress={shareInvite}
+        />
+        <Button
+          title={codeCopied ? '✓ Copied!' : Platform.OS === 'web' ? '📋 Copy invite code' : 'Share invite code'}
+          variant="ghost"
+          onPress={shareCode}
         />
       </Card>
 

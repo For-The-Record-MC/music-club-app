@@ -21,6 +21,8 @@ export function ThemeChooser({ clubId, cycleId }: { clubId: string; cycleId: str
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [poolExpanded, setPoolExpanded] = useState(false);
+
   // Reel state.
   const [phase, setPhase] = useState<ReelPhase>('idle');
   const [displayIdx, setDisplayIdx] = useState(0);
@@ -130,11 +132,11 @@ export function ThemeChooser({ clubId, cycleId }: { clubId: string; cycleId: str
         )}
       </View>
 
-      {/* Pool list */}
+      {/* Pool list — collapsed to 5 by default, with a show-more toggle. */}
       {ideas.length > 0 ? (
         <View style={{ marginTop: 12 }}>
           <Text style={[styles.subLabel, { color: palette.text3 }]}>OR PICK FROM THE POOL</Text>
-          {ideas.slice(0, 12).map((idea) => (
+          {(poolExpanded ? ideas.slice(0, 12) : ideas.slice(0, 5)).map((idea) => (
             <Pressable
               key={idea.id}
               onPress={() => commit(idea.text, idea.id)}
@@ -146,6 +148,13 @@ export function ThemeChooser({ clubId, cycleId }: { clubId: string; cycleId: str
               ) : null}
             </Pressable>
           ))}
+          {ideas.length > 5 ? (
+            <Button
+              title={poolExpanded ? 'Show fewer' : `Show ${Math.min(ideas.length, 12) - 5} more`}
+              variant="ghost"
+              onPress={() => setPoolExpanded((v) => !v)}
+            />
+          ) : null}
         </View>
       ) : null}
 

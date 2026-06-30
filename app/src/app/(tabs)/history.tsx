@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Card, InlineNote, Label, NoClubSelected, Screen } from '@/components/ui';
+import { Avatar, Card, InlineNote, Label, NoClubSelected, Screen, TextField } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
 import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
@@ -37,6 +37,7 @@ export default function HistoryTab() {
   const [showdowns, setShowdowns] = useState<ShowdownHistoryRow[]>([]);
   const [archived, setArchived] = useState<ArchiveAlbum[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
 
   const refresh = useCallback(async () => {
     if (!clubId) return;
@@ -61,12 +62,87 @@ export default function HistoryTab() {
 
   if (!clubId) return <NoClubSelected what="history" />;
 
+  // Flat, searchable index of every album the club has on record — closed-cycle
+  // picks plus the Archive. Matches title or artist; cycle picks deep-link to the
+  // cycle detail, Archive albums to their own page.
+  const q = search.trim().toLowerCase();
+  const matches = q
+    ? [
+        ...closed.flatMap((c) =>
+          c.albums.map((a) => ({
+            id: a.id,
+            title: a.title,
+            artist: a.artist,
+            artwork_url: a.artwork_url,
+            sub: `Cycle ${c.number}`,
+            route: `/club/${clubId}/cycle/${c.id}` as const,
+          })),
+        ),
+        ...archived.map((a) => ({
+          id: a.id,
+          title: a.title,
+          artist: a.artist,
+          artwork_url: a.artwork_url,
+          sub: 'The Archive',
+          route: `/club/${clubId}/album/${a.id}` as const,
+        })),
+      ].filter((a) => a.title.toLowerCase().includes(q) || a.artist.toLowerCase().includes(q))
+    : [];
+
   return (
     <Screen onRefresh={onRefresh} refreshing={refreshing}>
       <View style={styles.topbar}>
         <Text style={[styles.eyebrow, { color: palette.text3 }]}>EVERY CYCLE SO FAR</Text>
         <Text style={[styles.title, { color: palette.text1 }]}>📜 History</Text>
       </View>
+
+      <TextField
+        placeholder="Search albums by title or artist…"
+        value={search}
+        onChangeText={setSearch}
+        autoCorrect={false}
+      />
+
+      {q ? (
+        <View style={{ marginTop: 12 }}>
+          <Label>
+            {matches.length} result{matches.length === 1 ? '' : 's'}
+          </Label>
+          {matches.length === 0 ? (
+            <InlineNote text="No albums match — try a different title or artist." />
+          ) : (
+            matches.map((a) => (
+              <Pressable
+                key={`${a.sub}-${a.id}`}
+                onPress={() => router.push(a.route)}
+                style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+              >
+                <Card style={{ marginBottom: 8 }}>
+                  <View style={styles.searchRow}>
+                    {a.artwork_url ? (
+                      <Image source={{ uri: a.artwork_url }} style={styles.searchArt} contentFit="cover" />
+                    ) : (
+                      <View style={[styles.searchArt, styles.artFallback, { backgroundColor: palette.purpleBg }]}>
+                        <Text style={{ fontSize: 18 }}>🎵</Text>
+                      </View>
+                    )}
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text numberOfLines={1} style={[styles.albumLine, { color: palette.text1 }]}>
+                        {a.title}
+                      </Text>
+                      <Text numberOfLines={1} style={[styles.archiveArtist, { color: palette.text3 }]}>
+                        {a.artist}
+                      </Text>
+                    </View>
+                    <Text style={[styles.searchSub, { color: palette.text3 }]}>{a.sub}</Text>
+                  </View>
+                </Card>
+              </Pressable>
+            ))
+          )}
+        </View>
+      ) : (
+        <>
 
       <Label>All-time favorites</Label>
       <Card style={{ marginBottom: 14 }}>
@@ -220,7 +296,10 @@ export default function HistoryTab() {
             <Label>The Archive · before the club</Label>
           </View>
           <View style={styles.archiveGrid}>
-            {archived.map((a) => {
+            {archived
+              .slice()
+              .sort((a, b) => a.artist.localeCompare(b.artist))
+              .map((a) => {
               const claimer = a.claimer;
               return (
                 <Pressable
@@ -242,9 +321,17 @@ export default function HistoryTab() {
                     {a.artist}
                   </Text>
                   {claimer ? (
-                    <Text numberOfLines={1} style={[styles.archiveClaimer, { color: palette.teal }]}>
-                      {claimer.display_name ?? 'claimed'}
-                    </Text>
+                    <View style={styles.archiveClaimerRow}>
+                      <Avatar
+                        name={claimer.display_name}
+                        colorIndex={claimer.avatar_color}
+                        imageUrl={claimer.avatar_url}
+                        size={18}
+                      />
+                      <Text numberOfLines={1} style={[styles.archiveClaimer, { color: palette.teal }]}>
+                        {claimer.display_name ?? 'claimed'}
+                      </Text>
+                    </View>
                   ) : (
                     <View style={[styles.claimChip, { backgroundColor: palette.tealBg }]}>
                       <Text style={[styles.claimChipText, { color: palette.teal }]}>CLAIM</Text>
@@ -256,6 +343,8 @@ export default function HistoryTab() {
           </View>
         </>
       ) : null}
+        </>
+      )}
     </Screen>
   );
 }
@@ -309,7 +398,11 @@ const styles = StyleSheet.create({
   archiveArt: { width: '100%', aspectRatio: 1, borderRadius: radius.sm, marginBottom: 5 },
   archiveTitle: { fontFamily: fonts.sansMedium, fontSize: 12 },
   archiveArtist: { fontFamily: fonts.sans, fontSize: 11, marginTop: 1 },
-  archiveClaimer: { fontFamily: fonts.monoMedium, fontSize: 10, marginTop: 3 },
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  searchArt: { width: 44, height: 44, borderRadius: radius.sm },
+  searchSub: { fontFamily: fonts.mono, fontSize: 10, letterSpacing: 0.5 },
+  archiveClaimerRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4 },
+  archiveClaimer: { fontFamily: fonts.monoMedium, fontSize: 10, flexShrink: 1 },
   claimChip: { alignSelf: 'flex-start', borderRadius: radius.sm, paddingHorizontal: 6, paddingVertical: 2, marginTop: 3 },
   claimChipText: { fontFamily: fonts.monoMedium, fontSize: 9, letterSpacing: 1 },
 });

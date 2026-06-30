@@ -84,9 +84,9 @@ export default function PickAlbums() {
           {locked ? (
             <InlineNote text="Reviews are in — album picks are locked for this cycle." />
           ) : null}
-          {id ? <ThemeChooser clubId={id} cycleId={cycle.id} /> : null}
           <SlotEditor slot={1} clubId={id} cycleId={cycle.id} existing={albums.find((a) => a.slot === 1)} locked={locked} onSaved={handleSaved} />
           <SlotEditor slot={2} clubId={id} cycleId={cycle.id} existing={albums.find((a) => a.slot === 2)} locked={locked} onSaved={handleSaved} />
+          {id ? <ThemeChooser clubId={id} cycleId={cycle.id} /> : null}
           <Button title="Done — back to the club" variant="ghost" onPress={() => router.replace('/home')} />
         </>
       )}
