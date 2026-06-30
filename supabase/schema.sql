@@ -49,6 +49,48 @@ CREATE TABLE albums (
   spotify_album_id text
 );
 
+CREATE TABLE aux_battle_songs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  battle_id uuid NOT NULL,
+  profile_id uuid NOT NULL,
+  title text NOT NULL,
+  artist text NOT NULL DEFAULT ''::text,
+  artwork_url text,
+  spotify_url text,
+  apple_url text,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE aux_battle_theme_ideas (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  club_id uuid,
+  text text NOT NULL,
+  created_by uuid,
+  used_cycle_id uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE aux_battle_votes (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  battle_id uuid NOT NULL,
+  profile_id uuid NOT NULL,
+  choice uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE aux_battles (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  cycle_id uuid NOT NULL,
+  club_id uuid NOT NULL,
+  theme_text text NOT NULL,
+  theme_idea_id uuid,
+  member_a uuid NOT NULL,
+  member_b uuid NOT NULL,
+  created_by uuid NOT NULL,
+  winner_profile_id uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE club_favorite_tracks (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   club_id uuid NOT NULL,
@@ -116,6 +158,45 @@ CREATE TABLE concerts (
   completed_at timestamp with time zone,
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   origin_concert_id uuid
+);
+
+CREATE TABLE convince_comments (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  post_id uuid NOT NULL,
+  author_id uuid NOT NULL,
+  text text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE convince_posts (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  club_id uuid NOT NULL,
+  author_id uuid NOT NULL,
+  artist_name text NOT NULL,
+  artist_image_url text,
+  artist_ref text,
+  blurb text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE convince_targets (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  post_id uuid NOT NULL,
+  profile_id uuid NOT NULL,
+  verdict text,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE convince_tracks (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  post_id uuid NOT NULL,
+  "position" smallint NOT NULL,
+  title text NOT NULL,
+  artist text NOT NULL DEFAULT ''::text,
+  artwork_url text,
+  spotify_url text,
+  apple_url text,
+  norm_key text NOT NULL DEFAULT ''::text
 );
 
 CREATE TABLE cycle_guests (
@@ -201,6 +282,30 @@ CREATE TABLE meeting_time_votes (
   created_at timestamp with time zone NOT NULL DEFAULT now()
 );
 
+CREATE TABLE musical_take_comments (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  take_id uuid NOT NULL,
+  author_id uuid NOT NULL,
+  text text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE musical_take_positions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  take_id uuid NOT NULL,
+  profile_id uuid NOT NULL,
+  value smallint NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE musical_takes (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  club_id uuid NOT NULL,
+  author_id uuid NOT NULL,
+  body text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE notification_preferences (
   profile_id uuid NOT NULL,
   mentions boolean NOT NULL DEFAULT true,
@@ -208,6 +313,31 @@ CREATE TABLE notification_preferences (
   social boolean NOT NULL DEFAULT false,
   announcements boolean NOT NULL DEFAULT true,
   updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE perfect_playlist_songs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  playlist_id uuid NOT NULL,
+  profile_id uuid NOT NULL,
+  title text NOT NULL,
+  artist text NOT NULL DEFAULT ''::text,
+  artwork_url text,
+  spotify_url text,
+  apple_url text,
+  norm_key text NOT NULL,
+  playlist_synced_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE perfect_playlists (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  cycle_id uuid NOT NULL,
+  club_id uuid NOT NULL,
+  theme_text text NOT NULL,
+  created_by uuid NOT NULL,
+  spotify_playlist_id text,
+  spotify_playlist_url text,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
 );
 
 CREATE TABLE post_comments (
@@ -419,6 +549,8 @@ ALTER TABLE albums ADD CONSTRAINT albums_claimed_by_fkey FOREIGN KEY (claimed_by
 
 ALTER TABLE albums ADD CONSTRAINT albums_cycle_id_fkey FOREIGN KEY (cycle_id) REFERENCES cycles(id) ON DELETE CASCADE;
 
+ALTER TABLE albums ADD CONSTRAINT albums_cycle_id_slot_key UNIQUE (cycle_id, slot);
+
 ALTER TABLE albums ADD CONSTRAINT albums_pkey PRIMARY KEY (id);
 
 ALTER TABLE albums ADD CONSTRAINT albums_set_by_fkey FOREIGN KEY (set_by) REFERENCES profiles(id);
@@ -426,6 +558,56 @@ ALTER TABLE albums ADD CONSTRAINT albums_set_by_fkey FOREIGN KEY (set_by) REFERE
 ALTER TABLE albums ADD CONSTRAINT albums_slot_check CHECK (((slot IS NULL) OR (slot = ANY (ARRAY[1, 2]))));
 
 ALTER TABLE albums ADD CONSTRAINT albums_title_check CHECK (((char_length(TRIM(BOTH FROM title)) >= 1) AND (char_length(TRIM(BOTH FROM title)) <= 200)));
+
+ALTER TABLE aux_battle_songs ADD CONSTRAINT aux_battle_songs_battle_id_fkey FOREIGN KEY (battle_id) REFERENCES aux_battles(id) ON DELETE CASCADE;
+
+ALTER TABLE aux_battle_songs ADD CONSTRAINT aux_battle_songs_battle_id_profile_id_key UNIQUE (battle_id, profile_id);
+
+ALTER TABLE aux_battle_songs ADD CONSTRAINT aux_battle_songs_pkey PRIMARY KEY (id);
+
+ALTER TABLE aux_battle_songs ADD CONSTRAINT aux_battle_songs_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE aux_battle_songs ADD CONSTRAINT aux_battle_songs_title_check CHECK (((char_length(TRIM(BOTH FROM title)) >= 1) AND (char_length(TRIM(BOTH FROM title)) <= 300)));
+
+ALTER TABLE aux_battle_theme_ideas ADD CONSTRAINT aux_battle_theme_ideas_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+
+ALTER TABLE aux_battle_theme_ideas ADD CONSTRAINT aux_battle_theme_ideas_created_by_fkey FOREIGN KEY (created_by) REFERENCES profiles(id) ON DELETE SET NULL;
+
+ALTER TABLE aux_battle_theme_ideas ADD CONSTRAINT aux_battle_theme_ideas_pkey PRIMARY KEY (id);
+
+ALTER TABLE aux_battle_theme_ideas ADD CONSTRAINT aux_battle_theme_ideas_text_check CHECK (((char_length(TRIM(BOTH FROM text)) >= 1) AND (char_length(TRIM(BOTH FROM text)) <= 140)));
+
+ALTER TABLE aux_battle_theme_ideas ADD CONSTRAINT aux_battle_theme_ideas_used_cycle_id_fkey FOREIGN KEY (used_cycle_id) REFERENCES cycles(id) ON DELETE SET NULL;
+
+ALTER TABLE aux_battle_votes ADD CONSTRAINT aux_battle_votes_battle_id_fkey FOREIGN KEY (battle_id) REFERENCES aux_battles(id) ON DELETE CASCADE;
+
+ALTER TABLE aux_battle_votes ADD CONSTRAINT aux_battle_votes_battle_id_profile_id_key UNIQUE (battle_id, profile_id);
+
+ALTER TABLE aux_battle_votes ADD CONSTRAINT aux_battle_votes_choice_fkey FOREIGN KEY (choice) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE aux_battle_votes ADD CONSTRAINT aux_battle_votes_pkey PRIMARY KEY (id);
+
+ALTER TABLE aux_battle_votes ADD CONSTRAINT aux_battle_votes_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE aux_battles ADD CONSTRAINT aux_battles_check CHECK ((member_a <> member_b));
+
+ALTER TABLE aux_battles ADD CONSTRAINT aux_battles_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+
+ALTER TABLE aux_battles ADD CONSTRAINT aux_battles_created_by_fkey FOREIGN KEY (created_by) REFERENCES profiles(id);
+
+ALTER TABLE aux_battles ADD CONSTRAINT aux_battles_cycle_id_fkey FOREIGN KEY (cycle_id) REFERENCES cycles(id) ON DELETE CASCADE;
+
+ALTER TABLE aux_battles ADD CONSTRAINT aux_battles_member_a_fkey FOREIGN KEY (member_a) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE aux_battles ADD CONSTRAINT aux_battles_member_b_fkey FOREIGN KEY (member_b) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE aux_battles ADD CONSTRAINT aux_battles_pkey PRIMARY KEY (id);
+
+ALTER TABLE aux_battles ADD CONSTRAINT aux_battles_theme_idea_id_fkey FOREIGN KEY (theme_idea_id) REFERENCES aux_battle_theme_ideas(id) ON DELETE SET NULL;
+
+ALTER TABLE aux_battles ADD CONSTRAINT aux_battles_theme_text_check CHECK (((char_length(TRIM(BOTH FROM theme_text)) >= 1) AND (char_length(TRIM(BOTH FROM theme_text)) <= 140)));
+
+ALTER TABLE aux_battles ADD CONSTRAINT aux_battles_winner_profile_id_fkey FOREIGN KEY (winner_profile_id) REFERENCES profiles(id) ON DELETE SET NULL;
 
 ALTER TABLE club_favorite_tracks ADD CONSTRAINT club_favorite_tracks_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
 
@@ -488,6 +670,44 @@ ALTER TABLE concerts ADD CONSTRAINT concerts_pkey PRIMARY KEY (id);
 ALTER TABLE concerts ADD CONSTRAINT concerts_rating_check CHECK (((rating IS NULL) OR ((rating >= 1) AND (rating <= 5))));
 
 ALTER TABLE concerts ADD CONSTRAINT concerts_review_check CHECK (((review IS NULL) OR (char_length(review) <= 2000)));
+
+ALTER TABLE convince_comments ADD CONSTRAINT convince_comments_author_id_fkey FOREIGN KEY (author_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE convince_comments ADD CONSTRAINT convince_comments_pkey PRIMARY KEY (id);
+
+ALTER TABLE convince_comments ADD CONSTRAINT convince_comments_post_id_fkey FOREIGN KEY (post_id) REFERENCES convince_posts(id) ON DELETE CASCADE;
+
+ALTER TABLE convince_comments ADD CONSTRAINT convince_comments_text_check CHECK (((char_length(TRIM(BOTH FROM text)) >= 1) AND (char_length(TRIM(BOTH FROM text)) <= 2000)));
+
+ALTER TABLE convince_posts ADD CONSTRAINT convince_posts_artist_name_check CHECK (((char_length(TRIM(BOTH FROM artist_name)) >= 1) AND (char_length(TRIM(BOTH FROM artist_name)) <= 200)));
+
+ALTER TABLE convince_posts ADD CONSTRAINT convince_posts_author_id_fkey FOREIGN KEY (author_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE convince_posts ADD CONSTRAINT convince_posts_blurb_check CHECK (((char_length(TRIM(BOTH FROM blurb)) >= 1) AND (char_length(TRIM(BOTH FROM blurb)) <= 1000)));
+
+ALTER TABLE convince_posts ADD CONSTRAINT convince_posts_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+
+ALTER TABLE convince_posts ADD CONSTRAINT convince_posts_pkey PRIMARY KEY (id);
+
+ALTER TABLE convince_targets ADD CONSTRAINT convince_targets_pkey PRIMARY KEY (id);
+
+ALTER TABLE convince_targets ADD CONSTRAINT convince_targets_post_id_fkey FOREIGN KEY (post_id) REFERENCES convince_posts(id) ON DELETE CASCADE;
+
+ALTER TABLE convince_targets ADD CONSTRAINT convince_targets_post_id_profile_id_key UNIQUE (post_id, profile_id);
+
+ALTER TABLE convince_targets ADD CONSTRAINT convince_targets_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE convince_targets ADD CONSTRAINT convince_targets_verdict_check CHECK ((verdict = ANY (ARRAY['converted'::text, 'not_for_me'::text])));
+
+ALTER TABLE convince_tracks ADD CONSTRAINT convince_tracks_pkey PRIMARY KEY (id);
+
+ALTER TABLE convince_tracks ADD CONSTRAINT convince_tracks_position_check CHECK (("position" = ANY (ARRAY[1, 2, 3])));
+
+ALTER TABLE convince_tracks ADD CONSTRAINT convince_tracks_post_id_fkey FOREIGN KEY (post_id) REFERENCES convince_posts(id) ON DELETE CASCADE;
+
+ALTER TABLE convince_tracks ADD CONSTRAINT convince_tracks_post_id_position_key UNIQUE (post_id, "position");
+
+ALTER TABLE convince_tracks ADD CONSTRAINT convince_tracks_title_check CHECK (((char_length(TRIM(BOTH FROM title)) >= 1) AND (char_length(TRIM(BOTH FROM title)) <= 300)));
 
 ALTER TABLE cycle_guests ADD CONSTRAINT cycle_guests_added_by_fkey FOREIGN KEY (added_by) REFERENCES profiles(id);
 
@@ -563,9 +783,57 @@ ALTER TABLE meeting_time_votes ADD CONSTRAINT meeting_time_votes_pkey PRIMARY KE
 
 ALTER TABLE meeting_time_votes ADD CONSTRAINT meeting_time_votes_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
 
+ALTER TABLE musical_take_comments ADD CONSTRAINT musical_take_comments_author_id_fkey FOREIGN KEY (author_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE musical_take_comments ADD CONSTRAINT musical_take_comments_pkey PRIMARY KEY (id);
+
+ALTER TABLE musical_take_comments ADD CONSTRAINT musical_take_comments_take_id_fkey FOREIGN KEY (take_id) REFERENCES musical_takes(id) ON DELETE CASCADE;
+
+ALTER TABLE musical_take_comments ADD CONSTRAINT musical_take_comments_text_check CHECK (((char_length(TRIM(BOTH FROM text)) >= 1) AND (char_length(TRIM(BOTH FROM text)) <= 2000)));
+
+ALTER TABLE musical_take_positions ADD CONSTRAINT musical_take_positions_pkey PRIMARY KEY (id);
+
+ALTER TABLE musical_take_positions ADD CONSTRAINT musical_take_positions_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE musical_take_positions ADD CONSTRAINT musical_take_positions_take_id_fkey FOREIGN KEY (take_id) REFERENCES musical_takes(id) ON DELETE CASCADE;
+
+ALTER TABLE musical_take_positions ADD CONSTRAINT musical_take_positions_take_id_profile_id_key UNIQUE (take_id, profile_id);
+
+ALTER TABLE musical_take_positions ADD CONSTRAINT musical_take_positions_value_check CHECK (((value >= '-2'::integer) AND (value <= 2)));
+
+ALTER TABLE musical_takes ADD CONSTRAINT musical_takes_author_id_fkey FOREIGN KEY (author_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE musical_takes ADD CONSTRAINT musical_takes_body_check CHECK (((char_length(TRIM(BOTH FROM body)) >= 1) AND (char_length(TRIM(BOTH FROM body)) <= 280)));
+
+ALTER TABLE musical_takes ADD CONSTRAINT musical_takes_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+
+ALTER TABLE musical_takes ADD CONSTRAINT musical_takes_pkey PRIMARY KEY (id);
+
 ALTER TABLE notification_preferences ADD CONSTRAINT notification_preferences_pkey PRIMARY KEY (profile_id);
 
 ALTER TABLE notification_preferences ADD CONSTRAINT notification_preferences_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE perfect_playlist_songs ADD CONSTRAINT perfect_playlist_songs_pkey PRIMARY KEY (id);
+
+ALTER TABLE perfect_playlist_songs ADD CONSTRAINT perfect_playlist_songs_playlist_id_fkey FOREIGN KEY (playlist_id) REFERENCES perfect_playlists(id) ON DELETE CASCADE;
+
+ALTER TABLE perfect_playlist_songs ADD CONSTRAINT perfect_playlist_songs_playlist_id_norm_key_key UNIQUE (playlist_id, norm_key);
+
+ALTER TABLE perfect_playlist_songs ADD CONSTRAINT perfect_playlist_songs_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE perfect_playlist_songs ADD CONSTRAINT perfect_playlist_songs_title_check CHECK (((char_length(TRIM(BOTH FROM title)) >= 1) AND (char_length(TRIM(BOTH FROM title)) <= 300)));
+
+ALTER TABLE perfect_playlists ADD CONSTRAINT perfect_playlists_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+
+ALTER TABLE perfect_playlists ADD CONSTRAINT perfect_playlists_created_by_fkey FOREIGN KEY (created_by) REFERENCES profiles(id);
+
+ALTER TABLE perfect_playlists ADD CONSTRAINT perfect_playlists_cycle_id_fkey FOREIGN KEY (cycle_id) REFERENCES cycles(id) ON DELETE CASCADE;
+
+ALTER TABLE perfect_playlists ADD CONSTRAINT perfect_playlists_cycle_id_key UNIQUE (cycle_id);
+
+ALTER TABLE perfect_playlists ADD CONSTRAINT perfect_playlists_pkey PRIMARY KEY (id);
+
+ALTER TABLE perfect_playlists ADD CONSTRAINT perfect_playlists_theme_text_check CHECK (((char_length(TRIM(BOTH FROM theme_text)) >= 1) AND (char_length(TRIM(BOTH FROM theme_text)) <= 140)));
 
 ALTER TABLE post_comments ADD CONSTRAINT post_comments_author_id_fkey FOREIGN KEY (author_id) REFERENCES profiles(id) ON DELETE CASCADE;
 
@@ -770,7 +1038,15 @@ CREATE UNIQUE INDEX albums_archive_spotify_uniq ON public.albums USING btree (cy
 
 CREATE INDEX albums_cycle_idx ON public.albums USING btree (cycle_id);
 
-CREATE UNIQUE INDEX albums_cycle_slot_uniq ON public.albums USING btree (cycle_id, slot) WHERE (slot IS NOT NULL);
+CREATE INDEX aux_battle_songs_battle_idx ON public.aux_battle_songs USING btree (battle_id);
+
+CREATE INDEX aux_battle_theme_ideas_club_idx ON public.aux_battle_theme_ideas USING btree (club_id);
+
+CREATE INDEX aux_battle_votes_battle_idx ON public.aux_battle_votes USING btree (battle_id);
+
+CREATE INDEX aux_battles_club_idx ON public.aux_battles USING btree (club_id);
+
+CREATE INDEX aux_battles_cycle_idx ON public.aux_battles USING btree (cycle_id);
 
 CREATE INDEX club_favorite_tracks_club_idx ON public.club_favorite_tracks USING btree (club_id, added_at DESC);
 
@@ -789,6 +1065,18 @@ CREATE INDEX concert_interest_concert_idx ON public.concert_interest USING btree
 CREATE INDEX concerts_club_idx ON public.concerts USING btree (club_id, concert_date);
 
 CREATE INDEX concerts_origin_idx ON public.concerts USING btree (origin_concert_id);
+
+CREATE INDEX convince_comments_post_idx ON public.convince_comments USING btree (post_id, created_at);
+
+CREATE INDEX convince_posts_author_idx ON public.convince_posts USING btree (author_id);
+
+CREATE INDEX convince_posts_club_idx ON public.convince_posts USING btree (club_id, created_at DESC);
+
+CREATE INDEX convince_targets_post_idx ON public.convince_targets USING btree (post_id);
+
+CREATE INDEX convince_targets_profile_idx ON public.convince_targets USING btree (profile_id);
+
+CREATE INDEX convince_tracks_post_idx ON public.convince_tracks USING btree (post_id);
 
 CREATE INDEX cycle_guests_cycle_idx ON public.cycle_guests USING btree (cycle_id);
 
@@ -809,6 +1097,16 @@ CREATE INDEX feed_posts_suggestion_idx ON public.feed_posts USING btree (club_id
 CREATE INDEX meeting_posts_cycle_idx ON public.meeting_posts USING btree (cycle_id, created_at);
 
 CREATE INDEX meeting_time_options_cycle_idx ON public.meeting_time_options USING btree (cycle_id);
+
+CREATE INDEX musical_take_comments_take_idx ON public.musical_take_comments USING btree (take_id, created_at);
+
+CREATE INDEX musical_take_positions_take_idx ON public.musical_take_positions USING btree (take_id);
+
+CREATE INDEX musical_takes_club_idx ON public.musical_takes USING btree (club_id, created_at DESC);
+
+CREATE INDEX perfect_playlist_songs_playlist_idx ON public.perfect_playlist_songs USING btree (playlist_id, created_at);
+
+CREATE INDEX perfect_playlists_club_idx ON public.perfect_playlists USING btree (club_id);
 
 CREATE INDEX post_comments_post_idx ON public.post_comments USING btree (post_id, created_at);
 
@@ -891,6 +1189,33 @@ CREATE POLICY albums_write ON albums AS PERMISSIVE FOR ALL TO authenticated
    FROM cycles c
   WHERE ((c.id = albums.cycle_id) AND (c.status = 'open'::text) AND ((c.picker_id = auth.uid()) OR (club_role(c.club_id) = ANY (ARRAY['owner'::text, 'admin'::text]))))))));
 
+ALTER TABLE aux_battle_songs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY aux_battle_songs_select ON aux_battle_songs AS PERMISSIVE FOR SELECT TO authenticated
+  USING ((EXISTS ( SELECT 1
+   FROM aux_battles ab
+  WHERE ((ab.id = aux_battle_songs.battle_id) AND is_club_member(ab.club_id)))));
+
+ALTER TABLE aux_battle_theme_ideas ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY aux_battle_theme_ideas_insert ON aux_battle_theme_ideas AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (((club_id IS NOT NULL) AND (created_by = auth.uid()) AND is_club_member(club_id)));
+
+CREATE POLICY aux_battle_theme_ideas_select ON aux_battle_theme_ideas AS PERMISSIVE FOR SELECT TO authenticated
+  USING (((club_id IS NULL) OR is_club_member(club_id)));
+
+ALTER TABLE aux_battle_votes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY aux_battle_votes_select ON aux_battle_votes AS PERMISSIVE FOR SELECT TO authenticated
+  USING ((EXISTS ( SELECT 1
+   FROM aux_battles ab
+  WHERE ((ab.id = aux_battle_votes.battle_id) AND is_club_member(ab.club_id)))));
+
+ALTER TABLE aux_battles ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY aux_battles_select ON aux_battles AS PERMISSIVE FOR SELECT TO authenticated
+  USING (is_club_member(club_id));
+
 ALTER TABLE club_favorite_tracks ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY club_favorite_tracks_select ON club_favorite_tracks AS PERMISSIVE FOR SELECT TO authenticated
@@ -964,6 +1289,45 @@ CREATE POLICY concerts_select ON concerts AS PERMISSIVE FOR SELECT TO authentica
 CREATE POLICY concerts_update ON concerts AS PERMISSIVE FOR UPDATE TO authenticated
   USING (((added_by = auth.uid()) OR (club_role(club_id) = ANY (ARRAY['owner'::text, 'admin'::text]))))
   WITH CHECK (is_club_member(club_id));
+
+ALTER TABLE convince_comments ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY convince_comments_delete ON convince_comments AS PERMISSIVE FOR DELETE TO authenticated
+  USING (((author_id = auth.uid()) OR (EXISTS ( SELECT 1
+   FROM convince_posts p
+  WHERE ((p.id = convince_comments.post_id) AND (club_role(p.club_id) = ANY (ARRAY['owner'::text, 'admin'::text])))))));
+
+CREATE POLICY convince_comments_insert ON convince_comments AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (((author_id = auth.uid()) AND (EXISTS ( SELECT 1
+   FROM convince_posts p
+  WHERE ((p.id = convince_comments.post_id) AND is_club_member(p.club_id))))));
+
+CREATE POLICY convince_comments_select ON convince_comments AS PERMISSIVE FOR SELECT TO authenticated
+  USING ((EXISTS ( SELECT 1
+   FROM convince_posts p
+  WHERE ((p.id = convince_comments.post_id) AND is_club_member(p.club_id)))));
+
+ALTER TABLE convince_posts ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY convince_posts_delete ON convince_posts AS PERMISSIVE FOR DELETE TO authenticated
+  USING (((author_id = auth.uid()) OR (club_role(club_id) = ANY (ARRAY['owner'::text, 'admin'::text]))));
+
+CREATE POLICY convince_posts_select ON convince_posts AS PERMISSIVE FOR SELECT TO authenticated
+  USING (is_club_member(club_id));
+
+ALTER TABLE convince_targets ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY convince_targets_select ON convince_targets AS PERMISSIVE FOR SELECT TO authenticated
+  USING ((EXISTS ( SELECT 1
+   FROM convince_posts p
+  WHERE ((p.id = convince_targets.post_id) AND is_club_member(p.club_id)))));
+
+ALTER TABLE convince_tracks ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY convince_tracks_select ON convince_tracks AS PERMISSIVE FOR SELECT TO authenticated
+  USING ((EXISTS ( SELECT 1
+   FROM convince_posts p
+  WHERE ((p.id = convince_tracks.post_id) AND is_club_member(p.club_id)))));
 
 ALTER TABLE cycle_guests ENABLE ROW LEVEL SECURITY;
 
@@ -1067,6 +1431,47 @@ CREATE POLICY mtv_select ON meeting_time_votes AS PERMISSIVE FOR SELECT TO authe
    FROM meeting_time_options o
   WHERE (o.id = meeting_time_votes.option_id)))));
 
+ALTER TABLE musical_take_comments ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY musical_take_comments_delete ON musical_take_comments AS PERMISSIVE FOR DELETE TO authenticated
+  USING (((author_id = auth.uid()) OR (EXISTS ( SELECT 1
+   FROM musical_takes t
+  WHERE ((t.id = musical_take_comments.take_id) AND (club_role(t.club_id) = ANY (ARRAY['owner'::text, 'admin'::text])))))));
+
+CREATE POLICY musical_take_comments_insert ON musical_take_comments AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (((author_id = auth.uid()) AND (EXISTS ( SELECT 1
+   FROM musical_takes t
+  WHERE ((t.id = musical_take_comments.take_id) AND is_club_member(t.club_id))))));
+
+CREATE POLICY musical_take_comments_select ON musical_take_comments AS PERMISSIVE FOR SELECT TO authenticated
+  USING ((EXISTS ( SELECT 1
+   FROM musical_takes t
+  WHERE ((t.id = musical_take_comments.take_id) AND is_club_member(t.club_id)))));
+
+ALTER TABLE musical_take_positions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY musical_take_positions_select ON musical_take_positions AS PERMISSIVE FOR SELECT TO authenticated
+  USING ((EXISTS ( SELECT 1
+   FROM musical_takes t
+  WHERE ((t.id = musical_take_positions.take_id) AND is_club_member(t.club_id)))));
+
+CREATE POLICY musical_take_positions_write ON musical_take_positions AS PERMISSIVE FOR ALL TO authenticated
+  USING ((profile_id = auth.uid()))
+  WITH CHECK (((profile_id = auth.uid()) AND (EXISTS ( SELECT 1
+   FROM musical_takes t
+  WHERE ((t.id = musical_take_positions.take_id) AND is_club_member(t.club_id))))));
+
+ALTER TABLE musical_takes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY musical_takes_delete ON musical_takes AS PERMISSIVE FOR DELETE TO authenticated
+  USING (((author_id = auth.uid()) OR (club_role(club_id) = ANY (ARRAY['owner'::text, 'admin'::text]))));
+
+CREATE POLICY musical_takes_insert ON musical_takes AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (((author_id = auth.uid()) AND is_club_member(club_id)));
+
+CREATE POLICY musical_takes_select ON musical_takes AS PERMISSIVE FOR SELECT TO authenticated
+  USING (is_club_member(club_id));
+
 ALTER TABLE notification_preferences ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY notification_preferences_insert ON notification_preferences AS PERMISSIVE FOR INSERT TO authenticated
@@ -1078,6 +1483,18 @@ CREATE POLICY notification_preferences_select ON notification_preferences AS PER
 CREATE POLICY notification_preferences_update ON notification_preferences AS PERMISSIVE FOR UPDATE TO authenticated
   USING ((profile_id = auth.uid()))
   WITH CHECK ((profile_id = auth.uid()));
+
+ALTER TABLE perfect_playlist_songs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY perfect_playlist_songs_select ON perfect_playlist_songs AS PERMISSIVE FOR SELECT TO authenticated
+  USING ((EXISTS ( SELECT 1
+   FROM perfect_playlists pp
+  WHERE ((pp.id = perfect_playlist_songs.playlist_id) AND is_club_member(pp.club_id)))));
+
+ALTER TABLE perfect_playlists ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY perfect_playlists_select ON perfect_playlists AS PERMISSIVE FOR SELECT TO authenticated
+  USING (is_club_member(club_id));
 
 ALTER TABLE post_comments ENABLE ROW LEVEL SECURITY;
 
@@ -1328,6 +1745,58 @@ end;
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.add_perfect_playlist_song(p_playlist uuid, p_title text, p_artist text DEFAULT ''::text, p_artwork_url text DEFAULT NULL::text, p_spotify_url text DEFAULT NULL::text, p_apple_url text DEFAULT NULL::text)
+ RETURNS perfect_playlist_songs
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_club uuid;
+  v_status text;
+  v_norm text;
+  v_mine integer;
+  v_row public.perfect_playlist_songs;
+begin
+  select c.club_id, c.status into v_club, v_status
+  from perfect_playlists pp join cycles c on c.id = pp.cycle_id
+  where pp.id = p_playlist;
+  if not found then
+    raise exception 'Playlist not found';
+  end if;
+  if not public.is_club_member(v_club) then
+    raise exception 'Not a club member';
+  end if;
+  if v_status <> 'open' then
+    raise exception 'The playlist is closed';
+  end if;
+  if char_length(trim(coalesce(p_title, ''))) = 0 then
+    raise exception 'A song title is required';
+  end if;
+
+  select count(*) into v_mine
+  from perfect_playlist_songs where playlist_id = p_playlist and profile_id = auth.uid();
+  if v_mine >= 3 then
+    raise exception 'You have already added your 3 songs.';
+  end if;
+
+  v_norm := public.showdown_norm(p_title, p_artist);
+  if exists (select 1 from perfect_playlist_songs where playlist_id = p_playlist and norm_key = v_norm) then
+    raise exception 'That song is already on the playlist — pick another.';
+  end if;
+
+  insert into perfect_playlist_songs
+    (playlist_id, profile_id, title, artist, artwork_url, spotify_url, apple_url, norm_key)
+  values
+    (p_playlist, auth.uid(), trim(p_title), coalesce(p_artist, ''),
+     p_artwork_url, p_spotify_url, p_apple_url, v_norm)
+  returning * into v_row;
+
+  return v_row;
+end;
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.album_has_ratings(p_album uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -1335,6 +1804,41 @@ CREATE OR REPLACE FUNCTION public.album_has_ratings(p_album uuid)
  SET search_path TO 'public'
 AS $function$
   select exists (select 1 from ratings where album_id = p_album);
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.cast_aux_vote(p_battle uuid, p_choice uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_battle public.aux_battles;
+  v_status text;
+begin
+  select * into v_battle from aux_battles where id = p_battle;
+  if not found then
+    raise exception 'Battle not found';
+  end if;
+  if not public.is_club_member(v_battle.club_id) then
+    raise exception 'Not a club member';
+  end if;
+  if auth.uid() = v_battle.member_a or auth.uid() = v_battle.member_b then
+    raise exception 'Combatants cannot vote in their own battle';
+  end if;
+  select status into v_status from cycles where id = v_battle.cycle_id;
+  if v_status <> 'open' then
+    raise exception 'Voting is closed';
+  end if;
+  if p_choice <> v_battle.member_a and p_choice <> v_battle.member_b then
+    raise exception 'Vote must be for one of the two combatants';
+  end if;
+
+  insert into aux_battle_votes (battle_id, profile_id, choice)
+  values (p_battle, auth.uid(), p_choice)
+  on conflict (battle_id, profile_id) do update set choice = excluded.choice;
+end;
 $function$
 ;
 
@@ -1482,6 +1986,11 @@ declare
   v_w_title text;
   v_w_artist text;
   v_w_name text;
+  v_battle public.aux_battles;
+  v_a_votes integer;
+  v_b_votes integer;
+  v_ab_winner uuid;
+  v_ab_name text;
 begin
   select * into v_cycle from cycles where id = p_cycle;
   if not found then
@@ -1526,6 +2035,34 @@ begin
       );
     end if;
   end if;
+
+  -- Crown EACH Aux Battle in the cycle: more votes wins; a tie credits no one.
+  for v_battle in select * from aux_battles where cycle_id = p_cycle loop
+    select count(*) filter (where choice = v_battle.member_a),
+           count(*) filter (where choice = v_battle.member_b)
+      into v_a_votes, v_b_votes
+    from aux_battle_votes where battle_id = v_battle.id;
+
+    if v_a_votes > v_b_votes then
+      v_ab_winner := v_battle.member_a;
+    elsif v_b_votes > v_a_votes then
+      v_ab_winner := v_battle.member_b;
+    else
+      v_ab_winner := null;
+    end if;
+
+    if v_ab_winner is not null then
+      update aux_battles set winner_profile_id = v_ab_winner where id = v_battle.id;
+      select display_name into v_ab_name from profiles where id = v_ab_winner;
+      perform public.publish_activity_event(
+        v_cycle.club_id, 'aux_battle_winner',
+        jsonb_build_object(
+          'cycle_number', v_cycle.number, 'cycle_id', p_cycle,
+          'theme', v_battle.theme_text, 'winner_name', v_ab_name
+        )
+      );
+    end if;
+  end loop;
 
   perform public.publish_activity_event(
     v_cycle.club_id, 'cycle_closed',
@@ -1689,6 +2226,69 @@ begin
   values (v_club.id, auth.uid(), 'owner');
 
   return v_club;
+end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.create_convince_post(p_club uuid, p_artist_name text, p_artist_image text, p_artist_ref text, p_blurb text, p_tracks jsonb, p_targets uuid[])
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := auth.uid();
+  v_post uuid;
+begin
+  if not public.is_club_member(p_club) then
+    raise exception 'Not a club member';
+  end if;
+  if jsonb_array_length(coalesce(p_tracks, '[]'::jsonb)) <> 3 then
+    raise exception 'Exactly 3 tracks are required';
+  end if;
+
+  insert into convince_posts (club_id, author_id, artist_name, artist_image_url, artist_ref, blurb)
+  values (p_club, v_actor, p_artist_name, nullif(p_artist_image, ''), nullif(p_artist_ref, ''), p_blurb)
+  returning id into v_post;
+
+  insert into convince_tracks (post_id, position, title, artist, artwork_url, spotify_url, apple_url, norm_key)
+  select
+    v_post,
+    ord::smallint,
+    t->>'title',
+    coalesce(t->>'artist', ''),
+    nullif(t->>'artwork_url', ''),
+    nullif(t->>'spotify_url', ''),
+    nullif(t->>'apple_url', ''),
+    coalesce(t->>'norm_key', '')
+  from jsonb_array_elements(p_tracks) with ordinality as e(t, ord);
+
+  insert into convince_targets (post_id, profile_id)
+  select v_post, r
+  from unnest(p_targets) as r
+  where r <> v_actor
+    and exists (select 1 from club_members m where m.club_id = p_club and m.profile_id = r)
+  on conflict (post_id, profile_id) do nothing;
+
+  -- Broadcast discovery event (social category — bell + hub, no push by default).
+  insert into activity_events (club_id, actor_id, event_type, payload)
+  values (
+    p_club, v_actor, 'convince_post',
+    jsonb_build_object(
+      'post_id', v_post,
+      'artist', p_artist_name,
+      'target_count', coalesce(array_length(p_targets, 1), 0)
+    )
+  );
+
+  -- One targeted event per aimed-at member (mentions category — direct push).
+  insert into activity_events (club_id, actor_id, recipient_id, event_type, payload)
+  select p_club, v_actor, t.profile_id, 'convince_target',
+    jsonb_build_object('post_id', v_post, 'artist', p_artist_name)
+  from convince_targets t
+  where t.post_id = v_post;
+
+  return v_post;
 end;
 $function$
 ;
@@ -2616,6 +3216,63 @@ end;
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.remove_perfect_playlist_song(p_song uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_owner uuid;
+  v_club uuid;
+  v_status text;
+begin
+  select s.profile_id, c.club_id, c.status into v_owner, v_club, v_status
+  from perfect_playlist_songs s
+  join perfect_playlists pp on pp.id = s.playlist_id
+  join cycles c on c.id = pp.cycle_id
+  where s.id = p_song;
+  if not found then
+    return;
+  end if;
+  if v_status <> 'open' then
+    raise exception 'The playlist is closed';
+  end if;
+  if v_owner <> auth.uid() and public.club_role(v_club) not in ('owner', 'admin') then
+    raise exception 'You can only remove your own songs';
+  end if;
+  delete from perfect_playlist_songs where id = p_song;
+end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.reset_aux_battle(p_cycle uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_cycle public.cycles;
+begin
+  select * into v_cycle from cycles where id = p_cycle;
+  if not found then
+    raise exception 'Cycle not found';
+  end if;
+  if v_cycle.status <> 'open' then
+    raise exception 'The cycle is closed';
+  end if;
+  if v_cycle.picker_id <> auth.uid()
+     and public.club_role(v_cycle.club_id) not in ('owner', 'admin') then
+    raise exception 'Only the picker or an admin can reset the bracket';
+  end if;
+
+  update aux_battle_theme_ideas set used_cycle_id = null where used_cycle_id = p_cycle;
+  delete from aux_battles where cycle_id = p_cycle;
+end;
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.reveal_cycle(p_cycle uuid)
  RETURNS cycles
  LANGUAGE plpgsql
@@ -2813,6 +3470,26 @@ end;
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.set_convince_verdict(p_post uuid, p_verdict text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if p_verdict is not null and p_verdict not in ('converted', 'not_for_me') then
+    raise exception 'Invalid verdict';
+  end if;
+  update convince_targets
+  set verdict = p_verdict
+  where post_id = p_post and profile_id = auth.uid();
+  if not found then
+    raise exception 'You are not a target of this rec';
+  end if;
+end;
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.set_showdown_theme(p_cycle uuid, p_text text, p_idea_id uuid DEFAULT NULL::uuid)
  RETURNS showdowns
  LANGUAGE plpgsql
@@ -2868,6 +3545,31 @@ AS $function$
     lower(trim(coalesce(p_title, '')) || '|' || trim(coalesce(p_artist, ''))),
     '[^a-z0-9|]+', '', 'g'
   );
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.spin_aux_theme(p_club uuid)
+ RETURNS aux_battle_theme_ideas
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_idea public.aux_battle_theme_ideas;
+begin
+  if not public.is_club_member(p_club) then
+    raise exception 'Not a club member';
+  end if;
+  select * into v_idea
+  from aux_battle_theme_ideas
+  where used_cycle_id is null and (club_id is null or club_id = p_club)
+  order by random()
+  limit 1;
+  if not found then
+    raise exception 'No theme ideas left to spin';
+  end if;
+  return v_idea;
+end;
 $function$
 ;
 
@@ -2961,6 +3663,151 @@ AS $function$
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.start_aux_battle(p_cycle uuid)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_cycle public.cycles;
+  v_members uuid[];
+  v_n integer;
+  v_pairs integer;
+  v_idea_ids uuid[];
+  v_idea_texts text[];
+  v_all_texts text[];
+  v_a uuid;
+  v_b uuid;
+  v_theme text;
+  v_idea_id uuid;
+  i integer;
+begin
+  select * into v_cycle from cycles where id = p_cycle;
+  if not found then
+    raise exception 'Cycle not found';
+  end if;
+  if v_cycle.status <> 'open' then
+    raise exception 'The cycle is closed';
+  end if;
+  if v_cycle.picker_id <> auth.uid()
+     and public.club_role(v_cycle.club_id) not in ('owner', 'admin') then
+    raise exception 'Only the picker or an admin can start the Aux Battle';
+  end if;
+  if exists (select 1 from aux_battles where cycle_id = p_cycle) then
+    raise exception 'The Aux Battle bracket has already been set';
+  end if;
+
+  -- Shuffle the whole roster.
+  select array(select cm.profile_id from club_members cm where cm.club_id = v_cycle.club_id order by random())
+    into v_members;
+  v_n := coalesce(array_length(v_members, 1), 0);
+  if v_n < 2 then
+    raise exception 'Need at least 2 members for an Aux Battle';
+  end if;
+  v_pairs := v_n / 2; -- integer division; an odd member out gets a bye
+
+  -- Distinct unused themes (club + global), shuffled.
+  select array_agg(id order by rnd), array_agg(text order by rnd)
+    into v_idea_ids, v_idea_texts
+  from (
+    select id, text, random() as rnd
+    from aux_battle_theme_ideas
+    where used_cycle_id is null and (club_id is null or club_id = v_cycle.club_id)
+  ) q;
+
+  -- Full pool of theme texts, for reuse once the unused set runs out.
+  select array_agg(text) into v_all_texts
+  from aux_battle_theme_ideas where club_id is null or club_id = v_cycle.club_id;
+  if coalesce(array_length(v_all_texts, 1), 0) = 0 then
+    v_all_texts := array['Best song'];
+  end if;
+
+  for i in 1..v_pairs loop
+    v_a := v_members[2 * i - 1];
+    v_b := v_members[2 * i];
+    if i <= coalesce(array_length(v_idea_ids, 1), 0) then
+      v_theme := v_idea_texts[i];
+      v_idea_id := v_idea_ids[i];
+    else
+      v_theme := v_all_texts[1 + floor(random() * array_length(v_all_texts, 1))::int];
+      v_idea_id := null;
+    end if;
+
+    insert into aux_battles (cycle_id, club_id, theme_text, theme_idea_id, member_a, member_b, created_by)
+    values (p_cycle, v_cycle.club_id, v_theme, v_idea_id, v_a, v_b, auth.uid());
+
+    if v_idea_id is not null then
+      update aux_battle_theme_ideas set used_cycle_id = p_cycle where id = v_idea_id;
+    end if;
+
+    insert into activity_events (club_id, actor_id, recipient_id, event_type, payload)
+    select v_cycle.club_id, auth.uid(), m, 'aux_battle_picked',
+      jsonb_build_object('cycle_number', v_cycle.number, 'theme', v_theme)
+    from unnest(array[v_a, v_b]) as m;
+  end loop;
+
+  perform public.publish_activity_event(
+    v_cycle.club_id, 'aux_battle_started',
+    jsonb_build_object('cycle_number', v_cycle.number, 'cycle_id', p_cycle, 'pairs', v_pairs)
+  );
+
+  return v_pairs;
+end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.start_perfect_playlist(p_cycle uuid, p_theme text, p_title text, p_artist text DEFAULT ''::text, p_artwork_url text DEFAULT NULL::text, p_spotify_url text DEFAULT NULL::text, p_apple_url text DEFAULT NULL::text)
+ RETURNS perfect_playlists
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_cycle public.cycles;
+  v_playlist public.perfect_playlists;
+begin
+  select * into v_cycle from cycles where id = p_cycle;
+  if not found then
+    raise exception 'Cycle not found';
+  end if;
+  if v_cycle.status <> 'open' then
+    raise exception 'The cycle is closed';
+  end if;
+  if v_cycle.picker_id <> auth.uid()
+     and public.club_role(v_cycle.club_id) not in ('owner', 'admin') then
+    raise exception 'Only the picker or an admin can start the playlist';
+  end if;
+  if char_length(trim(coalesce(p_theme, ''))) = 0 then
+    raise exception 'Theme cannot be empty';
+  end if;
+  if char_length(trim(coalesce(p_title, ''))) = 0 then
+    raise exception 'A seed song is required';
+  end if;
+  if exists (select 1 from perfect_playlists where cycle_id = p_cycle) then
+    raise exception 'The playlist has already been started';
+  end if;
+
+  insert into perfect_playlists (cycle_id, club_id, theme_text, created_by)
+  values (p_cycle, v_cycle.club_id, trim(p_theme), auth.uid())
+  returning * into v_playlist;
+
+  insert into perfect_playlist_songs
+    (playlist_id, profile_id, title, artist, artwork_url, spotify_url, apple_url, norm_key)
+  values
+    (v_playlist.id, auth.uid(), trim(p_title), coalesce(p_artist, ''),
+     p_artwork_url, p_spotify_url, p_apple_url, public.showdown_norm(p_title, p_artist));
+
+  perform public.publish_activity_event(
+    v_cycle.club_id, 'perfect_playlist_started',
+    jsonb_build_object('cycle_number', v_cycle.number, 'cycle_id', p_cycle, 'theme', v_playlist.theme_text)
+  );
+
+  return v_playlist;
+end;
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.streaming_disconnect(p_club uuid)
  RETURNS void
  LANGUAGE plpgsql
@@ -3011,6 +3858,44 @@ begin
     'connected_by', v_row.connected_by,
     'can_connect', v_can_connect
   );
+end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.submit_aux_song(p_battle uuid, p_title text, p_artist text DEFAULT ''::text, p_artwork_url text DEFAULT NULL::text, p_spotify_url text DEFAULT NULL::text, p_apple_url text DEFAULT NULL::text)
+ RETURNS aux_battle_songs
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_battle public.aux_battles;
+  v_status text;
+  v_row public.aux_battle_songs;
+begin
+  select * into v_battle from aux_battles where id = p_battle;
+  if not found then
+    raise exception 'Battle not found';
+  end if;
+  if auth.uid() <> v_battle.member_a and auth.uid() <> v_battle.member_b then
+    raise exception 'Only the two combatants can submit a song';
+  end if;
+  select status into v_status from cycles where id = v_battle.cycle_id;
+  if v_status <> 'open' then
+    raise exception 'The battle is closed';
+  end if;
+  if char_length(trim(coalesce(p_title, ''))) = 0 then
+    raise exception 'A song title is required';
+  end if;
+
+  insert into aux_battle_songs (battle_id, profile_id, title, artist, artwork_url, spotify_url, apple_url)
+  values (p_battle, auth.uid(), trim(p_title), coalesce(p_artist, ''), p_artwork_url, p_spotify_url, p_apple_url)
+  on conflict (battle_id, profile_id) do update
+    set title = excluded.title, artist = excluded.artist, artwork_url = excluded.artwork_url,
+        spotify_url = excluded.spotify_url, apple_url = excluded.apple_url
+  returning * into v_row;
+
+  return v_row;
 end;
 $function$
 ;

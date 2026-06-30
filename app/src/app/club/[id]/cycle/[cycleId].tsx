@@ -414,7 +414,7 @@ export default function CycleHighlightsScreen() {
                 {data.popular_shares.map((p, i) => (
                   <Pressable
                     key={p.post_id}
-                    onPress={() => router.push({ pathname: '/feed', params: { focus: String(p.post_id) } })}
+                    onPress={() => router.push({ pathname: '/clubhouse/activity', params: { focus: String(p.post_id) } })}
                     style={({ pressed }) => [
                       styles.shareRow,
                       i > 0 && { borderTopColor: palette.border, borderTopWidth: StyleSheet.hairlineWidth },

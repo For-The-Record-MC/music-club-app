@@ -18,6 +18,15 @@ export type CyclePreference = Tables<'cycle_preferences'>;
 export type RsvpStatus = 'yes' | 'maybe' | 'no';
 export type Rating = Tables<'ratings'>;
 export type SongNote = Tables<'song_notes'>;
+export type MusicalTake = Tables<'musical_takes'>;
+export type ConvincePost = Tables<'convince_posts'>;
+export type ConvinceTrack = Tables<'convince_tracks'>;
+export type ConvinceVerdict = 'converted' | 'not_for_me';
+export type PerfectPlaylist = Tables<'perfect_playlists'>;
+export type PerfectPlaylistSong = Tables<'perfect_playlist_songs'>;
+export type AuxBattle = Tables<'aux_battles'>;
+export type AuxBattleSong = Tables<'aux_battle_songs'>;
+export type AuxThemeIdea = Tables<'aux_battle_theme_ideas'>;
 export type SongNoteShare = Tables<'song_note_shares'>;
 export type AlbumImpression = Tables<'album_impressions'>;
 export type VibeTag = Tables<'vibe_tags'>;
@@ -377,6 +386,9 @@ export const streaming = {
   // Push the open cycle's songs to its playlist (owner token, server-side).
   sync: (clubId: string) =>
     supabase.functions.invoke<SyncResult>('spotify-sync', { body: { club_id: clubId } }),
+  // Push the open cycle's Perfect Playlist to its OWN Spotify playlist.
+  syncPerfect: (clubId: string) =>
+    supabase.functions.invoke<SyncResult>('spotify-sync', { body: { club_id: clubId, playlist: 'perfect' } }),
   // Drop a deleted post's track from the open cycle's playlist (owner token,
   // server-side). Best-effort; no-op when not connected or it wasn't a synced track.
   removePost: (clubId: string, postId: string) =>
@@ -532,6 +544,14 @@ export const showdown = {
   list: (cycleId: string) => supabase.rpc('list_showdown', { p_cycle: cycleId }),
   // Past showdowns with their winner — cast data as ShowdownHistoryRow[].
   history: (clubId: string) => supabase.rpc('get_showdown_history', { p_club: clubId }),
+  // Winning submissions' authors across the club, for the "Showdown wins" profile
+  // stat (counted client-side per profile).
+  winners: (clubId: string) =>
+    supabase
+      .from('showdowns')
+      .select('winner_submission_id, showdown_submissions!showdowns_winner_fk(profile_id)')
+      .eq('club_id', clubId)
+      .not('winner_submission_id', 'is', null),
 };
 
 export const albums = {
@@ -897,6 +917,211 @@ export const comments = {
   add: (postId: string, authorId: string, text: string) =>
     supabase.from('post_comments').insert({ post_id: postId, author_id: authorId, text: text.trim() }),
   remove: (id: string) => supabase.from('post_comments').delete().eq('id', id),
+};
+
+// Musical Takes — a standing wall of hot takes. Positions are a 5-point
+// agree↔disagree scale (-2..2); clearing one is a DELETE. Positions + a comment
+// count ride along in list() the same way reactions/comments do for the feed.
+export const musicalTakes = {
+  list: (clubId: string) =>
+    supabase
+      .from('musical_takes')
+      .select(
+        '*, profiles(display_name, email, avatar_color, avatar_url), musical_take_positions(value, profile_id), musical_take_comments(count)',
+      )
+      .eq('club_id', clubId)
+      .order('created_at', { ascending: false }),
+  create: (clubId: string, authorId: string, body: string) =>
+    supabase
+      .from('musical_takes')
+      .insert({ club_id: clubId, author_id: authorId, body: body.trim() })
+      .select()
+      .single(),
+  remove: (id: string) => supabase.from('musical_takes').delete().eq('id', id),
+  // value in -2..2; written directly under RLS like a reaction.
+  setPosition: (takeId: string, profileId: string, value: number) =>
+    supabase
+      .from('musical_take_positions')
+      .upsert({ take_id: takeId, profile_id: profileId, value }, { onConflict: 'take_id,profile_id' }),
+  clearPosition: (takeId: string, profileId: string) =>
+    supabase.from('musical_take_positions').delete().eq('take_id', takeId).eq('profile_id', profileId),
+  listComments: (takeId: string) =>
+    supabase
+      .from('musical_take_comments')
+      .select('*, profiles(display_name, email, avatar_color, avatar_url)')
+      .eq('take_id', takeId)
+      .order('created_at'),
+  addComment: (takeId: string, authorId: string, text: string) =>
+    supabase.from('musical_take_comments').insert({ take_id: takeId, author_id: authorId, text: text.trim() }),
+};
+
+// Convince Me — standing artist-rec board. Posts are created/verdicted through
+// security-definer RPCs (so a post lands atomically with its 3 tracks, targets,
+// and the discovery + per-target push events); reads + comments are direct.
+export interface ConvinceTrackInput {
+  title: string;
+  artist: string;
+  artwork_url: string | null;
+  spotify_url: string | null;
+  apple_url: string | null;
+  norm_key: string;
+}
+export const convince = {
+  list: (clubId: string) =>
+    supabase
+      .from('convince_posts')
+      .select(
+        '*, profiles(display_name, email, avatar_color, avatar_url), convince_tracks(*), convince_targets(profile_id, verdict), convince_comments(count)',
+      )
+      .eq('club_id', clubId)
+      .order('created_at', { ascending: false }),
+  create: (
+    clubId: string,
+    artist: { name: string; imageUrl: string | null; ref: string | null },
+    blurb: string,
+    tracks: ConvinceTrackInput[],
+    targets: string[],
+  ) =>
+    supabase.rpc('create_convince_post', {
+      p_club: clubId,
+      p_artist_name: artist.name,
+      p_artist_image: artist.imageUrl ?? '',
+      p_artist_ref: artist.ref ?? '',
+      p_blurb: blurb.trim(),
+      // The RPC takes a jsonb array; the generated arg type is the opaque Json.
+      p_tracks: tracks as unknown as Json,
+      p_targets: targets,
+    }),
+  // null clears the verdict; the SQL param is nullable text but the generated
+  // type marks it required, so cast to satisfy the signature while sending null.
+  setVerdict: (postId: string, verdict: ConvinceVerdict | null) =>
+    supabase.rpc('set_convince_verdict', { p_post: postId, p_verdict: verdict as unknown as string }),
+  remove: (id: string) => supabase.from('convince_posts').delete().eq('id', id),
+  listComments: (postId: string) =>
+    supabase
+      .from('convince_comments')
+      .select('*, profiles(display_name, email, avatar_color, avatar_url)')
+      .eq('post_id', postId)
+      .order('created_at'),
+  addComment: (postId: string, authorId: string, text: string) =>
+    supabase.from('convince_comments').insert({ post_id: postId, author_id: authorId, text: text.trim() }),
+  // "Convinced N" profile stat: how many people this member has converted in
+  // this club (verdict = 'converted' on recs they authored).
+  convincedCount: (clubId: string, profileId: string) =>
+    supabase
+      .from('convince_targets')
+      .select('id, convince_posts!inner(author_id, club_id)', { count: 'exact', head: true })
+      .eq('verdict', 'converted')
+      .eq('convince_posts.author_id', profileId)
+      .eq('convince_posts.club_id', clubId),
+};
+
+// The Perfect Playlist — one collaborative themed playlist per cycle. Picker
+// kicks it off (theme + seed) via start; members add up to 3 songs each. Writes
+// flow through the security-definer RPCs; reads embed songs + their contributors.
+interface PlaylistSong {
+  title: string;
+  artist: string;
+  artworkUrl?: string | null;
+  spotifyUrl?: string | null;
+  appleUrl?: string | null;
+}
+export const perfectPlaylist = {
+  forCycle: (cycleId: string) =>
+    supabase
+      .from('perfect_playlists')
+      .select(
+        '*, perfect_playlist_songs(*, profiles(display_name, email, avatar_color, avatar_url))',
+      )
+      .eq('cycle_id', cycleId)
+      .maybeSingle(),
+  start: (cycleId: string, theme: string, seed: PlaylistSong) =>
+    supabase.rpc('start_perfect_playlist', {
+      p_cycle: cycleId,
+      p_theme: theme.trim(),
+      p_title: seed.title,
+      p_artist: seed.artist,
+      p_artwork_url: seed.artworkUrl ?? undefined,
+      p_spotify_url: seed.spotifyUrl ?? undefined,
+      p_apple_url: seed.appleUrl ?? undefined,
+    }),
+  addSong: (playlistId: string, song: PlaylistSong) =>
+    supabase.rpc('add_perfect_playlist_song', {
+      p_playlist: playlistId,
+      p_title: song.title,
+      p_artist: song.artist,
+      p_artwork_url: song.artworkUrl ?? undefined,
+      p_spotify_url: song.spotifyUrl ?? undefined,
+      p_apple_url: song.appleUrl ?? undefined,
+    }),
+  removeSong: (songId: string) => supabase.rpc('remove_perfect_playlist_song', { p_song: songId }),
+  // Past playlists for the History tab — theme + song count + Spotify link.
+  history: (clubId: string) =>
+    supabase
+      .from('perfect_playlists')
+      .select('id, theme_text, spotify_playlist_url, created_at, cycles!inner(number, status), perfect_playlist_songs(count)')
+      .eq('club_id', clubId)
+      .eq('cycles.status', 'closed')
+      .order('created_at', { ascending: false }),
+};
+
+interface AuxSongInput {
+  title: string;
+  artist: string;
+  artworkUrl?: string | null;
+  spotifyUrl?: string | null;
+  appleUrl?: string | null;
+}
+export const auxBattle = {
+  // All of the cycle's matchups (not blind): combatants, their songs, every vote.
+  forCycle: (cycleId: string) =>
+    supabase
+      .from('aux_battles')
+      .select(
+        '*, a:profiles!aux_battles_member_a_fkey(display_name, email, avatar_color, avatar_url), b:profiles!aux_battles_member_b_fkey(display_name, email, avatar_color, avatar_url), aux_battle_songs(*), aux_battle_votes(profile_id, choice)',
+      )
+      .eq('cycle_id', cycleId)
+      .order('created_at'),
+  // Unused theme-idea pool: club's own + global seeds. Used by the theme backlog.
+  ideas: (clubId: string) =>
+    supabase
+      .from('aux_battle_theme_ideas')
+      .select('*')
+      .or(`club_id.eq.${clubId},club_id.is.null`)
+      .is('used_cycle_id', null)
+      .order('created_at', { ascending: false }),
+  addIdea: (clubId: string, text: string, createdBy: string) =>
+    supabase.from('aux_battle_theme_ideas').insert({ club_id: clubId, text: text.trim(), created_by: createdBy }),
+  // Generate the whole bracket: shuffle members into pairs, theme per pair.
+  start: (cycleId: string) => supabase.rpc('start_aux_battle', { p_cycle: cycleId }),
+  // Picker/admin: clear the cycle's bracket (and its songs/votes) to re-roll.
+  reset: (cycleId: string) => supabase.rpc('reset_aux_battle', { p_cycle: cycleId }),
+  submitSong: (battleId: string, song: AuxSongInput) =>
+    supabase.rpc('submit_aux_song', {
+      p_battle: battleId,
+      p_title: song.title,
+      p_artist: song.artist,
+      p_artwork_url: song.artworkUrl ?? undefined,
+      p_spotify_url: song.spotifyUrl ?? undefined,
+      p_apple_url: song.appleUrl ?? undefined,
+    }),
+  vote: (battleId: string, choice: string) => supabase.rpc('cast_aux_vote', { p_battle: battleId, p_choice: choice }),
+  // Past battles with a crowned winner — the History "Aux Battle winners" section.
+  history: (clubId: string) =>
+    supabase
+      .from('aux_battles')
+      .select('id, theme_text, created_at, winner:profiles!aux_battles_winner_profile_id_fkey(display_name, email, avatar_color, avatar_url), cycles!inner(number, status)')
+      .eq('club_id', clubId)
+      .eq('cycles.status', 'closed')
+      .not('winner_profile_id', 'is', null)
+      .order('created_at', { ascending: false }),
+  // "Aux Battle wins" profile stat.
+  winsCount: (clubId: string, profileId: string) =>
+    supabase
+      .from('aux_battles')
+      .select('id', { count: 'exact', head: true })
+      .eq('club_id', clubId)
+      .eq('winner_profile_id', profileId),
 };
 
 // Per-cycle meeting board — short notes about the upcoming meeting (new times,

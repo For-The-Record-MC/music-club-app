@@ -99,6 +99,12 @@ export default function RootLayout() {
           <Stack.Screen name="club/[id]/suggestions" />
           <Stack.Screen name="club/[id]/activity" />
           <Stack.Screen name="club/[id]/cycle/[cycleId]" />
+          <Stack.Screen name="clubhouse/activity" />
+          <Stack.Screen name="clubhouse/showdown" />
+          <Stack.Screen name="clubhouse/takes" />
+          <Stack.Screen name="clubhouse/convince" />
+          <Stack.Screen name="clubhouse/playlist" />
+          <Stack.Screen name="clubhouse/aux" />
         </Stack.Protected>
         <Stack.Protected guard={!userId}>
           <Stack.Screen name="sign-in" />
