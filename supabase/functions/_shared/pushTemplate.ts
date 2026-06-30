@@ -78,48 +78,57 @@ export function pushTemplate(
 
   const p = (event.payload ?? {}) as Record<string, any>;
   const who = actorName ?? 'Someone';
-  const title = clubName;
+  // Title = a content-relevant headline (with emoji) + the club, so a member in
+  // multiple clubs still sees which one it's from. The body carries the detail
+  // sentence (no leading emoji — it now lives in the headline).
+  const t = (headline: string) => `${headline} · ${clubName}`;
+  const cyc = p.cycle_number ?? '?';
 
   switch (event.event_type) {
     case 'wheel_spun':
-      return { category, title, body: `🎡 The wheel landed on ${p.picker_name ?? 'a member'} for cycle ${p.cycle_number ?? '?'}.`, target: HOME };
+      return { category, title: t('🎡 Wheel spun'), body: `The wheel landed on ${p.picker_name ?? 'a member'} for cycle ${cyc}.`, target: HOME };
     case 'you_are_picker':
-      return { category, title, body: `🎡 You're up! Pick 2 albums for cycle ${p.cycle_number ?? '?'}.`, target: HOME };
+      return { category, title: t("🎡 You're the picker"), body: `You're up! Pick 2 albums for cycle ${cyc}.`, target: HOME };
     case 'albums_set':
-      return { category, title, body: `🎵 ${who} set the albums for cycle ${p.cycle_number ?? '?'} — go listen.`, target: HOME };
+      return { category, title: t('🎵 Albums are up'), body: `${who} set the albums for cycle ${cyc} — go listen.`, target: HOME };
     case 'meeting_scheduled':
-      return { category, title, body: `📅 ${who} scheduled the cycle ${p.cycle_number ?? '?'} meeting${p.meeting_date ? ` for ${p.meeting_date}` : ''}.`, target: HOME };
+      return { category, title: t('📅 Meeting scheduled'), body: `${who} scheduled the cycle ${cyc} meeting${p.meeting_date ? ` for ${p.meeting_date}` : ''}.`, target: HOME };
     case 'meeting_reminder':
-      return { category, title, body: `📅 Meeting's coming up for cycle ${p.cycle_number ?? '?'} — rate the albums first.`, target: HOME };
+      return { category, title: t('📅 Meeting reminder'), body: `Meeting's coming up for cycle ${cyc} — rate the albums first.`, target: HOME };
     case 'participation_nudge': {
       const gaps = participationGapPhrases(p);
       const onlyShowdown = Number(p.unrated ?? 0) === 0 && (p.needs_submission || p.needs_votes);
       return {
         category,
-        title,
-        body: `📋 Before the cycle ${p.cycle_number ?? '?'} meeting, you still need to: ${gaps.join(' · ')}.`,
+        title: t('📋 Pre-meeting checklist'),
+        body: `Before the cycle ${cyc} meeting, you still need to: ${gaps.join(' · ')}.`,
         target: onlyShowdown ? { pathname: '/feed', params: { tab: 'showdown' } } : HOME,
       };
     }
     case 'ratings_revealed':
-      return { category, title, body: `🎙️ Ratings for cycle ${p.cycle_number ?? '?'} are revealed!`, target: HOME };
+      return { category, title: t('🎙️ Ratings revealed'), body: `Ratings for cycle ${cyc} are revealed!`, target: HOME };
     case 'cycle_closed':
       return {
         category,
-        title,
-        body: `🏁 Cycle ${p.cycle_number ?? '?'} wrapped — see the highlights.`,
+        title: t('🏁 Cycle wrapped'),
+        body: `Cycle ${cyc} wrapped — see the highlights.`,
         target: p.cycle_id
           ? { pathname: '/club/[id]/cycle/[cycleId]', params: { id: String(event.club_id), cycleId: String(p.cycle_id) } }
           : HOME,
       };
     case 'showdown_started':
-      return { category, title, body: `🎵 ${who} set the Jukebox Showdown theme: "${p.theme ?? ''}" — submit a song.`, target: { pathname: '/feed', params: { tab: 'showdown' } } };
+      return { category, title: t('🎶 Showdown started'), body: `${who} set the theme: "${p.theme ?? ''}" — submit a song.`, target: { pathname: '/feed', params: { tab: 'showdown' } } };
     case 'showdown_winner':
-      return { category, title, body: `🏆 "${p.title ?? 'A song'}"${p.artist ? ` by ${p.artist}` : ''} won the cycle ${p.cycle_number ?? '?'} Showdown!`, target: { pathname: '/feed', params: { tab: 'showdown' } } };
+      return { category, title: t('🏆 Showdown winner'), body: `"${p.title ?? 'A song'}"${p.artist ? ` by ${p.artist}` : ''} won the cycle ${cyc} Showdown!`, target: { pathname: '/feed', params: { tab: 'showdown' } } };
     case 'feed_post':
-      return { category, title, body: `${p.is_album_suggestion ? '💡' : '🎧'} ${who} shared ${p.is_album_suggestion ? 'an album suggestion' : 'music'}: ${p.title ?? ''}`, target: { pathname: '/feed', params: p.post_id ? { focus: String(p.post_id) } : undefined } };
+      return {
+        category,
+        title: t(p.is_album_suggestion ? '💡 Album suggestion' : '🎧 New share'),
+        body: `${who} shared ${p.is_album_suggestion ? 'an album suggestion' : 'music'}: ${p.title ?? ''}`,
+        target: { pathname: '/feed', params: p.post_id ? { focus: String(p.post_id) } : undefined },
+      };
     case 'concert_added':
-      return { category, title, body: `🎤 ${who} added a concert: ${p.artist ?? ''}.`, target: { pathname: '/concerts', params: p.concert_id ? { focus: String(p.concert_id) } : undefined } };
+      return { category, title: t('🎤 New concert'), body: `${who} added a concert: ${p.artist ?? ''}.`, target: { pathname: '/concerts', params: p.concert_id ? { focus: String(p.concert_id) } : undefined } };
     case 'comment_mention': {
       const where = p.context === 'concert' ? 'a concert comment' : p.context === 'meeting' ? 'the meeting board' : 'a feed comment';
       const snippet = p.snippet ? `: "${p.snippet}"` : '';
@@ -127,10 +136,10 @@ export function pushTemplate(
       if (p.context === 'concert') target = { pathname: '/concerts', params: p.concert_id ? { focus: String(p.concert_id) } : undefined };
       else if (p.context === 'meeting') target = { pathname: '/club/[id]/rsvp', params: { id: String(event.club_id) } };
       else target = { pathname: '/feed', params: p.post_id ? { focus: String(p.post_id) } : undefined };
-      return { category, title, body: `💬 ${who} mentioned you in ${where}${snippet}`, target };
+      return { category, title: t('💬 You were mentioned'), body: `${who} mentioned you in ${where}${snippet}`, target };
     }
     case 'club_announcement':
-      return { category, title: `📣 ${clubName}${p.title ? ` — ${p.title}` : ''}`, body: String(p.body ?? ''), target: HOME };
+      return { category, title: t(`📣 ${p.title ? String(p.title) : 'Announcement'}`), body: String(p.body ?? ''), target: HOME };
     default:
       return null;
   }
