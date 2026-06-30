@@ -33,6 +33,12 @@
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "appleId": "jreticker@me.com",
+        "ascAppId": "6784411785",
+        "appleTeamId": "VAGS7435S4"
+      }
+    }
   }
 }
