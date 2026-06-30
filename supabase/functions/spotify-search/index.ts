@@ -45,7 +45,15 @@ interface SpotifyAlbum {
   year: number | null
 }
 
-type SearchType = 'track' | 'album'
+interface SpotifyArtist {
+  id: string
+  uri: string // spotify:artist:<id>
+  name: string
+  imageUrl: string
+  spotifyUrl: string
+}
+
+type SearchType = 'track' | 'album' | 'artist'
 
 // Module-scoped client-credentials token cache. Edge Function instances are
 // reused across requests, so this avoids re-minting a token every search.
@@ -97,15 +105,17 @@ Deno.serve(async (req) => {
     try {
       const body = await req.json()
       term = String(body?.term ?? '').trim()
-      // type defaults to 'track'; the album picker passes 'album'.
+      // type defaults to 'track'; the album picker passes 'album', the Convince
+      // Me composer passes 'artist'.
       if (body?.type === 'album') type = 'album'
+      else if (body?.type === 'artist') type = 'artist'
     } catch {
       return json({ ok: false, message: 'Invalid request body' }, 400)
     }
     if (term.length < 1) return json({ results: [] })
 
     const token = await getAppToken(clientId, clientSecret)
-    const limit = type === 'album' ? 8 : 10
+    const limit = type === 'track' ? 10 : 8
     const url = `https://api.spotify.com/v1/search?type=${type}&limit=${limit}&q=${encodeURIComponent(term)}`
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
     if (res.status === 401) {
@@ -126,7 +136,19 @@ Deno.serve(async (req) => {
   }
 })
 
-function normalize(payload: any, type: SearchType): SpotifySong[] | SpotifyAlbum[] {
+function normalize(payload: any, type: SearchType): SpotifySong[] | SpotifyAlbum[] | SpotifyArtist[] {
+  if (type === 'artist') {
+    const items = payload?.artists?.items ?? []
+    return items
+      .filter((a: any) => a?.id && a?.name)
+      .map((a: any): SpotifyArtist => ({
+        id: a.id,
+        uri: a.uri ?? `spotify:artist:${a.id}`,
+        name: a.name,
+        imageUrl: pickArtwork(a.images),
+        spotifyUrl: a.external_urls?.spotify ?? '',
+      }))
+  }
   if (type === 'album') {
     const items = payload?.albums?.items ?? []
     return items

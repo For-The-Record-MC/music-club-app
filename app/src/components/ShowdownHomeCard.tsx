@@ -24,7 +24,7 @@ export function ShowdownHomeCard({ cycleId }: { cycleId: string }) {
     <View style={{ marginBottom: 12 }}>
       <Label>Jukebox Showdown</Label>
       <Pressable
-        onPress={() => router.push({ pathname: '/feed', params: { tab: 'showdown' } })}
+        onPress={() => router.push({ pathname: '/clubhouse/showdown' })}
         style={({ pressed }) => [pressed && { opacity: 0.85 }]}
       >
         <ThemePanel theme={view.theme_text} compact />

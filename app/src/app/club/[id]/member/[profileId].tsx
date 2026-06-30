@@ -14,8 +14,11 @@ import { memberName } from '@/utils/memberName';
 import {
   albums as albumsDb,
   archive as archiveDb,
+  auxBattle as auxDb,
+  convince as convinceDb,
   feed as feedDb,
   leaderboard,
+  showdown as showdownDb,
   profiles as profilesDb,
   profileTracks as tracksDb,
   ratings as ratingsDb,
@@ -52,17 +55,23 @@ export default function MemberProfile() {
   const [archivePicks, setArchivePicks] = useState<Album[]>([]);
   const [albumAvgs, setAlbumAvgs] = useState<Record<string, number>>({});
   const [posts, setPosts] = useState<FeedPost[]>([]);
+  const [convinced, setConvinced] = useState(0);
+  const [auxWins, setAuxWins] = useState(0);
+  const [showdownWins, setShowdownWins] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     if (!id || !profileId) return;
-    const [boardRes, profileRes, tracksRes, picksRes, archiveRes, postsRes] = await Promise.all([
+    const [boardRes, profileRes, tracksRes, picksRes, archiveRes, postsRes, convincedRes, auxRes, sdWinnersRes] = await Promise.all([
       leaderboard.get(id),
       profilesDb.getById(profileId),
       tracksDb.listByProfile(profileId),
       albumsDb.listByMember(id, profileId),
       archiveDb.listByMember(id, profileId),
       feedDb.listByAuthor(id, profileId),
+      convinceDb.convincedCount(id, profileId),
+      auxDb.winsCount(id, profileId),
+      showdownDb.winners(id),
     ]);
     setBoard((boardRes.data as LeaderboardRow[] | null) ?? []);
     setProfileRow((profileRes.data as Profile | null) ?? null);
@@ -71,6 +80,11 @@ export default function MemberProfile() {
     setPicks(pickRows);
     setArchivePicks((archiveRes.data ?? []) as Album[]);
     setPosts((postsRes.data ?? []) as FeedPost[]);
+    setConvinced(convincedRes.count ?? 0);
+    setAuxWins(auxRes.count ?? 0);
+    // Showdown wins: winning submissions across the club whose author is this member.
+    const sdWinners = (sdWinnersRes.data ?? []) as { showdown_submissions: { profile_id: string } | null }[];
+    setShowdownWins(sdWinners.filter((w) => w.showdown_submissions?.profile_id === profileId).length);
 
     // Per-album averages, only for revealed cycles (RLS returns nothing else).
     const revealedIds = pickRows.filter((p) => p.cycles?.revealed_at).map((p) => p.id);
@@ -259,6 +273,9 @@ export default function MemberProfile() {
               <Stat label="Reactions in" value={me.stats.interactions_received} />
               <Stat label="Concerts added" value={me.stats.concerts_added} />
               <Stat label="Meetings" value={me.stats.meetings_attended} />
+              <Stat label="Convinced" value={convinced} />
+              <Stat label="Showdown wins" value={showdownWins} />
+              <Stat label="Aux Battle wins" value={auxWins} />
             </View>
           </Card>
         </>
@@ -341,7 +358,7 @@ export default function MemberProfile() {
           {posts.map((p) => (
             <Pressable
               key={p.id}
-              onPress={() => router.push({ pathname: '/feed', params: { focus: String(p.id) } })}
+              onPress={() => router.push({ pathname: '/clubhouse/activity', params: { focus: String(p.id) } })}
             >
               <Card style={{ marginBottom: 8 }}>
                 <Text style={[styles.trackName, { color: palette.text1 }]} numberOfLines={1}>

@@ -242,6 +242,241 @@ export type Database = {
           },
         ]
       }
+      aux_battle_songs: {
+        Row: {
+          apple_url: string | null
+          artist: string
+          artwork_url: string | null
+          battle_id: string
+          created_at: string
+          id: string
+          profile_id: string
+          spotify_url: string | null
+          title: string
+        }
+        Insert: {
+          apple_url?: string | null
+          artist?: string
+          artwork_url?: string | null
+          battle_id: string
+          created_at?: string
+          id?: string
+          profile_id: string
+          spotify_url?: string | null
+          title: string
+        }
+        Update: {
+          apple_url?: string | null
+          artist?: string
+          artwork_url?: string | null
+          battle_id?: string
+          created_at?: string
+          id?: string
+          profile_id?: string
+          spotify_url?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "aux_battle_songs_battle_id_fkey"
+            columns: ["battle_id"]
+            isOneToOne: false
+            referencedRelation: "aux_battles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "aux_battle_songs_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      aux_battle_theme_ideas: {
+        Row: {
+          club_id: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          text: string
+          used_cycle_id: string | null
+        }
+        Insert: {
+          club_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          text: string
+          used_cycle_id?: string | null
+        }
+        Update: {
+          club_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          text?: string
+          used_cycle_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "aux_battle_theme_ideas_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "aux_battle_theme_ideas_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "aux_battle_theme_ideas_used_cycle_id_fkey"
+            columns: ["used_cycle_id"]
+            isOneToOne: false
+            referencedRelation: "cycles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      aux_battle_votes: {
+        Row: {
+          battle_id: string
+          choice: string
+          created_at: string
+          id: string
+          profile_id: string
+        }
+        Insert: {
+          battle_id: string
+          choice: string
+          created_at?: string
+          id?: string
+          profile_id: string
+        }
+        Update: {
+          battle_id?: string
+          choice?: string
+          created_at?: string
+          id?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "aux_battle_votes_battle_id_fkey"
+            columns: ["battle_id"]
+            isOneToOne: false
+            referencedRelation: "aux_battles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "aux_battle_votes_choice_fkey"
+            columns: ["choice"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "aux_battle_votes_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      aux_battles: {
+        Row: {
+          club_id: string
+          created_at: string
+          created_by: string
+          cycle_id: string
+          id: string
+          member_a: string
+          member_b: string
+          theme_idea_id: string | null
+          theme_text: string
+          winner_profile_id: string | null
+        }
+        Insert: {
+          club_id: string
+          created_at?: string
+          created_by: string
+          cycle_id: string
+          id?: string
+          member_a: string
+          member_b: string
+          theme_idea_id?: string | null
+          theme_text: string
+          winner_profile_id?: string | null
+        }
+        Update: {
+          club_id?: string
+          created_at?: string
+          created_by?: string
+          cycle_id?: string
+          id?: string
+          member_a?: string
+          member_b?: string
+          theme_idea_id?: string | null
+          theme_text?: string
+          winner_profile_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "aux_battles_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "aux_battles_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "aux_battles_cycle_id_fkey"
+            columns: ["cycle_id"]
+            isOneToOne: false
+            referencedRelation: "cycles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "aux_battles_member_a_fkey"
+            columns: ["member_a"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "aux_battles_member_b_fkey"
+            columns: ["member_b"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "aux_battles_theme_idea_id_fkey"
+            columns: ["theme_idea_id"]
+            isOneToOne: false
+            referencedRelation: "aux_battle_theme_ideas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "aux_battles_winner_profile_id_fkey"
+            columns: ["winner_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       club_favorite_tracks: {
         Row: {
           added_at: string
@@ -535,6 +770,176 @@ export type Database = {
             columns: ["origin_concert_id"]
             isOneToOne: false
             referencedRelation: "concerts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      convince_comments: {
+        Row: {
+          author_id: string
+          created_at: string
+          id: string
+          post_id: string
+          text: string
+        }
+        Insert: {
+          author_id: string
+          created_at?: string
+          id?: string
+          post_id: string
+          text: string
+        }
+        Update: {
+          author_id?: string
+          created_at?: string
+          id?: string
+          post_id?: string
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "convince_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "convince_comments_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "convince_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      convince_posts: {
+        Row: {
+          artist_image_url: string | null
+          artist_name: string
+          artist_ref: string | null
+          author_id: string
+          blurb: string
+          club_id: string
+          created_at: string
+          id: string
+        }
+        Insert: {
+          artist_image_url?: string | null
+          artist_name: string
+          artist_ref?: string | null
+          author_id: string
+          blurb: string
+          club_id: string
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          artist_image_url?: string | null
+          artist_name?: string
+          artist_ref?: string | null
+          author_id?: string
+          blurb?: string
+          club_id?: string
+          created_at?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "convince_posts_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "convince_posts_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      convince_targets: {
+        Row: {
+          created_at: string
+          id: string
+          post_id: string
+          profile_id: string
+          verdict: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          post_id: string
+          profile_id: string
+          verdict?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          post_id?: string
+          profile_id?: string
+          verdict?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "convince_targets_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "convince_posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "convince_targets_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      convince_tracks: {
+        Row: {
+          apple_url: string | null
+          artist: string
+          artwork_url: string | null
+          id: string
+          norm_key: string
+          position: number
+          post_id: string
+          spotify_url: string | null
+          title: string
+        }
+        Insert: {
+          apple_url?: string | null
+          artist?: string
+          artwork_url?: string | null
+          id?: string
+          norm_key?: string
+          position: number
+          post_id: string
+          spotify_url?: string | null
+          title: string
+        }
+        Update: {
+          apple_url?: string | null
+          artist?: string
+          artwork_url?: string | null
+          id?: string
+          norm_key?: string
+          position?: number
+          post_id?: string
+          spotify_url?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "convince_tracks_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "convince_posts"
             referencedColumns: ["id"]
           },
         ]
@@ -907,6 +1312,123 @@ export type Database = {
           },
         ]
       }
+      musical_take_comments: {
+        Row: {
+          author_id: string
+          created_at: string
+          id: string
+          take_id: string
+          text: string
+        }
+        Insert: {
+          author_id: string
+          created_at?: string
+          id?: string
+          take_id: string
+          text: string
+        }
+        Update: {
+          author_id?: string
+          created_at?: string
+          id?: string
+          take_id?: string
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "musical_take_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "musical_take_comments_take_id_fkey"
+            columns: ["take_id"]
+            isOneToOne: false
+            referencedRelation: "musical_takes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      musical_take_positions: {
+        Row: {
+          created_at: string
+          id: string
+          profile_id: string
+          take_id: string
+          value: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          profile_id: string
+          take_id: string
+          value: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          profile_id?: string
+          take_id?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "musical_take_positions_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "musical_take_positions_take_id_fkey"
+            columns: ["take_id"]
+            isOneToOne: false
+            referencedRelation: "musical_takes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      musical_takes: {
+        Row: {
+          author_id: string
+          body: string
+          club_id: string
+          created_at: string
+          id: string
+        }
+        Insert: {
+          author_id: string
+          body: string
+          club_id: string
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          club_id?: string
+          created_at?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "musical_takes_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "musical_takes_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notification_preferences: {
         Row: {
           announcements: boolean
@@ -938,6 +1460,118 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: true
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      perfect_playlist_songs: {
+        Row: {
+          apple_url: string | null
+          artist: string
+          artwork_url: string | null
+          created_at: string
+          id: string
+          norm_key: string
+          playlist_id: string
+          playlist_synced_at: string | null
+          profile_id: string
+          spotify_url: string | null
+          title: string
+        }
+        Insert: {
+          apple_url?: string | null
+          artist?: string
+          artwork_url?: string | null
+          created_at?: string
+          id?: string
+          norm_key: string
+          playlist_id: string
+          playlist_synced_at?: string | null
+          profile_id: string
+          spotify_url?: string | null
+          title: string
+        }
+        Update: {
+          apple_url?: string | null
+          artist?: string
+          artwork_url?: string | null
+          created_at?: string
+          id?: string
+          norm_key?: string
+          playlist_id?: string
+          playlist_synced_at?: string | null
+          profile_id?: string
+          spotify_url?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "perfect_playlist_songs_playlist_id_fkey"
+            columns: ["playlist_id"]
+            isOneToOne: false
+            referencedRelation: "perfect_playlists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "perfect_playlist_songs_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      perfect_playlists: {
+        Row: {
+          club_id: string
+          created_at: string
+          created_by: string
+          cycle_id: string
+          id: string
+          spotify_playlist_id: string | null
+          spotify_playlist_url: string | null
+          theme_text: string
+        }
+        Insert: {
+          club_id: string
+          created_at?: string
+          created_by: string
+          cycle_id: string
+          id?: string
+          spotify_playlist_id?: string | null
+          spotify_playlist_url?: string | null
+          theme_text: string
+        }
+        Update: {
+          club_id?: string
+          created_at?: string
+          created_by?: string
+          cycle_id?: string
+          id?: string
+          spotify_playlist_id?: string | null
+          spotify_playlist_url?: string | null
+          theme_text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "perfect_playlists_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "perfect_playlists_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "perfect_playlists_cycle_id_fkey"
+            columns: ["cycle_id"]
+            isOneToOne: true
+            referencedRelation: "cycles"
             referencedColumns: ["id"]
           },
         ]
@@ -1742,7 +2376,40 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      add_perfect_playlist_song: {
+        Args: {
+          p_apple_url?: string
+          p_artist?: string
+          p_artwork_url?: string
+          p_playlist: string
+          p_spotify_url?: string
+          p_title: string
+        }
+        Returns: {
+          apple_url: string | null
+          artist: string
+          artwork_url: string | null
+          created_at: string
+          id: string
+          norm_key: string
+          playlist_id: string
+          playlist_synced_at: string | null
+          profile_id: string
+          spotify_url: string | null
+          title: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "perfect_playlist_songs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       album_has_ratings: { Args: { p_album: string }; Returns: boolean }
+      cast_aux_vote: {
+        Args: { p_battle: string; p_choice: string }
+        Returns: undefined
+      }
       cast_showdown_vote: {
         Args: { p_submission: string; p_value: number }
         Returns: undefined
@@ -1829,6 +2496,18 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_convince_post: {
+        Args: {
+          p_artist_image: string
+          p_artist_name: string
+          p_artist_ref: string
+          p_blurb: string
+          p_club: string
+          p_targets: string[]
+          p_tracks: Json
+        }
+        Returns: string
+      }
       cycle_club: { Args: { p_cycle: string }; Returns: string }
       delete_showdown_submission: {
         Args: { p_showdown: string }
@@ -1913,6 +2592,11 @@ export type Database = {
         Args: { p_club: string; p_payload?: Json; p_type: string }
         Returns: undefined
       }
+      remove_perfect_playlist_song: {
+        Args: { p_song: string }
+        Returns: undefined
+      }
+      reset_aux_battle: { Args: { p_cycle: string }; Returns: undefined }
       reveal_cycle: {
         Args: { p_cycle: string }
         Returns: {
@@ -1960,6 +2644,10 @@ export type Database = {
         }
         Returns: number
       }
+      set_convince_verdict: {
+        Args: { p_post: string; p_verdict: string }
+        Returns: undefined
+      }
       set_showdown_theme: {
         Args: { p_cycle: string; p_idea_id?: string; p_text: string }
         Returns: {
@@ -1982,6 +2670,23 @@ export type Database = {
       showdown_norm: {
         Args: { p_artist: string; p_title: string }
         Returns: string
+      }
+      spin_aux_theme: {
+        Args: { p_club: string }
+        Returns: {
+          club_id: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          text: string
+          used_cycle_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "aux_battle_theme_ideas"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       spin_showdown_theme: {
         Args: { p_club: string }
@@ -2033,8 +2738,63 @@ export type Database = {
         }
       }
       spotify_album_id_from_url: { Args: { p_url: string }; Returns: string }
+      start_aux_battle: { Args: { p_cycle: string }; Returns: number }
+      start_perfect_playlist: {
+        Args: {
+          p_apple_url?: string
+          p_artist?: string
+          p_artwork_url?: string
+          p_cycle: string
+          p_spotify_url?: string
+          p_theme: string
+          p_title: string
+        }
+        Returns: {
+          club_id: string
+          created_at: string
+          created_by: string
+          cycle_id: string
+          id: string
+          spotify_playlist_id: string | null
+          spotify_playlist_url: string | null
+          theme_text: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "perfect_playlists"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       streaming_disconnect: { Args: { p_club: string }; Returns: undefined }
       streaming_status: { Args: { p_club: string }; Returns: Json }
+      submit_aux_song: {
+        Args: {
+          p_apple_url?: string
+          p_artist?: string
+          p_artwork_url?: string
+          p_battle: string
+          p_spotify_url?: string
+          p_title: string
+        }
+        Returns: {
+          apple_url: string | null
+          artist: string
+          artwork_url: string | null
+          battle_id: string
+          created_at: string
+          id: string
+          profile_id: string
+          spotify_url: string | null
+          title: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "aux_battle_songs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       submit_showdown_song: {
         Args: {
           p_apple_url?: string

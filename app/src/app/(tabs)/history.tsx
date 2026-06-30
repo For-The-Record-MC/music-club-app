@@ -9,10 +9,13 @@ import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { useCurrentClubStore } from '@/stores/currentClubStore';
 import { fonts, radius } from '@/theme';
+import { memberName } from '@/utils/memberName';
 import {
   archive as archiveDb,
+  auxBattle as auxBattleDb,
   clubFavorites as favoritesDb,
   cycles as cyclesDb,
+  perfectPlaylist as perfectPlaylistDb,
   showdown as showdownDb,
   type Album,
   type ArchiveAlbum,
@@ -25,6 +28,21 @@ interface ClosedCycle extends Cycle {
   albums: Album[];
 }
 
+interface PlaylistHistoryRow {
+  id: string;
+  theme_text: string;
+  spotify_playlist_url: string | null;
+  cycles: { number: number } | null;
+  perfect_playlist_songs: { count: number }[];
+}
+
+interface AuxHistoryRow {
+  id: string;
+  theme_text: string;
+  winner: { display_name: string | null; email: string | null; avatar_color: number; avatar_url: string | null } | null;
+  cycles: { number: number } | null;
+}
+
 // History tab: every closed cycle, newest first. Each card opens the cycle's
 // highlights detail page.
 export default function HistoryTab() {
@@ -35,21 +53,27 @@ export default function HistoryTab() {
   const [closed, setClosed] = useState<ClosedCycle[]>([]);
   const [favorites, setFavorites] = useState<ClubFavoriteTrack[]>([]);
   const [showdowns, setShowdowns] = useState<ShowdownHistoryRow[]>([]);
+  const [playlists, setPlaylists] = useState<PlaylistHistoryRow[]>([]);
+  const [auxWins, setAuxWins] = useState<AuxHistoryRow[]>([]);
   const [archived, setArchived] = useState<ArchiveAlbum[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
   const refresh = useCallback(async () => {
     if (!clubId) return;
-    const [{ data }, { data: favs }, { data: sd }, { data: arch }] = await Promise.all([
+    const [{ data }, { data: favs }, { data: sd }, { data: pl }, { data: ax }, { data: arch }] = await Promise.all([
       cyclesDb.listClosed(clubId),
       favoritesDb.listByClub(clubId),
       showdownDb.history(clubId),
+      perfectPlaylistDb.history(clubId),
+      auxBattleDb.history(clubId),
       archiveDb.list(clubId),
     ]);
     setClosed((data ?? []) as ClosedCycle[]);
     setFavorites((favs ?? []) as ClubFavoriteTrack[]);
     setShowdowns((sd as ShowdownHistoryRow[] | null) ?? []);
+    setPlaylists((pl ?? []) as unknown as PlaylistHistoryRow[]);
+    setAuxWins((ax ?? []) as unknown as AuxHistoryRow[]);
     setArchived((arch ?? []) as unknown as ArchiveAlbum[]);
     setLoading(false);
   }, [clubId]);
@@ -230,6 +254,66 @@ export default function HistoryTab() {
                 </View>
                 <Text style={{ color: palette.text3 }}>›</Text>
               </Pressable>
+            ))}
+          </Card>
+        </>
+      ) : null}
+
+      {playlists.length > 0 ? (
+        <>
+          <Label>Perfect Playlists</Label>
+          <Card style={{ marginBottom: 14 }}>
+            {playlists.map((p, i) => {
+              const count = p.perfect_playlist_songs?.[0]?.count ?? 0;
+              return (
+                <Pressable
+                  key={p.id}
+                  onPress={p.spotify_playlist_url ? () => Linking.openURL(p.spotify_playlist_url!) : undefined}
+                  disabled={!p.spotify_playlist_url}
+                  style={({ pressed }) => [
+                    styles.sdRow,
+                    { borderBottomColor: palette.border },
+                    i === playlists.length - 1 && styles.sdRowLast,
+                    pressed && { opacity: 0.7 },
+                  ]}
+                >
+                  <Text style={styles.sdTrophy}>🎶</Text>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text numberOfLines={1} style={[styles.sdWinner, { color: palette.text1 }]}>
+                      {p.theme_text}
+                    </Text>
+                    <Text numberOfLines={1} style={[styles.sdBy, { color: palette.text3 }]}>
+                      Cycle {p.cycles?.number ?? '?'} · {count} song{count === 1 ? '' : 's'}
+                    </Text>
+                  </View>
+                  {p.spotify_playlist_url ? <Text style={{ color: palette.spotify }}>▶</Text> : null}
+                </Pressable>
+              );
+            })}
+          </Card>
+        </>
+      ) : null}
+
+      {auxWins.length > 0 ? (
+        <>
+          <Label>Aux Battle winners</Label>
+          <Card style={{ marginBottom: 14 }}>
+            {auxWins.map((a, i) => (
+              <View
+                key={a.id}
+                style={[styles.sdRow, { borderBottomColor: palette.border }, i === auxWins.length - 1 && styles.sdRowLast]}
+              >
+                <Avatar name={a.winner?.display_name ?? null} colorIndex={a.winner?.avatar_color ?? 0} imageUrl={a.winner?.avatar_url ?? null} size={28} />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text numberOfLines={1} style={[styles.sdWinner, { color: palette.text1 }]}>
+                    {memberName(a.winner?.display_name, a.winner?.email)}
+                  </Text>
+                  <Text numberOfLines={1} style={[styles.sdBy, { color: palette.text3 }]}>
+                    Cycle {a.cycles?.number ?? '?'} · {a.theme_text}
+                  </Text>
+                </View>
+                <Text style={styles.sdTrophy}>🏆</Text>
+              </View>
             ))}
           </Card>
         </>

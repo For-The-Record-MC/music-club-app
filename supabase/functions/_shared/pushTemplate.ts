@@ -42,6 +42,12 @@ const CATEGORY: Record<string, Category> = {
   concert_added: 'social',
   comment_mention: 'mentions',
   club_announcement: 'announcements',
+  convince_post: 'social',
+  convince_target: 'mentions',
+  perfect_playlist_started: 'lifecycle',
+  aux_battle_started: 'lifecycle',
+  aux_battle_picked: 'mentions',
+  aux_battle_winner: 'lifecycle',
 };
 
 export function pushCategory(eventType: string): Category | null {
@@ -102,7 +108,7 @@ export function pushTemplate(
         category,
         title: t('📋 Pre-meeting checklist'),
         body: `Before the cycle ${cyc} meeting, you still need to: ${gaps.join(' · ')}.`,
-        target: onlyShowdown ? { pathname: '/feed', params: { tab: 'showdown' } } : HOME,
+        target: onlyShowdown ? { pathname: '/clubhouse/showdown' } : HOME,
       };
     }
     case 'ratings_revealed':
@@ -117,27 +123,76 @@ export function pushTemplate(
           : HOME,
       };
     case 'showdown_started':
-      return { category, title: t('🎶 Showdown started'), body: `${who} set the theme: "${p.theme ?? ''}" — submit a song.`, target: { pathname: '/feed', params: { tab: 'showdown' } } };
+      return { category, title: t('🎶 Showdown started'), body: `${who} set the theme: "${p.theme ?? ''}" — submit a song.`, target: { pathname: '/clubhouse/showdown' } };
     case 'showdown_winner':
-      return { category, title: t('🏆 Showdown winner'), body: `"${p.title ?? 'A song'}"${p.artist ? ` by ${p.artist}` : ''} won the cycle ${cyc} Showdown!`, target: { pathname: '/feed', params: { tab: 'showdown' } } };
+      return { category, title: t('🏆 Showdown winner'), body: `"${p.title ?? 'A song'}"${p.artist ? ` by ${p.artist}` : ''} won the cycle ${cyc} Showdown!`, target: { pathname: '/clubhouse/showdown' } };
     case 'feed_post':
       return {
         category,
         title: t(p.is_album_suggestion ? '💡 Album suggestion' : '🎧 New share'),
         body: `${who} shared ${p.is_album_suggestion ? 'an album suggestion' : 'music'}: ${p.title ?? ''}`,
-        target: { pathname: '/feed', params: p.post_id ? { focus: String(p.post_id) } : undefined },
+        target: { pathname: '/clubhouse/activity', params: p.post_id ? { focus: String(p.post_id) } : undefined },
       };
     case 'concert_added':
       return { category, title: t('🎤 New concert'), body: `${who} added a concert: ${p.artist ?? ''}.`, target: { pathname: '/concerts', params: p.concert_id ? { focus: String(p.concert_id) } : undefined } };
     case 'comment_mention': {
-      const where = p.context === 'concert' ? 'a concert comment' : p.context === 'meeting' ? 'the meeting board' : 'a feed comment';
+      const where =
+        p.context === 'concert' ? 'a concert comment'
+        : p.context === 'meeting' ? 'the meeting board'
+        : p.context === 'take' ? 'a Musical Take'
+        : p.context === 'convince' ? 'a Convince Me rec'
+        : 'a feed comment';
       const snippet = p.snippet ? `: "${p.snippet}"` : '';
       let target: PushTarget = HOME;
       if (p.context === 'concert') target = { pathname: '/concerts', params: p.concert_id ? { focus: String(p.concert_id) } : undefined };
       else if (p.context === 'meeting') target = { pathname: '/club/[id]/rsvp', params: { id: String(event.club_id) } };
-      else target = { pathname: '/feed', params: p.post_id ? { focus: String(p.post_id) } : undefined };
+      else if (p.context === 'take') target = { pathname: '/clubhouse/takes', params: p.take_id ? { focus: String(p.take_id) } : undefined };
+      else if (p.context === 'convince') target = { pathname: '/clubhouse/convince', params: p.post_id ? { focus: String(p.post_id) } : undefined };
+      else target = { pathname: '/clubhouse/activity', params: p.post_id ? { focus: String(p.post_id) } : undefined };
       return { category, title: t('💬 You were mentioned'), body: `${who} mentioned you in ${where}${snippet}`, target };
     }
+    case 'perfect_playlist_started':
+      return {
+        category,
+        title: t('🎶 Perfect Playlist'),
+        body: `${who} started the "${p.theme ?? ''}" playlist — add your songs.`,
+        target: { pathname: '/clubhouse/playlist' },
+      };
+    case 'aux_battle_started':
+      return {
+        category,
+        title: t('🎚️ Aux Battle'),
+        body: `${who} set the bracket — ${p.pairs ?? ''} matchup${Number(p.pairs) === 1 ? '' : 's'} to vote on.`,
+        target: { pathname: '/clubhouse/aux' },
+      };
+    case 'aux_battle_picked':
+      return {
+        category,
+        title: t("🎚️ You're in the Aux Battle"),
+        body: `Your theme: "${p.theme ?? ''}". Submit your song before the meeting.`,
+        target: { pathname: '/clubhouse/aux' },
+      };
+    case 'aux_battle_winner':
+      return {
+        category,
+        title: t('🏆 Aux Battle winner'),
+        body: `${p.winner_name ?? 'Someone'} won the cycle ${cyc} Aux Battle ("${p.theme ?? ''}")!`,
+        target: { pathname: '/clubhouse/aux' },
+      };
+    case 'convince_post':
+      return {
+        category,
+        title: t('🎯 New rec'),
+        body: `${who} wants to put the club on ${p.artist ?? 'an artist'}.`,
+        target: { pathname: '/clubhouse/convince', params: p.post_id ? { focus: String(p.post_id) } : undefined },
+      };
+    case 'convince_target':
+      return {
+        category,
+        title: t('🎯 A rec for you'),
+        body: `${who} thinks you'd like ${p.artist ?? 'an artist'}. Hear them out.`,
+        target: { pathname: '/clubhouse/convince', params: p.post_id ? { focus: String(p.post_id) } : undefined },
+      };
     case 'club_announcement':
       return { category, title: t(`📣 ${p.title ? String(p.title) : 'Announcement'}`), body: String(p.body ?? ''), target: HOME };
     default:

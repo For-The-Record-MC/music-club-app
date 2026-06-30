@@ -28,6 +28,14 @@ export interface SpotifyAlbum {
   year: number | null;
 }
 
+export interface SpotifyArtist {
+  id: string;
+  uri: string; // spotify:artist:<id>
+  name: string;
+  imageUrl: string;
+  spotifyUrl: string;
+}
+
 interface SearchResponse<T> {
   results?: T[];
   ok?: false;
@@ -56,6 +64,22 @@ export async function searchAlbums(term: string): Promise<SpotifyAlbum[]> {
   // Guard against an un-deployed function (which ignores type and returns
   // track-shaped rows with no collectionName) — callers then fall back to iTunes.
   return (data.results ?? []).filter((a) => a.collectionName);
+}
+
+// Artist search for the Convince Me composer. Spotify-only (the iTunes Search
+// API has no artist entity with a usable photo); returns [] on any failure so
+// the composer can fall back to a free-typed artist name.
+export async function searchArtists(term: string): Promise<SpotifyArtist[]> {
+  const q = term.trim();
+  if (!q) return [];
+  const { data, error } = await supabase.functions.invoke<SearchResponse<SpotifyArtist>>(
+    'spotify-search',
+    { body: { term: q, type: 'artist' } },
+  );
+  if (error || !data || data.ok === false) return [];
+  // An un-deployed function ignores type and returns track-shaped rows (no
+  // `name`); filter those out so we don't show garbage.
+  return (data.results ?? []).filter((a) => a.name);
 }
 
 // The Spotify equivalent of an item already picked from iTunes — used to attach

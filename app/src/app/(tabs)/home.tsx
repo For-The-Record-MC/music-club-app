@@ -396,7 +396,7 @@ export default function HomeTab() {
               <Label>From the feed</Label>
               <Pressable
                 onPress={() =>
-                  router.push({ pathname: '/feed', params: { focus: String(featuredSong.id) } })
+                  router.push({ pathname: '/clubhouse/activity', params: { focus: String(featuredSong.id) } })
                 }
               >
                 <Card style={{ marginBottom: 12 }}>
