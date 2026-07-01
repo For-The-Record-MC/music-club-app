@@ -50,6 +50,9 @@ export function Screen({
       // cover, concert search) is swallowed to dismiss the keyboard instead of
       // registering — the row feels "unclickable" until you tap twice.
       keyboardShouldPersistTaps="handled"
+      // Inset the scroll view for the software keyboard (iOS) so a text field near
+      // the bottom scrolls above the keyboard instead of being hidden behind it.
+      automaticallyAdjustKeyboardInsets
       // Let the pull-to-refresh gesture work even when content is shorter than
       // the screen — without this, iOS won't bounce (and won't trigger refresh)
       // on sparse screens like an empty feed or a quiet activity list.
@@ -248,6 +251,9 @@ export function Slider({
   const color = accent ?? palette.teal;
   const decimals = step < 1 ? 1 : 0;
   const widthRef = useRef(0);
+  // Grow the thumb while dragging so it's easy to grab and less likely to slip
+  // into the screen's edge-swipe (which would navigate back mid-drag).
+  const [dragging, setDragging] = useState(false);
 
   const setFromX = (x: number) => {
     const w = widthRef.current;
@@ -270,10 +276,21 @@ export function Slider({
     PanResponder.create({
       onStartShouldSetPanResponder: () => !disabledRef.current,
       onMoveShouldSetPanResponder: () => !disabledRef.current,
-      onPanResponderGrant: (e) => setFromXRef.current(e.nativeEvent.locationX),
+      // Once we've claimed the drag, don't let a parent (scroll view, the
+      // screen's back-swipe) steal it out from under us.
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderGrant: (e) => {
+        setDragging(true);
+        setFromXRef.current(e.nativeEvent.locationX);
+      },
       onPanResponderMove: (e) => setFromXRef.current(e.nativeEvent.locationX),
+      onPanResponderRelease: () => setDragging(false),
+      onPanResponderTerminate: () => setDragging(false),
     }),
   ).current;
+
+  // Track height is 28; keep the thumb vertically centered as it grows.
+  const thumbSize = dragging ? 30 : 20;
 
   const ratio = value == null ? 0 : (value - min) / (max - min);
   return (
@@ -300,7 +317,16 @@ export function Slider({
             pointerEvents="none"
             style={[
               styles.sliderThumb,
-              { left: `${ratio * 100}%`, borderColor: color, backgroundColor: palette.card },
+              {
+                left: `${ratio * 100}%`,
+                width: thumbSize,
+                height: thumbSize,
+                borderRadius: thumbSize / 2,
+                top: (28 - thumbSize) / 2,
+                transform: [{ translateX: -thumbSize / 2 }],
+                borderColor: color,
+                backgroundColor: palette.card,
+              },
             ]}
           />
         ) : null}

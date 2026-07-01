@@ -30,19 +30,35 @@ export default function Clubhouse() {
   if (!id) return <NoClubSelected what="clubhouse" />;
 
   const tiles: Tile[] = [
-    { key: 'feed', emoji: '🎧', name: 'The Feed', accent: 'teal', href: '/clubhouse/activity', status: status.feed },
+    { key: 'feed', emoji: '📻', name: 'Club Radio', accent: 'teal', href: '/clubhouse/activity', status: status.feed },
+    { key: 'queue', emoji: '💿', name: 'The Queue', accent: 'amber', href: { pathname: '/club/[id]/suggestions', params: { id } }, status: status.queue },
     { key: 'showdown', emoji: '🎵', name: 'Jukebox Showdown', accent: 'purple', href: '/clubhouse/showdown', status: status.showdown },
-    { key: 'takes', emoji: '🔥', name: 'Musical Takes', accent: 'coral', href: '/clubhouse/takes', status: status.takes },
     { key: 'playlist', emoji: '🎶', name: 'The Perfect Playlist', accent: 'blue', href: '/clubhouse/playlist', status: status.playlist },
-    { key: 'aux', emoji: '🎚️', name: 'Aux Battle', accent: 'amber', href: '/clubhouse/aux', status: status.aux },
-    { key: 'convince', emoji: '🎯', name: 'Convince Me', accent: 'teal', href: '/clubhouse/convince', status: status.convince },
+    { key: 'aux', emoji: '🎚️', name: 'Aux Battle', accent: 'coral', href: '/clubhouse/aux', status: status.aux },
+    { key: 'takes', emoji: '🔥', name: 'Mic Droppers', accent: 'purple', href: '/clubhouse/takes', status: status.takes },
+    { key: 'bars', emoji: '🎤', name: 'Best Bars', accent: 'blue', href: '/clubhouse/bars', status: status.bars },
+    { key: 'convince', emoji: '🎯', name: 'Change My Tune', accent: 'teal', href: '/clubhouse/convince', status: status.convince },
   ];
 
   return (
     <Screen>
       <View style={styles.header}>
-        <Text style={[styles.eyebrow, { color: palette.text3 }]}>WHERE THE CLUB HANGS OUT</Text>
-        <Text style={[styles.title, { color: palette.text1 }]}>🎪 Clubhouse</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.eyebrow, { color: palette.text3 }]}>WHERE THE CLUB MAKES NOISE</Text>
+          <Text style={[styles.title, { color: palette.text1 }]}>🎛️ The Studio</Text>
+        </View>
+        <Pressable
+          onPress={() => router.push('/clubhouse/guide')}
+          hitSlop={8}
+          accessibilityLabel="What does each room do?"
+          style={({ pressed }) => [
+            styles.help,
+            { borderColor: palette.border, backgroundColor: palette.card },
+            pressed && { opacity: 0.7 },
+          ]}
+        >
+          <Text style={[styles.helpText, { color: palette.text2 }]}>?</Text>
+        </Pressable>
       </View>
 
       <View style={styles.grid}>
@@ -86,9 +102,18 @@ export default function Clubhouse() {
 }
 
 const styles = StyleSheet.create({
-  header: { marginBottom: 18 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 },
   eyebrow: { fontFamily: fonts.sansMedium, fontSize: 9, letterSpacing: 3, marginBottom: 2 },
   title: { fontFamily: fonts.sansBold, fontSize: 22 },
+  help: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  helpText: { fontFamily: fonts.sansBold, fontSize: 16 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   tile: {
     width: '47%',

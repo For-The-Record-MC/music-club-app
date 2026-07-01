@@ -84,11 +84,17 @@ export function renderActivity(event: ActivityEvent, actorName: string | null): 
         target: { pathname: '/clubhouse/showdown' },
       };
     case 'feed_post':
-      return {
-        icon: p.is_album_suggestion ? '💡' : '🎧',
-        text: `${who} shared ${p.is_album_suggestion ? 'an album suggestion' : 'music'}: ${p.title ?? ''}`,
-        target: { pathname: '/clubhouse/activity', params: p.post_id ? { focus: String(p.post_id) } : undefined },
-      };
+      return p.is_album_suggestion
+        ? {
+            icon: '💿',
+            text: `${who} queued an album: ${p.title ?? ''}`,
+            target: { pathname: '/club/[id]/suggestions', params: { id: String(event.club_id) } },
+          }
+        : {
+            icon: '🎧',
+            text: `${who} shared music: ${p.title ?? ''}`,
+            target: { pathname: '/clubhouse/activity', params: p.post_id ? { focus: String(p.post_id) } : undefined },
+          };
     case 'musical_take':
       return {
         icon: '🔥',
@@ -118,6 +124,12 @@ export function renderActivity(event: ActivityEvent, actorName: string | null): 
         icon: '🏆',
         text: `${p.winner_name ?? 'Someone'} won the cycle ${p.cycle_number ?? '?'} Aux Battle (“${p.theme ?? ''}”)!`,
         target: { pathname: '/clubhouse/aux' },
+      };
+    case 'best_bar':
+      return {
+        icon: '🎤',
+        text: `${who} dropped a bar from ${p.title ?? 'a song'}: “${p.snippet ?? ''}”`,
+        target: { pathname: '/clubhouse/bars', params: p.bar_id ? { focus: String(p.bar_id) } : undefined },
       };
     case 'convince_post':
       return {
@@ -150,10 +162,12 @@ export function renderActivity(event: ActivityEvent, actorName: string | null): 
           : p.context === 'meeting'
             ? 'the meeting board'
             : p.context === 'take'
-              ? 'a Musical Take'
+              ? 'a Mic Dropper'
               : p.context === 'convince'
-                ? 'a Convince Me rec'
-                : 'a feed comment';
+                ? 'a Change My Tune rec'
+                : p.context === 'bar'
+                  ? 'a Best Bar'
+                  : 'a feed comment';
       const snippet = p.snippet ? `: “${p.snippet}”` : '';
       let target: ActivityTarget | undefined;
       if (p.context === 'concert')
@@ -164,6 +178,8 @@ export function renderActivity(event: ActivityEvent, actorName: string | null): 
         target = { pathname: '/clubhouse/takes', params: p.take_id ? { focus: String(p.take_id) } : undefined };
       else if (p.context === 'convince')
         target = { pathname: '/clubhouse/convince', params: p.post_id ? { focus: String(p.post_id) } : undefined };
+      else if (p.context === 'bar')
+        target = { pathname: '/clubhouse/bars', params: p.bar_id ? { focus: String(p.bar_id) } : undefined };
       else
         target = { pathname: '/clubhouse/activity', params: p.post_id ? { focus: String(p.post_id) } : undefined };
       return { icon: '💬', text: `${who} mentioned you in ${where}${snippet}`, target };

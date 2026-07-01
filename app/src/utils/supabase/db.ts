@@ -19,6 +19,7 @@ export type RsvpStatus = 'yes' | 'maybe' | 'no';
 export type Rating = Tables<'ratings'>;
 export type SongNote = Tables<'song_notes'>;
 export type MusicalTake = Tables<'musical_takes'>;
+export type BestBar = Tables<'best_bars'>;
 export type ConvincePost = Tables<'convince_posts'>;
 export type ConvinceTrack = Tables<'convince_tracks'>;
 export type ConvinceVerdict = 'converted' | 'not_for_me';
@@ -857,11 +858,14 @@ export const cycleGuests = {
 };
 
 export const feed = {
+  // Club Radio: music shares only. Album *suggestions* live solely in The Queue
+  // (feed.suggestions), so they're excluded here.
   list: (clubId: string) =>
     supabase
       .from('feed_posts')
       .select('*, profiles(display_name, email, avatar_color, avatar_url), post_reactions(emoji, profile_id), post_comments(count)')
       .eq('club_id', clubId)
+      .eq('is_album_suggestion', false)
       .order('created_at', { ascending: false }),
   suggestions: (clubId: string) =>
     supabase
@@ -953,6 +957,57 @@ export const musicalTakes = {
       .order('created_at'),
   addComment: (takeId: string, authorId: string, text: string) =>
     supabase.from('musical_take_comments').insert({ take_id: takeId, author_id: authorId, text: text.trim() }),
+};
+
+// Best Bars — a standing board of favorite lyrics. A bar pins a song + the lyric;
+// members rate it 1–10 (direct upsert, like a reaction) and comment. Ratings +
+// comment count ride along in list().
+interface BarSongInput {
+  title: string;
+  artist: string;
+  artworkUrl: string | null;
+  spotifyUrl: string | null;
+  appleUrl: string | null;
+}
+export const bestBars = {
+  list: (clubId: string) =>
+    supabase
+      .from('best_bars')
+      .select(
+        '*, profiles(display_name, email, avatar_color, avatar_url), best_bar_ratings(score, profile_id), best_bar_comments(count)',
+      )
+      .eq('club_id', clubId)
+      .order('created_at', { ascending: false }),
+  create: (clubId: string, authorId: string, song: BarSongInput, lyric: string) =>
+    supabase
+      .from('best_bars')
+      .insert({
+        club_id: clubId,
+        author_id: authorId,
+        title: song.title,
+        artist: song.artist,
+        artwork_url: song.artworkUrl,
+        spotify_url: song.spotifyUrl,
+        apple_url: song.appleUrl,
+        lyric: lyric.trim(),
+      })
+      .select()
+      .single(),
+  remove: (id: string) => supabase.from('best_bars').delete().eq('id', id),
+  setRating: (barId: string, profileId: string, score: number) =>
+    supabase
+      .from('best_bar_ratings')
+      .upsert({ bar_id: barId, profile_id: profileId, score }, { onConflict: 'bar_id,profile_id' }),
+  clearRating: (barId: string, profileId: string) =>
+    supabase.from('best_bar_ratings').delete().eq('bar_id', barId).eq('profile_id', profileId),
+  listComments: (barId: string) =>
+    supabase
+      .from('best_bar_comments')
+      .select('*, profiles(display_name, email, avatar_color, avatar_url)')
+      .eq('bar_id', barId)
+      .order('created_at'),
+  addComment: (barId: string, authorId: string, text: string) =>
+    supabase.from('best_bar_comments').insert({ bar_id: barId, author_id: authorId, text: text.trim() }),
 };
 
 // Convince Me — standing artist-rec board. Posts are created/verdicted through

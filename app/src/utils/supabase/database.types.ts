@@ -477,6 +477,138 @@ export type Database = {
           },
         ]
       }
+      best_bar_comments: {
+        Row: {
+          author_id: string
+          bar_id: string
+          created_at: string
+          id: string
+          text: string
+        }
+        Insert: {
+          author_id: string
+          bar_id: string
+          created_at?: string
+          id?: string
+          text: string
+        }
+        Update: {
+          author_id?: string
+          bar_id?: string
+          created_at?: string
+          id?: string
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "best_bar_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "best_bar_comments_bar_id_fkey"
+            columns: ["bar_id"]
+            isOneToOne: false
+            referencedRelation: "best_bars"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      best_bar_ratings: {
+        Row: {
+          bar_id: string
+          created_at: string
+          id: string
+          profile_id: string
+          score: number
+        }
+        Insert: {
+          bar_id: string
+          created_at?: string
+          id?: string
+          profile_id: string
+          score: number
+        }
+        Update: {
+          bar_id?: string
+          created_at?: string
+          id?: string
+          profile_id?: string
+          score?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "best_bar_ratings_bar_id_fkey"
+            columns: ["bar_id"]
+            isOneToOne: false
+            referencedRelation: "best_bars"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "best_bar_ratings_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      best_bars: {
+        Row: {
+          apple_url: string | null
+          artist: string
+          artwork_url: string | null
+          author_id: string
+          club_id: string
+          created_at: string
+          id: string
+          lyric: string
+          spotify_url: string | null
+          title: string
+        }
+        Insert: {
+          apple_url?: string | null
+          artist?: string
+          artwork_url?: string | null
+          author_id: string
+          club_id: string
+          created_at?: string
+          id?: string
+          lyric: string
+          spotify_url?: string | null
+          title: string
+        }
+        Update: {
+          apple_url?: string | null
+          artist?: string
+          artwork_url?: string | null
+          author_id?: string
+          club_id?: string
+          created_at?: string
+          id?: string
+          lyric?: string
+          spotify_url?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "best_bars_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "best_bars_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       club_favorite_tracks: {
         Row: {
           added_at: string
@@ -2406,6 +2538,7 @@ export type Database = {
         }
       }
       album_has_ratings: { Args: { p_album: string }; Returns: boolean }
+      aux_has_submitted: { Args: { p_battle: string }; Returns: boolean }
       cast_aux_vote: {
         Args: { p_battle: string; p_choice: string }
         Returns: undefined

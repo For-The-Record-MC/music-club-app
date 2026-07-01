@@ -168,6 +168,12 @@ function BattleCard({
   const bVotes = votesFor(battle.member_b);
   const total = aVotes + bVotes;
   const winner = battle.winner_profile_id;
+  // Blindness: as a combatant you can't see the opponent's song (RLS hides the
+  // row) until you've submitted your own. Lock: once both are in, no changes.
+  const iSubmitted = battle.aux_battle_songs.some((s) => s.profile_id === userId);
+  const locked = battle.aux_battle_songs.length >= 2;
+  const blindA = amCombatant && !iSubmitted && userId !== battle.member_a;
+  const blindB = amCombatant && !iSubmitted && userId !== battle.member_b;
 
   const vote = async (pid: string) => {
     await auxBattle.vote(battle.id, pid);
@@ -215,6 +221,8 @@ function BattleCard({
         cycleOpen={cycleOpen}
         isWinner={winner === battle.member_a}
         battleId={battle.id}
+        blindHidden={blindA}
+        locked={locked}
         onVote={() => vote(battle.member_a)}
         onChange={onChange}
       />
@@ -233,6 +241,8 @@ function BattleCard({
         cycleOpen={cycleOpen}
         isWinner={winner === battle.member_b}
         battleId={battle.id}
+        blindHidden={blindB}
+        locked={locked}
         onVote={() => vote(battle.member_b)}
         onChange={onChange}
       />
@@ -252,6 +262,8 @@ function CombatantSide({
   cycleOpen,
   isWinner,
   battleId,
+  blindHidden,
+  locked,
   onVote,
   onChange,
 }: {
@@ -266,6 +278,8 @@ function CombatantSide({
   cycleOpen: boolean;
   isWinner: boolean;
   battleId: string;
+  blindHidden: boolean;
+  locked: boolean;
   onVote: () => void;
   onChange: () => void;
 }) {
@@ -290,7 +304,7 @@ function CombatantSide({
             </View>
           </View>
           <ListenLinks apple={song.apple_url} spotify={song.spotify_url} other={null} style={{ marginTop: 8 }} />
-          {isMine && cycleOpen ? (
+          {isMine && cycleOpen && !locked ? (
             <Pressable onPress={() => setEditing(true)} style={{ marginTop: 8 }}>
               <Text style={[styles.changeLink, { color: palette.text3 }]}>Change my song</Text>
             </Pressable>
@@ -298,6 +312,8 @@ function CombatantSide({
         </>
       ) : isMine && cycleOpen ? (
         <SubmitSong battleId={battleId} onDone={() => { setEditing(false); onChange(); }} />
+      ) : blindHidden ? (
+        <Text style={[styles.noSong, { color: palette.text3 }]}>🔒 Hidden until you submit yours.</Text>
       ) : (
         <Text style={[styles.noSong, { color: palette.text3 }]}>No song submitted yet.</Text>
       )}

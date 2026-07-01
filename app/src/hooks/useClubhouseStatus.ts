@@ -4,9 +4,11 @@ import { useConvince } from '@/hooks/useConvince';
 import { useCycle } from '@/hooks/useCycle';
 import { useFeed } from '@/hooks/useFeed';
 import { useAuxBattle } from '@/hooks/useAuxBattle';
+import { useBestBars } from '@/hooks/useBestBars';
 import { useMusicalTakes } from '@/hooks/useMusicalTakes';
 import { usePerfectPlaylist } from '@/hooks/usePerfectPlaylist';
 import { useShowdown } from '@/hooks/useShowdown';
+import { useSuggestions } from '@/hooks/useSuggestions';
 import { useAuthStore } from '@/stores/authStore';
 
 // A single glanceable status line per Clubhouse room. `flag` marks "something
@@ -19,11 +21,13 @@ export interface TileStatus {
 
 export interface ClubhouseStatus {
   feed: TileStatus;
+  queue: TileStatus;
   showdown: TileStatus;
   takes: TileStatus;
   convince: TileStatus;
   playlist: TileStatus;
   aux: TileStatus;
+  bars: TileStatus;
 }
 
 // Reads the current club's live state and distills it into hub-tile summaries.
@@ -33,7 +37,9 @@ export function useClubhouseStatus(clubId: string | undefined): ClubhouseStatus 
   const { cycle } = useCycle(clubId);
   const { posts } = useFeed(clubId);
   const { view: showdown } = useShowdown(cycle?.id);
+  const { suggestions } = useSuggestions(clubId);
   const { takes } = useMusicalTakes(clubId);
+  const { bars } = useBestBars(clubId);
   const { posts: recs } = useConvince(clubId);
   const { playlist } = usePerfectPlaylist(cycle?.id);
   const { battles } = useAuxBattle(cycle?.id);
@@ -47,6 +53,11 @@ export function useClubhouseStatus(clubId: string | undefined): ClubhouseStatus 
       : posts.length;
     const feed: TileStatus = {
       line: thisCycle > 0 ? `${thisCycle} this cycle` : 'No posts yet',
+    };
+
+    // Queue: how many albums are lined up for future picks.
+    const queue: TileStatus = {
+      line: suggestions.length > 0 ? `${suggestions.length} queued` : 'Empty — add one',
     };
 
     // Showdown: not started → blind submissions in → revealed.
@@ -66,6 +77,11 @@ export function useClubhouseStatus(clubId: string | undefined): ClubhouseStatus 
     // Takes: a standing count; no per-cycle scoping.
     const takesStatus: TileStatus = {
       line: takes.length > 0 ? `${takes.length} take${takes.length === 1 ? '' : 's'}` : 'No takes yet',
+    };
+
+    // Best Bars: standing count of posted lyrics.
+    const barsStatus: TileStatus = {
+      line: bars.length > 0 ? `${bars.length} bar${bars.length === 1 ? '' : 's'}` : 'No bars yet',
     };
 
     // Convince Me: standing count, with a "for you" nudge when an open rec is
@@ -115,11 +131,13 @@ export function useClubhouseStatus(clubId: string | undefined): ClubhouseStatus 
 
     return {
       feed,
+      queue,
       showdown: showdownStatus,
       takes: takesStatus,
       convince: convinceStatus,
       playlist: playlistStatus,
       aux: auxStatus,
+      bars: barsStatus,
     };
-  }, [cycle, posts, showdown, takes, recs, playlist, battles, userId]);
+  }, [cycle, posts, suggestions, showdown, takes, bars, recs, playlist, battles, userId]);
 }

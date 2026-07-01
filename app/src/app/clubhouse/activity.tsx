@@ -178,7 +178,6 @@ export default function ClubhouseActivity() {
   const [url, setUrl] = useState('');
   const [note, setNote] = useState('');
   const [kind, setKind] = useState<Kind>('track');
-  const [suggestion, setSuggestion] = useState(false);
   const [artwork, setArtwork] = useState<string | null>(null);
   const [spotifyUri, setSpotifyUri] = useState<string | null>(null);
   const [spotifyUrl, setSpotifyUrl] = useState<string | null>(null);
@@ -316,9 +315,6 @@ export default function ClubhouseActivity() {
     setSpotifyUrl(s.spotifyUrl);
     setAppleUrl(s.appleUrl);
     setKind(s.kind);
-    // Picking an album defaults the "future album pick" flag on — that's the
-    // common intent; the member can still uncheck it before posting.
-    if (s.kind === 'album') setSuggestion(true);
     setResults([]);
     setSearch('');
     // Resolve the other service's link so the post opens in both. Keyless on the
@@ -347,7 +343,6 @@ export default function ClubhouseActivity() {
     setUrl('');
     setNote('');
     setKind('track');
-    setSuggestion(false);
     setArtwork(null);
     setSpotifyUri(null);
     setSpotifyUrl(null);
@@ -417,7 +412,7 @@ export default function ClubhouseActivity() {
       url: primaryUrl,
       platform,
       note: note.trim() || null,
-      is_album_suggestion: suggestion,
+      is_album_suggestion: false,
       metadata: Object.keys(meta).length ? meta : null,
     };
     const { data, error: err } = await feedDb.create({ ...basePost, club_id: id });
@@ -428,7 +423,7 @@ export default function ClubhouseActivity() {
     }
     await activity.publish(id, 'feed_post', {
       title: data.title,
-      is_album_suggestion: suggestion,
+      is_album_suggestion: false,
       post_id: data.id,
     });
     // Fan out to the picked clubs as copies linked to the original. Skip clubs
@@ -439,7 +434,7 @@ export default function ClubhouseActivity() {
       if (!copy) continue;
       await activity.publish(targetId, 'feed_post', {
         title: copy.title,
-        is_album_suggestion: suggestion,
+        is_album_suggestion: false,
         post_id: copy.id,
       });
       if (kind === 'track') streamingDb.sync(targetId).catch(() => {});
@@ -463,19 +458,9 @@ export default function ClubhouseActivity() {
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={[styles.eyebrow, { color: palette.text3 }]}>WHAT YOU'RE HEARING</Text>
-          <Text style={[styles.title, { color: palette.text1 }]}>The Feed</Text>
+          <Text style={[styles.title, { color: palette.text1 }]}>📻 Club Radio</Text>
         </View>
         <View style={styles.headerBtnRow}>
-          <Pressable
-            onPress={() => router.push(`/club/${id}/suggestions`)}
-            style={({ pressed }) => [
-              styles.headerBtn,
-              { backgroundColor: palette.purpleBg, borderColor: palette.purple },
-              pressed && { opacity: 0.7 },
-            ]}
-          >
-            <Text style={[styles.headerBtnText, { color: palette.purple }]}>💡 Backlog</Text>
-          </Pressable>
           {cycle?.spotify_playlist_url ? (
             <Pressable
               onPress={() => Linking.openURL(cycle.spotify_playlist_url!)}
@@ -583,20 +568,6 @@ export default function ClubhouseActivity() {
               multiline
               style={{ minHeight: 60, textAlignVertical: 'top' }}
             />
-            <Pressable onPress={() => setSuggestion((s) => !s)} style={styles.checkRow}>
-              <View
-                style={[
-                  styles.checkbox,
-                  { borderColor: palette.border2 },
-                  suggestion && { backgroundColor: palette.purple, borderColor: palette.purple },
-                ]}
-              >
-                {suggestion ? <Text style={styles.checkmark}>✓</Text> : null}
-              </View>
-              <Text style={[styles.checkLabel, { color: palette.text2 }]}>
-                Suggest as a future album pick (adds to the backlog)
-              </Text>
-            </Pressable>
             {capped ? (
               <InlineNote
                 text={
@@ -806,11 +777,6 @@ function PostCard({
             <Text style={[styles.postTime, { color: palette.text3 }]}>{timeAgo(post.created_at)}</Text>
           </View>
         </Pressable>
-        {post.is_album_suggestion ? (
-          <Text style={[styles.suggBadge, { color: palette.purple, backgroundColor: palette.purpleBg }]}>
-            💡 suggestion
-          </Text>
-        ) : null}
         {shareClubs.length > 0 ? (
           <Pressable onPress={() => setShowShare(true)} hitSlop={6} accessibilityLabel="Share to another club">
             <Text style={{ color: palette.text3, fontSize: 16 }}>↗</Text>

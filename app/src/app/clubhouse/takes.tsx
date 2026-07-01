@@ -86,7 +86,7 @@ export default function MusicalTakesScreen() {
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={[styles.eyebrow, { color: palette.text3 }]}>SPICY OPINIONS, ON THE RECORD</Text>
-          <Text style={[styles.title, { color: palette.text1 }]}>🔥 Musical Takes</Text>
+          <Text style={[styles.title, { color: palette.text1 }]}>🔥 Mic Droppers</Text>
         </View>
       </View>
 

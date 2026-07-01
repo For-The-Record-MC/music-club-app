@@ -140,7 +140,7 @@ export default function ConvinceMeScreen() {
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={[styles.eyebrow, { color: palette.text3 }]}>SELL THE CLUB ON AN ARTIST</Text>
-          <Text style={[styles.title, { color: palette.text1 }]}>🎯 Convince Me</Text>
+          <Text style={[styles.title, { color: palette.text1 }]}>🎯 Change My Tune</Text>
         </View>
       </View>
 

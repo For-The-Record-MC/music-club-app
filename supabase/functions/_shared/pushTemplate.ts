@@ -127,20 +127,28 @@ export function pushTemplate(
     case 'showdown_winner':
       return { category, title: t('🏆 Showdown winner'), body: `"${p.title ?? 'A song'}"${p.artist ? ` by ${p.artist}` : ''} won the cycle ${cyc} Showdown!`, target: { pathname: '/clubhouse/showdown' } };
     case 'feed_post':
-      return {
-        category,
-        title: t(p.is_album_suggestion ? '💡 Album suggestion' : '🎧 New share'),
-        body: `${who} shared ${p.is_album_suggestion ? 'an album suggestion' : 'music'}: ${p.title ?? ''}`,
-        target: { pathname: '/clubhouse/activity', params: p.post_id ? { focus: String(p.post_id) } : undefined },
-      };
+      return p.is_album_suggestion
+        ? {
+            category,
+            title: t('💿 Album queued'),
+            body: `${who} queued an album: ${p.title ?? ''}`,
+            target: { pathname: '/club/[id]/suggestions', params: { id: String(event.club_id) } },
+          }
+        : {
+            category,
+            title: t('🎧 New share'),
+            body: `${who} shared music: ${p.title ?? ''}`,
+            target: { pathname: '/clubhouse/activity', params: p.post_id ? { focus: String(p.post_id) } : undefined },
+          };
     case 'concert_added':
       return { category, title: t('🎤 New concert'), body: `${who} added a concert: ${p.artist ?? ''}.`, target: { pathname: '/concerts', params: p.concert_id ? { focus: String(p.concert_id) } : undefined } };
     case 'comment_mention': {
       const where =
         p.context === 'concert' ? 'a concert comment'
         : p.context === 'meeting' ? 'the meeting board'
-        : p.context === 'take' ? 'a Musical Take'
-        : p.context === 'convince' ? 'a Convince Me rec'
+        : p.context === 'take' ? 'a Mic Dropper'
+        : p.context === 'convince' ? 'a Change My Tune rec'
+        : p.context === 'bar' ? 'a Best Bar'
         : 'a feed comment';
       const snippet = p.snippet ? `: "${p.snippet}"` : '';
       let target: PushTarget = HOME;
@@ -148,6 +156,7 @@ export function pushTemplate(
       else if (p.context === 'meeting') target = { pathname: '/club/[id]/rsvp', params: { id: String(event.club_id) } };
       else if (p.context === 'take') target = { pathname: '/clubhouse/takes', params: p.take_id ? { focus: String(p.take_id) } : undefined };
       else if (p.context === 'convince') target = { pathname: '/clubhouse/convince', params: p.post_id ? { focus: String(p.post_id) } : undefined };
+      else if (p.context === 'bar') target = { pathname: '/clubhouse/bars', params: p.bar_id ? { focus: String(p.bar_id) } : undefined };
       else target = { pathname: '/clubhouse/activity', params: p.post_id ? { focus: String(p.post_id) } : undefined };
       return { category, title: t('💬 You were mentioned'), body: `${who} mentioned you in ${where}${snippet}`, target };
     }

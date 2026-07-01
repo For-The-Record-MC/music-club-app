@@ -117,7 +117,7 @@ export default function HistoryTab() {
     <Screen onRefresh={onRefresh} refreshing={refreshing}>
       <View style={styles.topbar}>
         <Text style={[styles.eyebrow, { color: palette.text3 }]}>EVERY CYCLE SO FAR</Text>
-        <Text style={[styles.title, { color: palette.text1 }]}>📜 History</Text>
+        <Text style={[styles.title, { color: palette.text1 }]}>⏪ Rewind</Text>
       </View>
 
       <TextField
@@ -167,7 +167,7 @@ export default function HistoryTab() {
         </View>
       ) : (
         <>
-
+      <View style={{ height: 20 }} />
       <Label>All-time favorites</Label>
       <Card style={{ marginBottom: 14 }}>
         {favorites.length === 0 ? (

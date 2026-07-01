@@ -91,6 +91,35 @@ CREATE TABLE aux_battles (
   created_at timestamp with time zone NOT NULL DEFAULT now()
 );
 
+CREATE TABLE best_bar_comments (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  bar_id uuid NOT NULL,
+  author_id uuid NOT NULL,
+  text text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE best_bar_ratings (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  bar_id uuid NOT NULL,
+  profile_id uuid NOT NULL,
+  score smallint NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE best_bars (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  club_id uuid NOT NULL,
+  author_id uuid NOT NULL,
+  title text NOT NULL,
+  artist text NOT NULL DEFAULT ''::text,
+  artwork_url text,
+  spotify_url text,
+  apple_url text,
+  lyric text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE club_favorite_tracks (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   club_id uuid NOT NULL,
@@ -609,6 +638,34 @@ ALTER TABLE aux_battles ADD CONSTRAINT aux_battles_theme_text_check CHECK (((cha
 
 ALTER TABLE aux_battles ADD CONSTRAINT aux_battles_winner_profile_id_fkey FOREIGN KEY (winner_profile_id) REFERENCES profiles(id) ON DELETE SET NULL;
 
+ALTER TABLE best_bar_comments ADD CONSTRAINT best_bar_comments_author_id_fkey FOREIGN KEY (author_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE best_bar_comments ADD CONSTRAINT best_bar_comments_bar_id_fkey FOREIGN KEY (bar_id) REFERENCES best_bars(id) ON DELETE CASCADE;
+
+ALTER TABLE best_bar_comments ADD CONSTRAINT best_bar_comments_pkey PRIMARY KEY (id);
+
+ALTER TABLE best_bar_comments ADD CONSTRAINT best_bar_comments_text_check CHECK (((char_length(TRIM(BOTH FROM text)) >= 1) AND (char_length(TRIM(BOTH FROM text)) <= 2000)));
+
+ALTER TABLE best_bar_ratings ADD CONSTRAINT best_bar_ratings_bar_id_fkey FOREIGN KEY (bar_id) REFERENCES best_bars(id) ON DELETE CASCADE;
+
+ALTER TABLE best_bar_ratings ADD CONSTRAINT best_bar_ratings_bar_id_profile_id_key UNIQUE (bar_id, profile_id);
+
+ALTER TABLE best_bar_ratings ADD CONSTRAINT best_bar_ratings_pkey PRIMARY KEY (id);
+
+ALTER TABLE best_bar_ratings ADD CONSTRAINT best_bar_ratings_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE best_bar_ratings ADD CONSTRAINT best_bar_ratings_score_check CHECK (((score >= 1) AND (score <= 10)));
+
+ALTER TABLE best_bars ADD CONSTRAINT best_bars_author_id_fkey FOREIGN KEY (author_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE best_bars ADD CONSTRAINT best_bars_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+
+ALTER TABLE best_bars ADD CONSTRAINT best_bars_lyric_check CHECK (((char_length(TRIM(BOTH FROM lyric)) >= 1) AND (char_length(TRIM(BOTH FROM lyric)) <= 500)));
+
+ALTER TABLE best_bars ADD CONSTRAINT best_bars_pkey PRIMARY KEY (id);
+
+ALTER TABLE best_bars ADD CONSTRAINT best_bars_title_check CHECK (((char_length(TRIM(BOTH FROM title)) >= 1) AND (char_length(TRIM(BOTH FROM title)) <= 300)));
+
 ALTER TABLE club_favorite_tracks ADD CONSTRAINT club_favorite_tracks_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
 
 ALTER TABLE club_favorite_tracks ADD CONSTRAINT club_favorite_tracks_cycle_id_fkey FOREIGN KEY (cycle_id) REFERENCES cycles(id) ON DELETE SET NULL;
@@ -1048,6 +1105,12 @@ CREATE INDEX aux_battles_club_idx ON public.aux_battles USING btree (club_id);
 
 CREATE INDEX aux_battles_cycle_idx ON public.aux_battles USING btree (cycle_id);
 
+CREATE INDEX best_bar_comments_bar_idx ON public.best_bar_comments USING btree (bar_id, created_at);
+
+CREATE INDEX best_bar_ratings_bar_idx ON public.best_bar_ratings USING btree (bar_id);
+
+CREATE INDEX best_bars_club_idx ON public.best_bars USING btree (club_id, created_at DESC);
+
 CREATE INDEX club_favorite_tracks_club_idx ON public.club_favorite_tracks USING btree (club_id, added_at DESC);
 
 CREATE UNIQUE INDEX club_favorite_tracks_uri_idx ON public.club_favorite_tracks USING btree (club_id, spotify_uri) WHERE (spotify_uri IS NOT NULL);
@@ -1192,9 +1255,11 @@ CREATE POLICY albums_write ON albums AS PERMISSIVE FOR ALL TO authenticated
 ALTER TABLE aux_battle_songs ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY aux_battle_songs_select ON aux_battle_songs AS PERMISSIVE FOR SELECT TO authenticated
-  USING ((EXISTS ( SELECT 1
+  USING (((EXISTS ( SELECT 1
    FROM aux_battles ab
-  WHERE ((ab.id = aux_battle_songs.battle_id) AND is_club_member(ab.club_id)))));
+  WHERE ((ab.id = aux_battle_songs.battle_id) AND is_club_member(ab.club_id)))) AND ((NOT (EXISTS ( SELECT 1
+   FROM aux_battles ab
+  WHERE ((ab.id = aux_battle_songs.battle_id) AND ((ab.member_a = auth.uid()) OR (ab.member_b = auth.uid())))))) OR (profile_id = auth.uid()) OR aux_has_submitted(battle_id))));
 
 ALTER TABLE aux_battle_theme_ideas ENABLE ROW LEVEL SECURITY;
 
@@ -1214,6 +1279,47 @@ CREATE POLICY aux_battle_votes_select ON aux_battle_votes AS PERMISSIVE FOR SELE
 ALTER TABLE aux_battles ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY aux_battles_select ON aux_battles AS PERMISSIVE FOR SELECT TO authenticated
+  USING (is_club_member(club_id));
+
+ALTER TABLE best_bar_comments ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY best_bar_comments_delete ON best_bar_comments AS PERMISSIVE FOR DELETE TO authenticated
+  USING (((author_id = auth.uid()) OR (EXISTS ( SELECT 1
+   FROM best_bars b
+  WHERE ((b.id = best_bar_comments.bar_id) AND (club_role(b.club_id) = ANY (ARRAY['owner'::text, 'admin'::text])))))));
+
+CREATE POLICY best_bar_comments_insert ON best_bar_comments AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (((author_id = auth.uid()) AND (EXISTS ( SELECT 1
+   FROM best_bars b
+  WHERE ((b.id = best_bar_comments.bar_id) AND is_club_member(b.club_id))))));
+
+CREATE POLICY best_bar_comments_select ON best_bar_comments AS PERMISSIVE FOR SELECT TO authenticated
+  USING ((EXISTS ( SELECT 1
+   FROM best_bars b
+  WHERE ((b.id = best_bar_comments.bar_id) AND is_club_member(b.club_id)))));
+
+ALTER TABLE best_bar_ratings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY best_bar_ratings_select ON best_bar_ratings AS PERMISSIVE FOR SELECT TO authenticated
+  USING ((EXISTS ( SELECT 1
+   FROM best_bars b
+  WHERE ((b.id = best_bar_ratings.bar_id) AND is_club_member(b.club_id)))));
+
+CREATE POLICY best_bar_ratings_write ON best_bar_ratings AS PERMISSIVE FOR ALL TO authenticated
+  USING ((profile_id = auth.uid()))
+  WITH CHECK (((profile_id = auth.uid()) AND (EXISTS ( SELECT 1
+   FROM best_bars b
+  WHERE ((b.id = best_bar_ratings.bar_id) AND is_club_member(b.club_id))))));
+
+ALTER TABLE best_bars ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY best_bars_delete ON best_bars AS PERMISSIVE FOR DELETE TO authenticated
+  USING (((author_id = auth.uid()) OR (club_role(club_id) = ANY (ARRAY['owner'::text, 'admin'::text]))));
+
+CREATE POLICY best_bars_insert ON best_bars AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (((author_id = auth.uid()) AND is_club_member(club_id)));
+
+CREATE POLICY best_bars_select ON best_bars AS PERMISSIVE FOR SELECT TO authenticated
   USING (is_club_member(club_id));
 
 ALTER TABLE club_favorite_tracks ENABLE ROW LEVEL SECURITY;
@@ -1804,6 +1910,19 @@ CREATE OR REPLACE FUNCTION public.album_has_ratings(p_album uuid)
  SET search_path TO 'public'
 AS $function$
   select exists (select 1 from ratings where album_id = p_album);
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.aux_has_submitted(p_battle uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select exists (
+    select 1 from aux_battle_songs
+    where battle_id = p_battle and profile_id = auth.uid()
+  );
 $function$
 ;
 
@@ -3886,6 +4005,12 @@ begin
   end if;
   if char_length(trim(coalesce(p_title, ''))) = 0 then
     raise exception 'A song title is required';
+  end if;
+  -- Once both combatants have a song in, submissions are locked (this includes
+  -- changing your own). The second submitter still gets through: only one row
+  -- exists at that point.
+  if (select count(*) from aux_battle_songs where battle_id = p_battle) >= 2 then
+    raise exception 'Both songs are locked in — no more changes.';
   end if;
 
   insert into aux_battle_songs (battle_id, profile_id, title, artist, artwork_url, spotify_url, apple_url)
