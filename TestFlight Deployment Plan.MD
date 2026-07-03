@@ -33,25 +33,22 @@ App Store Connect listing — DONE (2026-06-26):
   (`expo run:ios --configuration Release`) to drop the dev-menu cog; status bar overridden to 9:41.
 - ✅ Description, keywords, promotional text, category, support URL, age rating all entered.
 
-### Remaining before submitting for review (paused 2026-06-29 — doing push notifications + other
-### changes first; NOT submitting yet)
+### SUBMITTED FOR REVIEW 2026-07-03 — build 12 (v1.0.0, commit 422c4e8), waiting on Apple
 
-Submission gating items (must finish before Submit for Review):
-- [ ] **Reviewer test account** — create in Supabase Dashboard → Auth → Add user
-  (`jordanreticker+review@gmail.com` + password + Auto Confirm), sign in via "I have a password",
-  set display name, **join a populated club** (cycle, ratings, feed, a concert). Paste creds + the
-  review notes into ASC → App Review Information. (NOT a magic-link account — reviewers can't get
-  the email code.)
-- [ ] **Confirm account deletion** end-to-end on TestFlight: throwaway acct → club menu →
-  Delete account → confirm sign-out + data gone.
-- [ ] **Submit for Review.**
+All gating items completed:
+- [x] **Reviewer test account** — `jordanreticker+review@gmail.com` (password + Auto Confirm),
+  display name "App Reviewer", member of Briarglade Boiz (deliberately NOT admin — the review
+  notes point reviewers at create-club to try owner features). Creds + notes in ASC → App Review
+  Information.
+- [x] **Account deletion confirmed** end-to-end on TestFlight.
+- [x] **Push notifications** shipped + delivery verified on device (APNs key via `eas credentials`).
+- [x] **Screenshots refreshed** from a local `expo run:ios --configuration Release` build
+  (Release config is what removes the dev-menu cog).
+- [x] **Description updated** with THE CLUBHOUSE section (all 9 Studio rooms); copyright +
+  additional privacy fields added in ASC during submission.
+- [x] **Submitted for Review** (2026-07-03).
 
-Planned changes before submission (Jordan's call — these come first):
-- [ ] **Push notifications** — still in design/think-through. (Expo push was always a deferred
-  follow-up; `activity_events` table can feed it. Needs: expo-notifications, device-token storage,
-  a sender — likely an Edge Function triggered on new activity rows. APNs key is auto-managed by
-  EAS.) Adding a new native capability means a fresh `eas build` + new TestFlight build before submit.
-- [ ] Other product changes (TBD).
+Next: respond to any App Review feedback, then release the approved build.
 
 > Note: everything entered in App Store Connect persists on the "1.0 Prepare for Submission" draft
 > and pre-fills future versions (description, keywords, screenshots, privacy, review info all carry
