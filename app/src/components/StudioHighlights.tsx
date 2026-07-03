@@ -11,6 +11,7 @@ import { useFeed, type FeedRow } from '@/hooks/useFeed';
 import { useMusicalTakes } from '@/hooks/useMusicalTakes';
 import { usePerfectPlaylist } from '@/hooks/usePerfectPlaylist';
 import { useShowdown } from '@/hooks/useShowdown';
+import { useTrackMadness } from '@/hooks/useTrackMadness';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
 import { memberName } from '@/utils/memberName';
@@ -19,8 +20,8 @@ import { fonts, radius } from '@/theme';
 
 // A single swipeable Studio surface for Home: one highlight card per active
 // room (Club Radio, Showdown, Aux Battle, Perfect Playlist, Best Bars, Mic
-// Droppers). Only rooms with something to show appear; each card taps into its
-// room. Replaces the old separate Showdown + "from the feed" home cards.
+// Droppers, Track Madness). Only rooms with something to show appear; each card
+// taps into its room. Replaces the old separate Showdown + "from the feed" cards.
 
 type Accent = 'teal' | 'purple' | 'coral' | 'amber' | 'blue';
 const accentFg = (p: Palette, a: Accent) => p[a];
@@ -66,6 +67,7 @@ export function StudioHighlights({ clubId, cycleId }: { clubId: string; cycleId:
   const { playlist } = usePerfectPlaylist(cycleId);
   const { bars } = useBestBars(clubId);
   const { takes } = useMusicalTakes(clubId);
+  const { live: madness } = useTrackMadness(clubId);
 
   const [width, setWidth] = useState(0);
   const [active, setActive] = useState(0);
@@ -199,8 +201,30 @@ export function StudioHighlights({ clubId, cycleId }: { clubId: string; cycleId:
       });
     }
 
+    // Track Madness — the live bracket: nudge until yours is in, then club progress.
+    if (madness) {
+      const done = madness.progress.completed_ids.length;
+      const total = madness.progress.total;
+      const mineDone = !!userId && madness.progress.completed_ids.includes(userId);
+      out.push({
+        key: 'madness',
+        accent: 'amber',
+        emoji: '🏆',
+        room: 'TRACK MADNESS',
+        onPress: () => router.push({ pathname: '/clubhouse/madness' }),
+        body: (
+          <View>
+            <Text numberOfLines={1} style={[styles.bigTitle, { color: palette.text1 }]}>{madness.bracket.artist_name}</Text>
+            <Text style={[styles.sub, { color: palette.text2 }]}>
+              {mineDone ? `${done}/${total} brackets in` : `Fill out your bracket · ${done}/${total} in`}
+            </Text>
+          </View>
+        ),
+      });
+    }
+
     return out;
-  }, [cycle, posts, showdown, battles, playlist, bars, takes, userId, palette, router]);
+  }, [cycle, posts, showdown, battles, playlist, bars, takes, madness, userId, palette, router]);
 
   if (highlights.length === 0) return null;
 

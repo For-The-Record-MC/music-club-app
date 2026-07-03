@@ -68,26 +68,26 @@ const FEATURES: { emoji: string; title: string; body: string; accent: Accent }[]
   {
     emoji: '📝',
     title: 'Song notes',
-    body: 'Keep private, track-by-track notes as you listen — your own little journal. Unlike ratings, notes stay editable across every cycle.',
+    body: 'Keep track-by-track notes as you listen — tag the vibe, drop a thought, save favorites to your library. Notes are private until you choose to share them with the club, and stay editable across every cycle.',
     accent: 'blue',
   },
   {
-    emoji: '💬',
-    title: 'The feed',
-    body: "Share songs you're loving, drop a thought, and react to what others post. The most-loved track gets spotlighted on the home screen.",
+    emoji: '🎛️',
+    title: 'The Studio',
+    body: "The club's hangout, a grid of rooms: Club Radio for sharing songs, Jukebox Showdown's themed battles, Aux Battle matchups, Track Madness brackets, Best Bars, Mic Droppers, and more. Tap the ? in the Studio for the full tour.",
     accent: 'teal',
-  },
-  {
-    emoji: '🎵',
-    title: 'Jukebox Showdown',
-    body: 'Each cycle has a fun theme — like “Songs with colors in the title.” Submit one song, then spend 2 upvotes and a downvote on the rest. Votes stay blind until the meeting, when a winner is crowned.',
-    accent: 'purple',
   },
   {
     emoji: '🎫',
     title: 'Concerts',
-    body: "Post shows the group might want to catch and RSVP so everyone knows who's in. Add them straight to your calendar.",
+    body: "Search real live events or post shows the group might want to catch, then RSVP so everyone knows who's in. Add them straight to your calendar.",
     accent: 'coral',
+  },
+  {
+    emoji: '🗓️',
+    title: 'Meetings',
+    body: 'Schedule the reveal night: float a time poll to find what works, collect RSVPs, and let members bring a guest.',
+    accent: 'purple',
   },
   {
     emoji: '🎶',
@@ -96,15 +96,15 @@ const FEATURES: { emoji: string; title: string; body: string; accent: Accent }[]
     accent: 'teal',
   },
   {
-    emoji: '📜',
-    title: 'History',
-    body: 'Every closed cycle is saved with its scores, the crowned album, and its highlights — a running record of everything the club has heard.',
+    emoji: '⏪',
+    title: 'Rewind',
+    body: 'Every closed cycle is saved with its scores, the crowned album, and its highlights — plus a searchable index of every album the club has ever heard.',
     accent: 'purple',
   },
   {
     emoji: '🔔',
-    title: 'Activity',
-    body: 'The bell at the top of Home keeps you caught up — new picks, reveals, RSVPs, and feed buzz, all in one place.',
+    title: 'Activity & notifications',
+    body: 'The bell at the top of Home keeps you caught up — new picks, reveals, RSVPs, and Studio buzz. Optional push notifications ping you for the moments you care about; you choose which.',
     accent: 'blue',
   },
 ];
