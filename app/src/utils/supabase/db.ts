@@ -28,6 +28,11 @@ export type PerfectPlaylistSong = Tables<'perfect_playlist_songs'>;
 export type AuxBattle = Tables<'aux_battles'>;
 export type AuxBattleSong = Tables<'aux_battle_songs'>;
 export type AuxThemeIdea = Tables<'aux_battle_theme_ideas'>;
+export type Bracket = Tables<'brackets'>;
+export type BracketTrack = Tables<'bracket_tracks'>;
+export type BracketEntry = Tables<'bracket_entries'>;
+export type BracketPick = Tables<'bracket_picks'>;
+export type BracketComment = Tables<'bracket_comments'>;
 export type SongNoteShare = Tables<'song_note_shares'>;
 export type AlbumImpression = Tables<'album_impressions'>;
 export type VibeTag = Tables<'vibe_tags'>;
@@ -1177,6 +1182,75 @@ export const auxBattle = {
       .select('id', { count: 'exact', head: true })
       .eq('club_id', clubId)
       .eq('winner_profile_id', profileId),
+};
+
+// Track Madness — artist song brackets. Every member fills their own copy
+// (picks via save_bracket_pick, locked by crown_champion); the spoiler-guard
+// RLS hides other members' picks/entries until the caller has completed their
+// own bracket or the bracket closes, so `picks`/`entries` return only what the
+// caller may see. Consensus is computed client-side (utils/trackMadness.ts).
+export const trackMadness = {
+  open: (clubId: string) =>
+    supabase
+      .from('brackets')
+      .select('*')
+      .eq('club_id', clubId)
+      .eq('status', 'open')
+      .maybeSingle(),
+  archive: (clubId: string) =>
+    supabase
+      .from('brackets')
+      .select('*')
+      .eq('club_id', clubId)
+      .eq('status', 'closed')
+      .order('closed_at', { ascending: false }),
+  tracks: (bracketId: string) =>
+    supabase.from('bracket_tracks').select('*').eq('bracket_id', bracketId).order('seed'),
+  picks: (bracketId: string) =>
+    supabase.from('bracket_picks').select('profile_id, round, slot, winner_track_id').eq('bracket_id', bracketId),
+  entries: (bracketId: string) =>
+    supabase
+      .from('bracket_entries')
+      .select('*, profiles(display_name, email, avatar_color, avatar_url)')
+      .eq('bracket_id', bracketId),
+  // Spoiler-safe progress counts for the tile/status line.
+  progress: (bracketId: string) => supabase.rpc('bracket_progress', { p_bracket: bracketId }),
+  create: (
+    clubId: string,
+    artistName: string,
+    artistSpotifyId: string,
+    artistImageUrl: string | null,
+    size: number,
+    tracks: Json,
+  ) =>
+    supabase.rpc('create_bracket', {
+      p_club: clubId,
+      p_artist_name: artistName,
+      p_artist_spotify_id: artistSpotifyId,
+      p_artist_image_url: artistImageUrl as string,
+      p_size: size,
+      p_tracks: tracks,
+    }),
+  savePick: (bracketId: string, round: number, slot: number, winnerTrackId: string) =>
+    supabase.rpc('save_bracket_pick', {
+      p_bracket: bracketId,
+      p_round: round,
+      p_slot: slot,
+      p_winner: winnerTrackId,
+    }),
+  crown: (bracketId: string) => supabase.rpc('crown_champion', { p_bracket: bracketId }),
+  close: (bracketId: string) => supabase.rpc('close_bracket', { p_bracket: bracketId }),
+  // Launcher/admin escape hatch for a botched launch (open brackets only; RLS).
+  remove: (bracketId: string) => supabase.from('brackets').delete().eq('id', bracketId),
+  comments: (bracketId: string) =>
+    supabase
+      .from('bracket_comments')
+      .select('*, profiles(display_name, email, avatar_color, avatar_url)')
+      .eq('bracket_id', bracketId)
+      .order('created_at'),
+  addComment: (bracketId: string, authorId: string, text: string) =>
+    supabase.from('bracket_comments').insert({ bracket_id: bracketId, author_id: authorId, text: text.trim() }),
+  removeComment: (id: string) => supabase.from('bracket_comments').delete().eq('id', id),
 };
 
 // Per-cycle meeting board — short notes about the upcoming meeting (new times,

@@ -1,8 +1,9 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar, Button, Card, InlineNote, Label, Screen } from '@/components/ui';
+import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { useClubData } from '@/hooks/useClubData';
 import { useAuthStore } from '@/stores/authStore';
@@ -30,13 +31,19 @@ export default function Wheel() {
 
   const isAdmin = myRole === 'owner' || myRole === 'admin';
 
-  useEffect(() => {
+  const loadPool = useCallback(async () => {
     if (!id) return;
-    cycles.pool(id).then(({ data }) => setPoolIds((data as string[] | null) ?? []));
+    const { data } = await cycles.pool(id);
+    setPoolIds((data as string[] | null) ?? []);
+  }, [id]);
+
+  useEffect(() => {
+    loadPool();
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [id]);
+  }, [loadPool]);
+  const { refreshing, onRefresh } = useRefresh(loadPool);
 
   const pool = useMemo(
     () =>
@@ -86,7 +93,7 @@ export default function Wheel() {
   const iAmWinner = winnerId === userId;
 
   return (
-    <Screen>
+    <Screen onRefresh={onRefresh} refreshing={refreshing}>
       <View style={styles.topbar}>
         <Pressable onPress={() => router.back()}>
           <Text style={[styles.back, { color: palette.text2 }]}>←</Text>

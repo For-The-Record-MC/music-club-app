@@ -63,6 +63,12 @@ const ROOMS: { emoji: string; title: string; body: string; accent: Accent }[] = 
     body: 'Put the club on to an artist. Pick three starter tracks, make your pitch, and tag whoever you think will be into it — they can hear you out and mark themselves Converted.',
     accent: 'teal',
   },
+  {
+    emoji: '🏆',
+    title: 'Track Madness',
+    body: "One artist's biggest songs, seeded into a tournament. Fill out your own bracket matchup by matchup (listen links included) and crown a champion — then see who the club's champion is once everyone's in.",
+    accent: 'amber',
+  },
 ];
 
 export default function StudioGuide() {

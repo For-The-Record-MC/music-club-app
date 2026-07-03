@@ -1,9 +1,10 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ShowdownPanel } from '@/components/ShowdownPanel';
 import { Screen } from '@/components/ui';
+import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { cycles as cyclesDb, type Cycle } from '@/utils/supabase/db';
 import { fonts } from '@/theme';
@@ -16,13 +17,19 @@ export default function ShowdownScreen() {
   const { palette } = useTheme();
   const [cycle, setCycle] = useState<Cycle | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!cycleId) return;
-    cyclesDb.get(cycleId).then(({ data }) => setCycle(data ?? null));
+    const { data } = await cyclesDb.get(cycleId);
+    setCycle(data ?? null);
   }, [cycleId]);
 
+  useEffect(() => {
+    load();
+  }, [load]);
+  const { refreshing, onRefresh } = useRefresh(load);
+
   return (
-    <Screen>
+    <Screen onRefresh={onRefresh} refreshing={refreshing}>
       <View style={styles.topbar}>
         <Pressable onPress={() => router.back()}>
           <Text style={[styles.back, { color: palette.text2 }]}>←</Text>

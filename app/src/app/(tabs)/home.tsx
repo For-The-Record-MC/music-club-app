@@ -6,7 +6,7 @@ import { Linking, Platform, Pressable, Share, StyleSheet, Text, View } from 'rea
 
 import { ClubSwitcher } from '@/components/ClubSwitcher';
 import { StudioHighlights } from '@/components/StudioHighlights';
-import { Avatar, Button, Card, InlineNote, Label, Screen } from '@/components/ui';
+import { Avatar, Button, Card, InlineNote, Label, Loading, Screen } from '@/components/ui';
 import { useActivity } from '@/hooks/useActivity';
 import { useClubData } from '@/hooks/useClubData';
 import { useCycle } from '@/hooks/useCycle';
@@ -122,9 +122,13 @@ export default function HomeTab() {
         <View style={styles.topbar}>
           <ClubSwitcher />
         </View>
-        <Text style={{ color: palette.text3, fontFamily: fonts.mono, fontSize: 12 }}>
-          {clubLoading || cycleLoading ? 'Loading…' : 'Club not found (are you a member?).'}
-        </Text>
+        {clubLoading || cycleLoading ? (
+          <Loading />
+        ) : (
+          <Text style={{ color: palette.text3, fontFamily: fonts.mono, fontSize: 12 }}>
+            Club not found (are you a member?).
+          </Text>
+        )}
       </Screen>
     );
   }

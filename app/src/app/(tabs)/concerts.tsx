@@ -5,7 +5,7 @@ import { ConcertCalendar } from '@/components/ConcertCalendar';
 import { ConcertSearchField } from '@/components/ConcertSearchField';
 import { DateTimeField } from '@/components/DateTimeField';
 import { MentionInput, MentionText, resolveMentions, type MentionMember } from '@/components/Mentions';
-import { Avatar, BottomSheet, Button, Card, InlineNote, Label, NoClubSelected, Screen, TextField } from '@/components/ui';
+import { Avatar, BottomSheet, Button, Card, InlineNote, Label, Loading, NoClubSelected, Screen, TextField } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
 import { useConcerts, type ConcertRow } from '@/hooks/useConcerts';
 import { useMyClubs } from '@/hooks/useMyClubs';
@@ -157,7 +157,7 @@ export default function Concerts() {
       })),
     [members],
   );
-  const { rows, refresh } = useConcerts(id);
+  const { rows, loading, refresh } = useConcerts(id);
   const { refreshing, onRefresh } = useRefresh(refresh);
   const { focus, scrollRef, onItemLayout } = useFocusTarget();
 
@@ -328,7 +328,9 @@ export default function Concerts() {
         })}
       </View>
 
-      {view === 'calendar' ? (
+      {loading ? (
+        <Loading />
+      ) : view === 'calendar' ? (
         <ConcertCalendar concerts={rows} memberInfo={memberInfo} />
       ) : (
         <>

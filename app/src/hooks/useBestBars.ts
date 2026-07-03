@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
+import { registerCache } from '@/utils/dataCache';
 import { bestBars, type BestBar } from '@/utils/supabase/db';
 
 // One bar with its 1–10 ratings and a comment count embedded — the same embed
@@ -10,20 +11,29 @@ export interface BarRow extends BestBar {
   best_bar_comments: { count: number }[];
 }
 
+// Stale-while-revalidate cache keyed by club id — see useFeed for the pattern.
+const cache = registerCache(new Map<string, BarRow[]>());
+
 export function useBestBars(clubId: string | undefined) {
-  const [bars, setBars] = useState<BarRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [bars, setBars] = useState<BarRow[]>(() => (clubId ? cache.get(clubId) : undefined) ?? []);
+  const [loading, setLoading] = useState(() => !(clubId && cache.has(clubId)));
 
   const refresh = useCallback(async () => {
     if (!clubId) return;
     const { data } = await bestBars.list(clubId);
-    setBars((data ?? []) as BarRow[]);
+    const rows = (data ?? []) as BarRow[];
+    cache.set(clubId, rows);
+    setBars(rows);
     setLoading(false);
   }, [clubId]);
 
+  // On mount or club switch: serve the cached rows immediately and revalidate;
+  // only show the record when this club has never been loaded.
   useEffect(() => {
+    setBars((clubId ? cache.get(clubId) : undefined) ?? []);
+    setLoading(!(clubId && cache.has(clubId)));
     refresh();
-  }, [refresh]);
+  }, [clubId, refresh]);
 
   return { bars, loading, refresh };
 }

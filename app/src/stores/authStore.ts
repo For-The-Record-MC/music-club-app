@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 
+import { clearDataCaches } from '@/utils/dataCache';
 import { supabase } from '@/utils/supabase/client';
 import { profiles, type Profile } from '@/utils/supabase/db';
 
@@ -61,6 +62,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   // which is unreliable in React Native.
   signOut: async () => {
     set({ userId: null, profile: null });
+    clearDataCaches();
     await supabase.auth.signOut();
   },
 }));

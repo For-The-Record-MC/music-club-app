@@ -2,8 +2,9 @@ import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ShowdownPanel } from '@/components/ShowdownPanel';
-import { NoClubSelected, Screen } from '@/components/ui';
+import { Loading, NoClubSelected, Screen } from '@/components/ui';
 import { useCycle } from '@/hooks/useCycle';
+import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { useCurrentClubStore } from '@/stores/currentClubStore';
 import { fonts } from '@/theme';
@@ -15,12 +16,13 @@ export default function ClubhouseShowdown() {
   const id = useCurrentClubStore((s) => s.clubId) ?? undefined;
   const router = useRouter();
   const { palette } = useTheme();
-  const { cycle } = useCycle(id);
+  const { cycle, loading, refresh } = useCycle(id);
+  const { refreshing, onRefresh } = useRefresh(refresh);
 
   if (!id) return <NoClubSelected what="showdown" />;
 
   return (
-    <Screen>
+    <Screen onRefresh={onRefresh} refreshing={refreshing}>
       <View style={styles.topbar}>
         <Pressable onPress={() => router.back()} hitSlop={8}>
           <Text style={[styles.back, { color: palette.text2 }]}>←</Text>
@@ -32,7 +34,7 @@ export default function ClubhouseShowdown() {
           <Text style={[styles.title, { color: palette.text1 }]}>🎵 Jukebox Showdown</Text>
         </View>
       </View>
-      <ShowdownPanel cycle={cycle} cycleNumber={cycle?.number} />
+      {loading ? <Loading /> : <ShowdownPanel cycle={cycle} cycleNumber={cycle?.number} />}
     </Screen>
   );
 }

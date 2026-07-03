@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Button, Card, InlineNote, Label, Screen, TextField } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
+import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { fonts, radius } from '@/theme';
 import { confirmAsync } from '@/utils/confirm';
@@ -52,6 +53,7 @@ export default function ArchiveAdmin() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+  const { refreshing, onRefresh } = useRefresh(refresh);
 
   const runSearch = async (term: string) => {
     setQuery(term);
@@ -130,7 +132,7 @@ export default function ArchiveAdmin() {
   };
 
   return (
-    <Screen>
+    <Screen onRefresh={onRefresh} refreshing={refreshing}>
       <View style={styles.topbar}>
         <Pressable onPress={() => router.back()}>
           <Text style={[styles.back, { color: palette.text2 }]}>←</Text>

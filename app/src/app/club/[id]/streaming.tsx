@@ -1,10 +1,11 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Button, Card, InlineNote, Label, Screen } from '@/components/ui';
+import { Button, Card, InlineNote, Label, Loading, Screen } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
 import { useCycle } from '@/hooks/useCycle';
+import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { fonts } from '@/theme';
 import { confirmAsync } from '@/utils/confirm';
@@ -26,15 +27,15 @@ export default function Streaming() {
 
   const isOwner = myRole === 'owner';
 
-  const refreshStatus = async () => {
+  const refreshStatus = useCallback(async () => {
     if (!id) return;
     const { data } = await streaming.status(id);
     setStatus((data as unknown as StreamingStatus) ?? null);
-  };
+  }, [id]);
   useEffect(() => {
     refreshStatus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [refreshStatus]);
+  const { refreshing, onRefresh } = useRefresh(refreshStatus);
 
   // Owner-only — bounce everyone else.
   useEffect(() => {
@@ -96,7 +97,7 @@ export default function Streaming() {
     refreshStatus();
   };
 
-  if (!club) return <Screen><Text style={{ color: palette.text3 }}>Loading…</Text></Screen>;
+  if (!club) return <Screen><Loading /></Screen>;
 
   const connected = status?.connected;
   const needsReconnect = status?.status === 'needs_reconnect';
@@ -106,7 +107,7 @@ export default function Streaming() {
   const appManaged = !connected && !canConnect;
 
   return (
-    <Screen>
+    <Screen onRefresh={onRefresh} refreshing={refreshing}>
       <View style={styles.topbar}>
         <Pressable onPress={() => router.back()}>
           <Text style={[styles.back, { color: palette.text2 }]}>←</Text>

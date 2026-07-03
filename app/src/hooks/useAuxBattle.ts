@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
+import { registerCache } from '@/utils/dataCache';
 import { auxBattle, type AuxBattle, type AuxBattleSong } from '@/utils/supabase/db';
 
 type Combatant = { display_name: string | null; email: string | null; avatar_color: number; avatar_url: string | null } | null;
@@ -13,9 +14,12 @@ export interface AuxBattleView extends AuxBattle {
   aux_battle_votes: { profile_id: string; choice: string }[];
 }
 
+// Stale-while-revalidate cache keyed by cycle id — see useFeed for the pattern.
+const cache = registerCache(new Map<string, AuxBattleView[]>());
+
 export function useAuxBattle(cycleId: string | undefined) {
-  const [battles, setBattles] = useState<AuxBattleView[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [battles, setBattles] = useState<AuxBattleView[]>(() => (cycleId ? cache.get(cycleId) : undefined) ?? []);
+  const [loading, setLoading] = useState(() => !(cycleId && cache.has(cycleId)));
 
   const refresh = useCallback(async () => {
     if (!cycleId) {
@@ -24,13 +28,19 @@ export function useAuxBattle(cycleId: string | undefined) {
       return;
     }
     const { data } = await auxBattle.forCycle(cycleId);
-    setBattles((data ?? []) as AuxBattleView[]);
+    const rows = (data ?? []) as AuxBattleView[];
+    cache.set(cycleId, rows);
+    setBattles(rows);
     setLoading(false);
   }, [cycleId]);
 
+  // On mount or cycle change: serve the cached rows immediately and revalidate;
+  // only show the record when this cycle has never been loaded.
   useEffect(() => {
+    setBattles((cycleId ? cache.get(cycleId) : undefined) ?? []);
+    setLoading(!(cycleId && cache.has(cycleId)));
     refresh();
-  }, [refresh]);
+  }, [cycleId, refresh]);
 
   return { battles, loading, refresh };
 }

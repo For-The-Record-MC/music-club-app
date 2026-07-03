@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { Card, Label, Screen } from '@/components/ui';
 import { useMyClubs } from '@/hooks/useMyClubs';
@@ -48,17 +48,28 @@ export default function NotificationsScreen() {
     })();
   }, [userId]);
 
-  const toggleCategory = (key: PrefKey) => {
+  // Supabase builders are lazy — the request only fires when awaited, so these
+  // must await (a bare call saves nothing). On failure, roll the switch back.
+  const toggleCategory = async (key: PrefKey) => {
     if (!userId) return;
+    const prev = prefs;
     const next = { ...prefs, [key]: !prefs[key] };
     setPrefs(next); // optimistic
-    notificationPrefs.upsert(userId, next);
+    const { error } = await notificationPrefs.upsert(userId, next);
+    if (error) {
+      setPrefs(prev);
+      Alert.alert('Could not save', error.message);
+    }
   };
 
-  const toggleMute = (clubId: string) => {
+  const toggleMute = async (clubId: string) => {
     const nextMuted = !muted[clubId];
     setMuted((m) => ({ ...m, [clubId]: nextMuted })); // optimistic
-    notificationPrefs.setMute(clubId, nextMuted);
+    const { error } = await notificationPrefs.setMute(clubId, nextMuted);
+    if (error) {
+      setMuted((m) => ({ ...m, [clubId]: !nextMuted }));
+      Alert.alert('Could not save', error.message);
+    }
   };
 
   return (

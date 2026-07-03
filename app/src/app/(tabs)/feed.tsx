@@ -1,8 +1,9 @@
 import { useRouter, type Href } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { NoClubSelected, Screen } from '@/components/ui';
+import { Loading, NoClubSelected, Screen } from '@/components/ui';
 import { useClubhouseStatus, type TileStatus } from '@/hooks/useClubhouseStatus';
+import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { useCurrentClubStore } from '@/stores/currentClubStore';
 import { fonts, radius } from '@/theme';
@@ -26,6 +27,7 @@ export default function Clubhouse() {
   const router = useRouter();
   const { palette } = useTheme();
   const status = useClubhouseStatus(id);
+  const { refreshing, onRefresh } = useRefresh(status.refresh);
 
   if (!id) return <NoClubSelected what="clubhouse" />;
 
@@ -38,10 +40,11 @@ export default function Clubhouse() {
     { key: 'takes', emoji: '🔥', name: 'Mic Droppers', accent: 'purple', href: '/clubhouse/takes', status: status.takes },
     { key: 'bars', emoji: '🎤', name: 'Best Bars', accent: 'blue', href: '/clubhouse/bars', status: status.bars },
     { key: 'convince', emoji: '🎯', name: 'Change My Tune', accent: 'teal', href: '/clubhouse/convince', status: status.convince },
+    { key: 'madness', emoji: '🏆', name: 'Track Madness', accent: 'amber', href: '/clubhouse/madness', status: status.madness },
   ];
 
   return (
-    <Screen>
+    <Screen onRefresh={onRefresh} refreshing={refreshing}>
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <Text style={[styles.eyebrow, { color: palette.text3 }]}>WHERE THE CLUB MAKES NOISE</Text>
@@ -61,6 +64,9 @@ export default function Clubhouse() {
         </Pressable>
       </View>
 
+      {status.loading ? (
+        <Loading />
+      ) : (
       <View style={styles.grid}>
         {tiles.map((t) => {
           const accent = palette[t.accent];
@@ -97,12 +103,13 @@ export default function Clubhouse() {
           );
         })}
       </View>
+      )}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
   eyebrow: { fontFamily: fonts.sansMedium, fontSize: 9, letterSpacing: 3, marginBottom: 2 },
   title: { fontFamily: fonts.sansBold, fontSize: 22 },
   help: {
@@ -114,25 +121,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   helpText: { fontFamily: fonts.sansBold, fontSize: 16 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   tile: {
     width: '47%',
     flexGrow: 1,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radius.lg,
-    padding: 14,
-    minHeight: 124,
+    padding: 10,
+    minHeight: 92,
     justifyContent: 'space-between',
   },
-  tileTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  tileTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   emojiWrap: {
-    width: 40,
-    height: 40,
+    width: 30,
+    height: 30,
     borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emoji: { fontSize: 20 },
+  emoji: { fontSize: 15 },
   dot: { width: 9, height: 9, borderRadius: 5, marginLeft: 'auto' },
   soon: {
     marginLeft: 'auto',
@@ -145,6 +152,6 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     overflow: 'hidden',
   },
-  tileName: { fontFamily: fonts.sansBold, fontSize: 15, marginBottom: 3 },
+  tileName: { fontFamily: fonts.sansBold, fontSize: 13, marginBottom: 2 },
   tileStatus: { fontFamily: fonts.monoMedium, fontSize: 10, letterSpacing: 0.3 },
 });

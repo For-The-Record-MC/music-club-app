@@ -48,6 +48,9 @@ const CATEGORY: Record<string, Category> = {
   aux_battle_started: 'lifecycle',
   aux_battle_picked: 'mentions',
   aux_battle_winner: 'lifecycle',
+  bracket_started: 'lifecycle',
+  bracket_champion: 'social',
+  bracket_closed: 'lifecycle',
 };
 
 export function pushCategory(eventType: string): Category | null {
@@ -149,6 +152,7 @@ export function pushTemplate(
         : p.context === 'take' ? 'a Mic Dropper'
         : p.context === 'convince' ? 'a Change My Tune rec'
         : p.context === 'bar' ? 'a Best Bar'
+        : p.context === 'bracket' ? 'the Track Madness trash talk'
         : 'a feed comment';
       const snippet = p.snippet ? `: "${p.snippet}"` : '';
       let target: PushTarget = HOME;
@@ -157,6 +161,7 @@ export function pushTemplate(
       else if (p.context === 'take') target = { pathname: '/clubhouse/takes', params: p.take_id ? { focus: String(p.take_id) } : undefined };
       else if (p.context === 'convince') target = { pathname: '/clubhouse/convince', params: p.post_id ? { focus: String(p.post_id) } : undefined };
       else if (p.context === 'bar') target = { pathname: '/clubhouse/bars', params: p.bar_id ? { focus: String(p.bar_id) } : undefined };
+      else if (p.context === 'bracket') target = { pathname: '/clubhouse/madness' };
       else target = { pathname: '/clubhouse/activity', params: p.post_id ? { focus: String(p.post_id) } : undefined };
       return { category, title: t('💬 You were mentioned'), body: `${who} mentioned you in ${where}${snippet}`, target };
     }
@@ -187,6 +192,29 @@ export function pushTemplate(
         title: t('🏆 Aux Battle winner'),
         body: `${p.winner_name ?? 'Someone'} won the cycle ${cyc} Aux Battle ("${p.theme ?? ''}")!`,
         target: { pathname: '/clubhouse/aux' },
+      };
+    case 'bracket_started':
+      return {
+        category,
+        title: t('🏆 Track Madness'),
+        body: `${who} launched the ${p.artist_name ?? ''} bracket — ${p.size ?? ''} songs, seeded and ready.`,
+        target: { pathname: '/clubhouse/madness' },
+      };
+    case 'bracket_champion':
+      // Deliberately song-free: naming the champion would spoil members who
+      // haven't finished their own bracket yet.
+      return {
+        category,
+        title: t('👑 Champion crowned'),
+        body: `${who} locked in their ${p.artist_name ?? ''} bracket (${p.done ?? '?'} of ${p.total ?? '?'} in).`,
+        target: { pathname: '/clubhouse/madness' },
+      };
+    case 'bracket_closed':
+      return {
+        category,
+        title: t('🏆 The club has spoken'),
+        body: `The ${p.artist_name ?? ''} bracket is decided — see the club's champion.`,
+        target: { pathname: '/clubhouse/madness' },
       };
     case 'convince_post':
       return {

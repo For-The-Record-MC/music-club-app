@@ -31,3 +31,4 @@ Product decisions and the phased build plan: [PLAN.md](PLAN.md).
 | [context/data-architecture.md](context/data-architecture.md) | The hook + compute-function pattern, `db.ts` query-object conventions, routing/auth gating, UI primitives, theme store, pull-to-refresh |
 | [context/launch.md](context/launch.md) | Launch/ops checklist: email (SMTP + OTP template), admin/dev login, seeding the existing club's data, deferred native build, known follow-ups |
 | [context/notifications.md](context/notifications.md) | Push notifications: the activity_events→pg_net→send-push pipeline, category preferences + per-club mute, the two template files, announcements, pg_cron meeting reminders, client registration, secrets/ops |
+| [context/spotify-api.md](context/spotify-api.md) | Spotify dev-mode API restrictions (blocked endpoints, limit caps — read BEFORE any Spotify work), Last.fm/iTunes integration map, music-API secrets |

@@ -19,7 +19,10 @@ export function useConcerts(clubId: string | undefined) {
     setLoading(false);
   }, [clubId]);
 
+  // Re-enter loading whenever the target changes (e.g. switching clubs) so
+  // screens show the record spinner instead of the previous club's data.
   useEffect(() => {
+    setLoading(true);
     refresh();
   }, [refresh]);
 

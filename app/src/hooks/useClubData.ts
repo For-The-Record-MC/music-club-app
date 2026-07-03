@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { useAuthStore } from '@/stores/authStore';
+import { registerCache } from '@/utils/dataCache';
 import {
   clubMembers,
   clubs,
@@ -13,12 +14,20 @@ export interface MemberRow extends ClubMember {
   profiles: { display_name: string | null; email: string | null; avatar_color: number; avatar_url: string | null } | null;
 }
 
+interface ClubSnapshot {
+  club: Club | null;
+  members: MemberRow[];
+}
+const EMPTY: ClubSnapshot = { club: null, members: [] };
+
+// Stale-while-revalidate cache keyed by club id — see useFeed for the pattern.
+const cache = registerCache(new Map<string, ClubSnapshot>());
+
 // Club + member list + my role, for the club home and members screens.
 export function useClubData(clubId: string | undefined) {
   const userId = useAuthStore((s) => s.userId);
-  const [club, setClub] = useState<Club | null>(null);
-  const [members, setMembers] = useState<MemberRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [snap, setSnap] = useState<ClubSnapshot>(() => (clubId ? cache.get(clubId) : undefined) ?? EMPTY);
+  const [loading, setLoading] = useState(() => !(clubId && cache.has(clubId)));
 
   const refresh = useCallback(async () => {
     if (!clubId) return;
@@ -26,16 +35,24 @@ export function useClubData(clubId: string | undefined) {
       clubs.get(clubId),
       clubMembers.list(clubId),
     ]);
-    setClub(clubRes.data ?? null);
-    setMembers((membersRes.data ?? []) as MemberRow[]);
+    const next: ClubSnapshot = {
+      club: clubRes.data ?? null,
+      members: (membersRes.data ?? []) as MemberRow[],
+    };
+    cache.set(clubId, next);
+    setSnap(next);
     setLoading(false);
   }, [clubId]);
 
+  // On mount or club switch: serve the cached snapshot immediately and
+  // revalidate; only show the record when this club has never been loaded.
   useEffect(() => {
+    setSnap((clubId ? cache.get(clubId) : undefined) ?? EMPTY);
+    setLoading(!(clubId && cache.has(clubId)));
     refresh();
-  }, [refresh]);
+  }, [clubId, refresh]);
 
-  const myRole = (members.find((m) => m.profile_id === userId)?.role ?? null) as ClubRole | null;
+  const myRole = (snap.members.find((m) => m.profile_id === userId)?.role ?? null) as ClubRole | null;
 
-  return { club, members, myRole, loading, refresh };
+  return { club: snap.club, members: snap.members, myRole, loading, refresh };
 }

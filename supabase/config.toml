@@ -383,6 +383,12 @@ verify_jwt = true
 [functions.concert-search]
 verify_jwt = true
 
+# Track Madness seeding: Last.fm playcount ranking + Spotify catalog matching.
+# verify_jwt keeps it members-only. Secret LASTFM_API_KEY should be set (falls
+# back to Spotify-popularity ranking without it); reuses SPOTIFY_CLIENT_ID/SECRET.
+[functions.bracket-seed]
+verify_jwt = true
+
 # Owner connects Spotify: server-side code→token exchange + connection storage.
 [functions.spotify-oauth]
 verify_jwt = true

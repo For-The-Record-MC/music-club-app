@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { MentionInput, MentionText, resolveMentions, type MentionMember } from '@/components/Mentions';
-import { Avatar, BottomSheet, Button, Card, InlineNote, Label, ListenLinks, NoClubSelected, Screen, TextField } from '@/components/ui';
+import { Avatar, BottomSheet, Button, Card, InlineNote, Label, ListenLinks, Loading, NoClubSelected, Screen, TextField } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
 import { useCycle } from '@/hooks/useCycle';
 import { useFeed, type FeedRow } from '@/hooks/useFeed';
@@ -128,7 +128,7 @@ export default function ClubhouseActivity() {
   const router = useRouter();
   const { palette } = useTheme();
   const userId = useAuthStore((s) => s.userId);
-  const { posts, refresh } = useFeed(id);
+  const { posts, loading, refresh } = useFeed(id);
   const { members } = useClubData(id);
   const mentionMembers = useMemo<MentionMember[]>(
     () =>
@@ -479,6 +479,8 @@ export default function ClubhouseActivity() {
         </View>
       </View>
 
+      {loading ? <Loading /> : (
+      <>
       {!open ? (
         <Button title="+ Share something" onPress={() => { setShareTargets([]); setOpen(true); }} style={{ marginBottom: 14 }} />
       ) : (
@@ -658,6 +660,8 @@ export default function ClubhouseActivity() {
           </>
         );
       })()}
+      </>
+      )}
     </Screen>
   );
 }

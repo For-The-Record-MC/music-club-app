@@ -2,7 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
-import { Avatar, Badge, BottomSheet, Button, Card, InlineNote, Label, Screen, TextField } from '@/components/ui';
+import { Avatar, Badge, BottomSheet, Button, Card, InlineNote, Label, Loading, Screen, TextField } from '@/components/ui';
 import { useTheme } from '@/hooks/use-theme';
 import { useClubData, type MemberRow } from '@/hooks/useClubData';
 import { useAuthStore } from '@/stores/authStore';
@@ -174,7 +174,7 @@ export default function ClubSettings() {
     }
   };
 
-  if (!club) return <Screen><Text style={{ color: palette.text3 }}>Loading…</Text></Screen>;
+  if (!club) return <Screen><Loading /></Screen>;
 
   return (
     <Screen>

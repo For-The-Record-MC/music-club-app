@@ -120,6 +120,58 @@ CREATE TABLE best_bars (
   created_at timestamp with time zone NOT NULL DEFAULT now()
 );
 
+CREATE TABLE bracket_comments (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  bracket_id uuid NOT NULL,
+  author_id uuid NOT NULL,
+  text text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE bracket_entries (
+  bracket_id uuid NOT NULL,
+  profile_id uuid NOT NULL,
+  started_at timestamp with time zone NOT NULL DEFAULT now(),
+  completed_at timestamp with time zone,
+  champion_track_id uuid
+);
+
+CREATE TABLE bracket_picks (
+  bracket_id uuid NOT NULL,
+  profile_id uuid NOT NULL,
+  round smallint NOT NULL,
+  slot smallint NOT NULL,
+  winner_track_id uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE bracket_tracks (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  bracket_id uuid NOT NULL,
+  seed smallint NOT NULL,
+  "position" smallint NOT NULL,
+  title text NOT NULL,
+  album text NOT NULL DEFAULT ''::text,
+  artwork_url text,
+  spotify_url text,
+  apple_url text,
+  preview_url text,
+  playcount bigint NOT NULL DEFAULT 0
+);
+
+CREATE TABLE brackets (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  club_id uuid NOT NULL,
+  artist_name text NOT NULL,
+  artist_spotify_id text NOT NULL DEFAULT ''::text,
+  artist_image_url text,
+  size smallint NOT NULL,
+  status text NOT NULL DEFAULT 'open'::text,
+  created_by uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  closed_at timestamp with time zone
+);
+
 CREATE TABLE club_favorite_tracks (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   club_id uuid NOT NULL,
@@ -666,6 +718,60 @@ ALTER TABLE best_bars ADD CONSTRAINT best_bars_pkey PRIMARY KEY (id);
 
 ALTER TABLE best_bars ADD CONSTRAINT best_bars_title_check CHECK (((char_length(TRIM(BOTH FROM title)) >= 1) AND (char_length(TRIM(BOTH FROM title)) <= 300)));
 
+ALTER TABLE bracket_comments ADD CONSTRAINT bracket_comments_author_id_fkey FOREIGN KEY (author_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE bracket_comments ADD CONSTRAINT bracket_comments_bracket_id_fkey FOREIGN KEY (bracket_id) REFERENCES brackets(id) ON DELETE CASCADE;
+
+ALTER TABLE bracket_comments ADD CONSTRAINT bracket_comments_pkey PRIMARY KEY (id);
+
+ALTER TABLE bracket_comments ADD CONSTRAINT bracket_comments_text_check CHECK (((char_length(TRIM(BOTH FROM text)) >= 1) AND (char_length(TRIM(BOTH FROM text)) <= 2000)));
+
+ALTER TABLE bracket_entries ADD CONSTRAINT bracket_entries_bracket_id_fkey FOREIGN KEY (bracket_id) REFERENCES brackets(id) ON DELETE CASCADE;
+
+ALTER TABLE bracket_entries ADD CONSTRAINT bracket_entries_champion_track_id_fkey FOREIGN KEY (champion_track_id) REFERENCES bracket_tracks(id) ON DELETE SET NULL;
+
+ALTER TABLE bracket_entries ADD CONSTRAINT bracket_entries_pkey PRIMARY KEY (bracket_id, profile_id);
+
+ALTER TABLE bracket_entries ADD CONSTRAINT bracket_entries_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE bracket_picks ADD CONSTRAINT bracket_picks_bracket_id_fkey FOREIGN KEY (bracket_id) REFERENCES brackets(id) ON DELETE CASCADE;
+
+ALTER TABLE bracket_picks ADD CONSTRAINT bracket_picks_pkey PRIMARY KEY (bracket_id, profile_id, round, slot);
+
+ALTER TABLE bracket_picks ADD CONSTRAINT bracket_picks_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE bracket_picks ADD CONSTRAINT bracket_picks_round_check CHECK ((round >= 1));
+
+ALTER TABLE bracket_picks ADD CONSTRAINT bracket_picks_slot_check CHECK ((slot >= 1));
+
+ALTER TABLE bracket_picks ADD CONSTRAINT bracket_picks_winner_track_id_fkey FOREIGN KEY (winner_track_id) REFERENCES bracket_tracks(id) ON DELETE CASCADE;
+
+ALTER TABLE bracket_tracks ADD CONSTRAINT bracket_tracks_bracket_id_fkey FOREIGN KEY (bracket_id) REFERENCES brackets(id) ON DELETE CASCADE;
+
+ALTER TABLE bracket_tracks ADD CONSTRAINT bracket_tracks_bracket_id_position_key UNIQUE (bracket_id, "position");
+
+ALTER TABLE bracket_tracks ADD CONSTRAINT bracket_tracks_bracket_id_seed_key UNIQUE (bracket_id, seed);
+
+ALTER TABLE bracket_tracks ADD CONSTRAINT bracket_tracks_pkey PRIMARY KEY (id);
+
+ALTER TABLE bracket_tracks ADD CONSTRAINT bracket_tracks_position_check CHECK (("position" >= 1));
+
+ALTER TABLE bracket_tracks ADD CONSTRAINT bracket_tracks_seed_check CHECK ((seed >= 1));
+
+ALTER TABLE bracket_tracks ADD CONSTRAINT bracket_tracks_title_check CHECK (((char_length(TRIM(BOTH FROM title)) >= 1) AND (char_length(TRIM(BOTH FROM title)) <= 300)));
+
+ALTER TABLE brackets ADD CONSTRAINT brackets_artist_name_check CHECK (((char_length(TRIM(BOTH FROM artist_name)) >= 1) AND (char_length(TRIM(BOTH FROM artist_name)) <= 200)));
+
+ALTER TABLE brackets ADD CONSTRAINT brackets_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+
+ALTER TABLE brackets ADD CONSTRAINT brackets_created_by_fkey FOREIGN KEY (created_by) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE brackets ADD CONSTRAINT brackets_pkey PRIMARY KEY (id);
+
+ALTER TABLE brackets ADD CONSTRAINT brackets_size_check CHECK ((size = ANY (ARRAY[16, 32, 64])));
+
+ALTER TABLE brackets ADD CONSTRAINT brackets_status_check CHECK ((status = ANY (ARRAY['open'::text, 'closed'::text])));
+
 ALTER TABLE club_favorite_tracks ADD CONSTRAINT club_favorite_tracks_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
 
 ALTER TABLE club_favorite_tracks ADD CONSTRAINT club_favorite_tracks_cycle_id_fkey FOREIGN KEY (cycle_id) REFERENCES cycles(id) ON DELETE SET NULL;
@@ -1111,6 +1217,16 @@ CREATE INDEX best_bar_ratings_bar_idx ON public.best_bar_ratings USING btree (ba
 
 CREATE INDEX best_bars_club_idx ON public.best_bars USING btree (club_id, created_at DESC);
 
+CREATE INDEX bracket_comments_bracket_idx ON public.bracket_comments USING btree (bracket_id, created_at);
+
+CREATE INDEX bracket_picks_winner_idx ON public.bracket_picks USING btree (bracket_id, winner_track_id);
+
+CREATE INDEX bracket_tracks_bracket_idx ON public.bracket_tracks USING btree (bracket_id);
+
+CREATE INDEX brackets_club_idx ON public.brackets USING btree (club_id, created_at DESC);
+
+CREATE UNIQUE INDEX brackets_one_open_idx ON public.brackets USING btree (club_id) WHERE (status = 'open'::text);
+
 CREATE INDEX club_favorite_tracks_club_idx ON public.club_favorite_tracks USING btree (club_id, added_at DESC);
 
 CREATE UNIQUE INDEX club_favorite_tracks_uri_idx ON public.club_favorite_tracks USING btree (club_id, spotify_uri) WHERE (spotify_uri IS NOT NULL);
@@ -1320,6 +1436,52 @@ CREATE POLICY best_bars_insert ON best_bars AS PERMISSIVE FOR INSERT TO authenti
   WITH CHECK (((author_id = auth.uid()) AND is_club_member(club_id)));
 
 CREATE POLICY best_bars_select ON best_bars AS PERMISSIVE FOR SELECT TO authenticated
+  USING (is_club_member(club_id));
+
+ALTER TABLE bracket_comments ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY bracket_comments_delete ON bracket_comments AS PERMISSIVE FOR DELETE TO authenticated
+  USING (((author_id = auth.uid()) OR (EXISTS ( SELECT 1
+   FROM brackets b
+  WHERE ((b.id = bracket_comments.bracket_id) AND (club_role(b.club_id) = ANY (ARRAY['owner'::text, 'admin'::text])))))));
+
+CREATE POLICY bracket_comments_insert ON bracket_comments AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (((author_id = auth.uid()) AND (EXISTS ( SELECT 1
+   FROM brackets b
+  WHERE ((b.id = bracket_comments.bracket_id) AND is_club_member(b.club_id))))));
+
+CREATE POLICY bracket_comments_select ON bracket_comments AS PERMISSIVE FOR SELECT TO authenticated
+  USING ((EXISTS ( SELECT 1
+   FROM brackets b
+  WHERE ((b.id = bracket_comments.bracket_id) AND is_club_member(b.club_id)))));
+
+ALTER TABLE bracket_entries ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY bracket_entries_select ON bracket_entries AS PERMISSIVE FOR SELECT TO authenticated
+  USING (((profile_id = auth.uid()) OR (EXISTS ( SELECT 1
+   FROM brackets b
+  WHERE ((b.id = bracket_entries.bracket_id) AND is_club_member(b.club_id) AND ((b.status = 'closed'::text) OR has_completed_bracket(b.id)))))));
+
+ALTER TABLE bracket_picks ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY bracket_picks_select ON bracket_picks AS PERMISSIVE FOR SELECT TO authenticated
+  USING (((profile_id = auth.uid()) OR (EXISTS ( SELECT 1
+   FROM brackets b
+  WHERE ((b.id = bracket_picks.bracket_id) AND is_club_member(b.club_id) AND ((b.status = 'closed'::text) OR has_completed_bracket(b.id)))))));
+
+ALTER TABLE bracket_tracks ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY bracket_tracks_select ON bracket_tracks AS PERMISSIVE FOR SELECT TO authenticated
+  USING ((EXISTS ( SELECT 1
+   FROM brackets b
+  WHERE ((b.id = bracket_tracks.bracket_id) AND is_club_member(b.club_id)))));
+
+ALTER TABLE brackets ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY brackets_delete ON brackets AS PERMISSIVE FOR DELETE TO authenticated
+  USING (((status = 'open'::text) AND ((created_by = auth.uid()) OR (club_role(club_id) = ANY (ARRAY['owner'::text, 'admin'::text])))));
+
+CREATE POLICY brackets_select ON brackets AS PERMISSIVE FOR SELECT TO authenticated
   USING (is_club_member(club_id));
 
 ALTER TABLE club_favorite_tracks ENABLE ROW LEVEL SECURITY;
@@ -1926,6 +2088,72 @@ AS $function$
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.bracket_progress(p_bracket uuid)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select jsonb_build_object(
+    'total', (select count(*) from club_members cm
+              join brackets b on b.club_id = cm.club_id
+              where b.id = p_bracket and public.is_club_member(b.club_id)),
+    'completed_ids', coalesce((
+      select jsonb_agg(e.profile_id)
+      from bracket_entries e
+      join brackets b on b.id = e.bracket_id
+      where e.bracket_id = p_bracket and e.completed_at is not null
+        and public.is_club_member(b.club_id)
+    ), '[]'::jsonb),
+    'started_ids', coalesce((
+      select jsonb_agg(e.profile_id)
+      from bracket_entries e
+      join brackets b on b.id = e.bracket_id
+      where e.bracket_id = p_bracket and e.completed_at is null
+        and public.is_club_member(b.club_id)
+    ), '[]'::jsonb)
+  );
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.bracket_seed_order(p_size integer)
+ RETURNS integer[]
+ LANGUAGE plpgsql
+ IMMUTABLE
+AS $function$
+declare
+  v_order int[] := array[1, 2];
+  v_next int[];
+  v_len int;
+  s int;
+begin
+  while array_length(v_order, 1) < p_size loop
+    v_len := array_length(v_order, 1) * 2;
+    v_next := '{}';
+    foreach s in array v_order loop
+      v_next := v_next || s || (v_len + 1 - s);
+    end loop;
+    v_order := v_next;
+  end loop;
+  return v_order;
+end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.can_run_bracket(p_club uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select public.club_role(p_club) in ('owner', 'admin')
+    or exists (
+      select 1 from cycles
+      where club_id = p_club and status = 'open' and picker_id = auth.uid()
+    );
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.cast_aux_vote(p_battle uuid, p_choice uuid)
  RETURNS void
  LANGUAGE plpgsql
@@ -2088,6 +2316,40 @@ begin
   returning * into v_album;
 
   return v_album;
+end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.close_bracket(p_bracket uuid)
+ RETURNS brackets
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_bracket public.brackets;
+begin
+  select * into v_bracket from brackets where id = p_bracket;
+  if not found then
+    raise exception 'Bracket not found';
+  end if;
+  if v_bracket.created_by <> auth.uid() and not public.can_run_bracket(v_bracket.club_id) then
+    raise exception 'Only an admin or the current picker can close the bracket';
+  end if;
+  if v_bracket.status <> 'open' then
+    raise exception 'The bracket is already closed';
+  end if;
+
+  update brackets set status = 'closed', closed_at = now()
+  where id = p_bracket
+  returning * into v_bracket;
+
+  perform public.publish_activity_event(
+    v_bracket.club_id, 'bracket_closed',
+    jsonb_build_object('artist_name', v_bracket.artist_name, 'bracket_id', p_bracket)
+  );
+
+  return v_bracket;
 end;
 $function$
 ;
@@ -2325,6 +2587,69 @@ AS $function$
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.create_bracket(p_club uuid, p_artist_name text, p_artist_spotify_id text, p_artist_image_url text, p_size integer, p_tracks jsonb)
+ RETURNS brackets
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_bracket public.brackets;
+  v_order int[];
+  v_pos int[];
+  i int;
+  t jsonb;
+begin
+  if not public.can_run_bracket(p_club) then
+    raise exception 'Only an admin or the current picker can start a bracket';
+  end if;
+  if p_size not in (16, 32, 64) then
+    raise exception 'Bracket size must be 16, 32, or 64';
+  end if;
+  if jsonb_typeof(p_tracks) <> 'array' or jsonb_array_length(p_tracks) <> p_size then
+    raise exception 'Expected exactly % tracks', p_size;
+  end if;
+  if exists (select 1 from brackets where club_id = p_club and status = 'open') then
+    raise exception 'A bracket is already live — close it first';
+  end if;
+
+  insert into brackets (club_id, artist_name, artist_spotify_id, artist_image_url, size, created_by)
+  values (p_club, trim(p_artist_name), coalesce(p_artist_spotify_id, ''), p_artist_image_url, p_size, auth.uid())
+  returning * into v_bracket;
+
+  -- Invert seed-order (position → seed) into seed → position.
+  v_order := public.bracket_seed_order(p_size);
+  v_pos := array_fill(0, array[p_size]);
+  for i in 1..p_size loop
+    v_pos[v_order[i]] := i;
+  end loop;
+
+  for i in 1..p_size loop
+    t := p_tracks -> (i - 1);
+    if char_length(trim(coalesce(t ->> 'title', ''))) = 0 then
+      raise exception 'Track % is missing a title', i;
+    end if;
+    insert into bracket_tracks
+      (bracket_id, seed, position, title, album, artwork_url, spotify_url, apple_url, preview_url, playcount)
+    values (
+      v_bracket.id, i, v_pos[i],
+      trim(t ->> 'title'), coalesce(t ->> 'album', ''),
+      nullif(t ->> 'artwork_url', ''), nullif(t ->> 'spotify_url', ''),
+      nullif(t ->> 'apple_url', ''), nullif(t ->> 'preview_url', ''),
+      coalesce((t ->> 'playcount')::bigint, 0)
+    );
+  end loop;
+
+  perform public.publish_activity_event(
+    p_club, 'bracket_started',
+    jsonb_build_object('artist_name', v_bracket.artist_name, 'size', p_size, 'bracket_id', v_bracket.id)
+  );
+
+  return v_bracket;
+end;
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.create_club(p_name text, p_emoji text DEFAULT '🎵'::text)
  RETURNS clubs
  LANGUAGE plpgsql
@@ -2408,6 +2733,79 @@ begin
   where t.post_id = v_post;
 
   return v_post;
+end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.crown_champion(p_bracket uuid)
+ RETURNS bracket_entries
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_bracket public.brackets;
+  v_rounds int;
+  v_champion uuid;
+  v_entry public.bracket_entries;
+  v_done int;
+  v_total int;
+begin
+  select * into v_bracket from brackets where id = p_bracket;
+  if not found then
+    raise exception 'Bracket not found';
+  end if;
+  if not public.is_club_member(v_bracket.club_id) then
+    raise exception 'Not a club member';
+  end if;
+  if v_bracket.status <> 'open' then
+    raise exception 'The bracket is closed';
+  end if;
+
+  v_rounds := floor(log(2, v_bracket.size))::int;
+  -- A full valid tree has size-1 picks (feeder validation + downstream cleanup
+  -- guarantee internal consistency, so the count check is sufficient).
+  if (select count(*) from bracket_picks where bracket_id = p_bracket and profile_id = auth.uid())
+     <> v_bracket.size - 1 then
+    raise exception 'Finish every matchup before crowning a champion';
+  end if;
+
+  select winner_track_id into v_champion
+  from bracket_picks
+  where bracket_id = p_bracket and profile_id = auth.uid() and round = v_rounds and slot = 1;
+
+  update bracket_entries
+  set completed_at = now(), champion_track_id = v_champion
+  where bracket_id = p_bracket and profile_id = auth.uid() and completed_at is null
+  returning * into v_entry;
+  if not found then
+    raise exception 'Your bracket is already locked';
+  end if;
+
+  select count(*) filter (where e.completed_at is not null), count(*)
+    into v_done, v_total
+  from club_members cm
+  left join bracket_entries e on e.bracket_id = p_bracket and e.profile_id = cm.profile_id
+  where cm.club_id = v_bracket.club_id;
+
+  -- Spoiler-free on purpose: the push names the artist, never the song.
+  perform public.publish_activity_event(
+    v_bracket.club_id, 'bracket_champion',
+    jsonb_build_object(
+      'artist_name', v_bracket.artist_name, 'bracket_id', p_bracket,
+      'done', v_done, 'total', v_total
+    )
+  );
+
+  if v_done >= v_total then
+    update brackets set status = 'closed', closed_at = now() where id = p_bracket;
+    perform public.publish_activity_event(
+      v_bracket.club_id, 'bracket_closed',
+      jsonb_build_object('artist_name', v_bracket.artist_name, 'bracket_id', p_bracket)
+    );
+  end if;
+
+  return v_entry;
 end;
 $function$
 ;
@@ -2968,6 +3366,19 @@ end;
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.has_completed_bracket(p_bracket uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select exists (
+    select 1 from bracket_entries
+    where bracket_id = p_bracket and profile_id = auth.uid() and completed_at is not null
+  );
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.is_club_member(p_club uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -3441,6 +3852,86 @@ begin
   where id = p_club
   returning invite_code into v_code;
   return v_code;
+end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.save_bracket_pick(p_bracket uuid, p_round integer, p_slot integer, p_winner uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_bracket public.brackets;
+  v_rounds int;
+  v_old uuid;
+  r int;
+begin
+  select * into v_bracket from brackets where id = p_bracket;
+  if not found then
+    raise exception 'Bracket not found';
+  end if;
+  if not public.is_club_member(v_bracket.club_id) then
+    raise exception 'Not a club member';
+  end if;
+  if v_bracket.status <> 'open' then
+    raise exception 'The bracket is closed';
+  end if;
+  if exists (
+    select 1 from bracket_entries
+    where bracket_id = p_bracket and profile_id = auth.uid() and completed_at is not null
+  ) then
+    raise exception 'Your bracket is locked — you already crowned a champion';
+  end if;
+
+  v_rounds := floor(log(2, v_bracket.size))::int;
+  if p_round < 1 or p_round > v_rounds
+     or p_slot < 1 or p_slot > v_bracket.size / (2 ^ p_round)::int then
+    raise exception 'Invalid matchup';
+  end if;
+
+  if p_round = 1 then
+    if not exists (
+      select 1 from bracket_tracks
+      where bracket_id = p_bracket and id = p_winner and position in (2 * p_slot - 1, 2 * p_slot)
+    ) then
+      raise exception 'That song is not in this matchup';
+    end if;
+  else
+    if not exists (
+      select 1 from bracket_picks
+      where bracket_id = p_bracket and profile_id = auth.uid()
+        and round = p_round - 1 and slot in (2 * p_slot - 1, 2 * p_slot)
+        and winner_track_id = p_winner
+    ) then
+      raise exception 'That song is not in this matchup';
+    end if;
+  end if;
+
+  insert into bracket_entries (bracket_id, profile_id)
+  values (p_bracket, auth.uid())
+  on conflict (bracket_id, profile_id) do nothing;
+
+  select winner_track_id into v_old
+  from bracket_picks
+  where bracket_id = p_bracket and profile_id = auth.uid() and round = p_round and slot = p_slot;
+
+  insert into bracket_picks (bracket_id, profile_id, round, slot, winner_track_id)
+  values (p_bracket, auth.uid(), p_round, p_slot, p_winner)
+  on conflict (bracket_id, profile_id, round, slot) do update set winner_track_id = excluded.winner_track_id;
+
+  -- A track's path through the tree is unique, so downstream picks that chose
+  -- the replaced winner are exactly the invalid ones.
+  if v_old is not null and v_old <> p_winner then
+    for r in (p_round + 1)..v_rounds loop
+      delete from bracket_picks
+      where bracket_id = p_bracket and profile_id = auth.uid()
+        and round = r
+        and slot = ((p_slot - 1) / (2 ^ (r - p_round))::int) + 1
+        and winner_track_id = v_old;
+    end loop;
+  end if;
 end;
 $function$
 ;

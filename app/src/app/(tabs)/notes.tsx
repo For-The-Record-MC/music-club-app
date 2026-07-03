@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { Card, InlineNote, Label, NoClubSelected, Screen } from '@/components/ui';
+import { Card, InlineNote, Label, Loading, NoClubSelected, Screen } from '@/components/ui';
 import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
@@ -129,7 +129,7 @@ export default function NotesTab() {
       ) : null}
 
       {loading ? (
-        <Text style={{ color: palette.text3, fontFamily: fonts.mono, fontSize: 12 }}>Loading…</Text>
+        <Loading />
       ) : !current || current.albums.length === 0 ? (
         <Card style={{ alignItems: 'center', paddingVertical: 30 }}>
           <Text style={{ fontSize: 40, marginBottom: 10 }}>📝</Text>

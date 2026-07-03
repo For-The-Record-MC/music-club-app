@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Avatar, Card, InlineNote, Label, NoClubSelected, Screen, TextField } from '@/components/ui';
+import { Avatar, Card, InlineNote, Label, Loading, NoClubSelected, Screen, TextField } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
 import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
@@ -76,6 +76,19 @@ export default function HistoryTab() {
     setAuxWins((ax ?? []) as unknown as AuxHistoryRow[]);
     setArchived((arch ?? []) as unknown as ArchiveAlbum[]);
     setLoading(false);
+  }, [clubId]);
+
+  // Drop the previous club's data the moment the selection changes — every
+  // section here renders straight off these arrays, so stale rows would flash
+  // while the new club's fetch is in flight.
+  useEffect(() => {
+    setLoading(true);
+    setClosed([]);
+    setFavorites([]);
+    setShowdowns([]);
+    setPlaylists([]);
+    setAuxWins([]);
+    setArchived([]);
   }, [clubId]);
 
   useEffect(() => {
@@ -321,9 +334,11 @@ export default function HistoryTab() {
 
       <Label>Past cycles</Label>
       {closed.length === 0 ? (
-        <InlineNote
-          text={loading ? 'Loading…' : 'No closed cycles yet — finished cycles show up here with their highlights.'}
-        />
+        loading ? (
+          <Loading />
+        ) : (
+          <InlineNote text="No closed cycles yet — finished cycles show up here with their highlights." />
+        )
       ) : (
         closed.map((c) => {
           const picker = members.find((m) => m.profile_id === c.picker_id);

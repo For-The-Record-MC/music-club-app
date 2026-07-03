@@ -2,7 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Avatar, Badge, Button, Card, InlineNote, Screen } from '@/components/ui';
+import { Avatar, Badge, Button, Card, InlineNote, Loading, Screen } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
 import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
@@ -119,7 +119,7 @@ export default function Leaderboard() {
   if (!club) {
     return (
       <Screen>
-        <Text style={{ color: palette.text3, fontFamily: fonts.mono, fontSize: 12 }}>Loading…</Text>
+        <Loading />
       </Screen>
     );
   }
@@ -166,9 +166,7 @@ export default function Leaderboard() {
       </View>
 
       {loading ? (
-        <Text style={{ color: palette.text3, fontFamily: fonts.mono, fontSize: 12, marginTop: 8 }}>
-          Loading…
-        </Text>
+        <Loading />
       ) : mode === 'rated' && ranked.length === 0 ? (
         <Card style={{ alignItems: 'center', paddingVertical: 28 }}>
           <Text style={{ fontSize: 36, marginBottom: 8 }}>🔒</Text>

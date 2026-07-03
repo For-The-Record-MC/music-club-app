@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Avatar, Button, Card, InlineNote, Label, ListenLinks, NoClubSelected, Screen, TextField } from '@/components/ui';
+import { Avatar, Button, Card, InlineNote, Label, ListenLinks, Loading, NoClubSelected, Screen, TextField } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
 import { useCycle } from '@/hooks/useCycle';
 import { useAuxBattle, type AuxBattleView } from '@/hooks/useAuxBattle';
@@ -31,9 +31,9 @@ export default function AuxBattleScreen() {
   const router = useRouter();
   const { palette } = useTheme();
   const userId = useAuthStore((s) => s.userId);
-  const { cycle } = useCycle(id);
+  const { cycle, loading: cycleLoading } = useCycle(id);
   const { members, myRole } = useClubData(id);
-  const { battles, refresh } = useAuxBattle(cycle?.id);
+  const { battles, loading, refresh } = useAuxBattle(cycle?.id);
   const { refreshing, onRefresh } = useRefresh(refresh);
 
   const [busy, setBusy] = useState(false);
@@ -96,6 +96,8 @@ export default function AuxBattleScreen() {
         </View>
       </View>
 
+      {loading || cycleLoading ? <Loading /> : (
+      <>
       {!cycle ? (
         <InlineNote text="No open cycle yet — the bracket is set when a cycle opens." />
       ) : battles.length === 0 ? (
@@ -139,6 +141,8 @@ export default function AuxBattleScreen() {
             </>
           ) : null}
         </>
+      )}
+      </>
       )}
     </Screen>
   );
@@ -292,6 +296,20 @@ function CombatantSide({
         <Avatar name={member?.display_name ?? null} colorIndex={member?.avatar_color ?? 0} imageUrl={member?.avatar_url ?? null} size={26} />
         <Text style={[styles.combName, { color: palette.text1 }]}>{memberName(member?.display_name, member?.email)}</Text>
         <Text style={[styles.voteCount, { color: palette.text3 }]}>{votes}</Text>
+        {!amCombatant && cycleOpen ? (
+          <Pressable
+            onPress={onVote}
+            hitSlop={8}
+            accessibilityLabel={`Vote for ${memberName(member?.display_name, member?.email)}`}
+            style={[
+              styles.crownBtn,
+              { backgroundColor: palette.card2, borderColor: palette.border },
+              myVote === memberId && { backgroundColor: palette.amberBg, borderColor: palette.amber },
+            ]}
+          >
+            <Text style={{ fontSize: 15, opacity: myVote === memberId ? 1 : 0.3 }}>👑</Text>
+          </Pressable>
+        ) : null}
       </View>
 
       {song && !editing ? (
@@ -318,16 +336,6 @@ function CombatantSide({
         <Text style={[styles.noSong, { color: palette.text3 }]}>No song submitted yet.</Text>
       )}
 
-      {!amCombatant && cycleOpen ? (
-        <Pressable
-          onPress={onVote}
-          style={[styles.voteBtn, { borderColor: palette.border }, myVote === memberId && { borderColor: accent, backgroundColor: palette.card2 }]}
-        >
-          <Text style={[styles.voteBtnText, { color: myVote === memberId ? accent : palette.text2 }]}>
-            {myVote === memberId ? '✓ Your pick' : 'Vote'}
-          </Text>
-        </Pressable>
-      ) : null}
     </View>
   );
 }
@@ -398,8 +406,15 @@ const styles = StyleSheet.create({
   songArtist: { fontFamily: fonts.sans, fontSize: 12, marginTop: 1 },
   noSong: { fontFamily: fonts.mono, fontSize: 12 },
   changeLink: { fontFamily: fonts.monoMedium, fontSize: 11 },
-  voteBtn: { marginTop: 10, alignItems: 'center', paddingVertical: 9, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth },
-  voteBtnText: { fontFamily: fonts.sansBold, fontSize: 13 },
+  // Same crown-toggle affordance as the album favorite on Home.
+  crownBtn: {
+    width: 40,
+    paddingVertical: 6,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   resultRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 6, borderRadius: radius.md },
   resultArt: { width: 40, height: 40, borderRadius: radius.sm },
 });

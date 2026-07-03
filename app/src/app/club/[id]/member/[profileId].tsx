@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Avatar, Badge, Button, Card, Screen } from '@/components/ui';
+import { Avatar, Badge, Button, Card, Loading, Screen } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
 import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
@@ -123,7 +123,7 @@ export default function MemberProfile() {
   if (loading && !me) {
     return (
       <Screen>
-        <Text style={{ color: palette.text3, fontFamily: fonts.mono, fontSize: 12 }}>Loading…</Text>
+        <Loading />
       </Screen>
     );
   }

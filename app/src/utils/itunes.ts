@@ -41,6 +41,7 @@ export interface ItunesSong {
   collectionName: string;
   artworkUrl: string;
   appleUrl: string;
+  previewUrl: string;
   kind: 'track' | 'album';
 }
 
@@ -63,6 +64,7 @@ export async function searchSongs(term: string): Promise<ItunesSong[]> {
       collectionName: r.collectionName ?? '',
       artworkUrl: (r.artworkUrl100 ?? '').replace('100x100', '200x200'),
       appleUrl: r.trackViewUrl ?? r.collectionViewUrl ?? '',
+      previewUrl: r.previewUrl ?? '',
       kind: 'track' as const,
     }));
 }

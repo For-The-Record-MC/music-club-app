@@ -3,8 +3,9 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Avatar, Button, Card, InlineNote, Label, ListenLinks, Screen } from '@/components/ui';
+import { Avatar, Button, Card, InlineNote, Label, ListenLinks, Loading, Screen } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
+import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
 import { fonts, radius } from '@/theme';
@@ -105,11 +106,12 @@ export default function AlbumDetail() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+  const { refreshing, onRefresh } = useRefresh(refresh);
 
   if (!album) {
     return (
       <Screen>
-        <Text style={{ color: palette.text3, fontFamily: fonts.mono, fontSize: 12 }}>Loading…</Text>
+        <Loading />
       </Screen>
     );
   }
@@ -123,7 +125,7 @@ export default function AlbumDetail() {
   const submittedSet = new Set(summary?.submitted ?? []);
 
   return (
-    <Screen>
+    <Screen onRefresh={onRefresh} refreshing={refreshing}>
       <View style={styles.topbar}>
         <Pressable onPress={() => router.back()}>
           <Text style={[styles.back, { color: palette.text2 }]}>←</Text>

@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { MentionInput, MentionText, resolveMentions, type MentionMember } from '@/components/Mentions';
-import { Avatar, Button, Card, InlineNote, Label, ListenLinks, NoClubSelected, Screen, TextField } from '@/components/ui';
+import { Avatar, Button, Card, InlineNote, Label, ListenLinks, Loading, NoClubSelected, Screen, TextField } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
 import { useConvince, type ConvinceRow } from '@/hooks/useConvince';
 import { useFocusTarget, useGlow } from '@/hooks/useFocusTarget';
@@ -32,7 +32,7 @@ export default function ConvinceMeScreen() {
   const router = useRouter();
   const { palette } = useTheme();
   const userId = useAuthStore((s) => s.userId);
-  const { posts, refresh } = useConvince(id);
+  const { posts, loading, refresh } = useConvince(id);
   const { members } = useClubData(id);
   const { refreshing, onRefresh } = useRefresh(refresh);
   const { focus, scrollRef, onItemLayout } = useFocusTarget();
@@ -144,6 +144,8 @@ export default function ConvinceMeScreen() {
         </View>
       </View>
 
+      {loading ? <Loading /> : (
+      <>
       {!open ? (
         <Button title="+ Make your case" onPress={() => setOpen(true)} style={{ marginBottom: 14 }} />
       ) : (
@@ -262,6 +264,8 @@ export default function ConvinceMeScreen() {
             <ConvinceCard post={post} userId={userId} onChange={refresh} highlight={post.id === focus} mentionMembers={mentionMembers} />
           </View>
         ))
+      )}
+      </>
       )}
     </Screen>
   );

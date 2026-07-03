@@ -6,6 +6,7 @@ import { DateTimeField } from '@/components/DateTimeField';
 import { Avatar, Button, Card, InlineNote, Label, Screen } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
 import { useCycle } from '@/hooks/useCycle';
+import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
 import { fonts, radius } from '@/theme';
@@ -45,6 +46,7 @@ export default function MeetingPoll() {
   useEffect(() => {
     reload();
   }, [reload]);
+  const { refreshing, onRefresh } = useRefresh(reload);
 
   // Name for whoever proposed a slot.
   const nameFor = (profileId: string) => {
@@ -142,7 +144,7 @@ export default function MeetingPoll() {
   };
 
   return (
-    <Screen>
+    <Screen onRefresh={onRefresh} refreshing={refreshing}>
       <View style={styles.topbar}>
         <Pressable onPress={() => router.back()}>
           <Text style={[styles.back, { color: palette.text2 }]}>←</Text>

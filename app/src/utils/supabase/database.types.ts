@@ -609,6 +609,244 @@ export type Database = {
           },
         ]
       }
+      bracket_comments: {
+        Row: {
+          author_id: string
+          bracket_id: string
+          created_at: string
+          id: string
+          text: string
+        }
+        Insert: {
+          author_id: string
+          bracket_id: string
+          created_at?: string
+          id?: string
+          text: string
+        }
+        Update: {
+          author_id?: string
+          bracket_id?: string
+          created_at?: string
+          id?: string
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bracket_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bracket_comments_bracket_id_fkey"
+            columns: ["bracket_id"]
+            isOneToOne: false
+            referencedRelation: "brackets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bracket_entries: {
+        Row: {
+          bracket_id: string
+          champion_track_id: string | null
+          completed_at: string | null
+          profile_id: string
+          started_at: string
+        }
+        Insert: {
+          bracket_id: string
+          champion_track_id?: string | null
+          completed_at?: string | null
+          profile_id: string
+          started_at?: string
+        }
+        Update: {
+          bracket_id?: string
+          champion_track_id?: string | null
+          completed_at?: string | null
+          profile_id?: string
+          started_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bracket_entries_bracket_id_fkey"
+            columns: ["bracket_id"]
+            isOneToOne: false
+            referencedRelation: "brackets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bracket_entries_champion_track_id_fkey"
+            columns: ["champion_track_id"]
+            isOneToOne: false
+            referencedRelation: "bracket_tracks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bracket_entries_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bracket_picks: {
+        Row: {
+          bracket_id: string
+          created_at: string
+          profile_id: string
+          round: number
+          slot: number
+          winner_track_id: string
+        }
+        Insert: {
+          bracket_id: string
+          created_at?: string
+          profile_id: string
+          round: number
+          slot: number
+          winner_track_id: string
+        }
+        Update: {
+          bracket_id?: string
+          created_at?: string
+          profile_id?: string
+          round?: number
+          slot?: number
+          winner_track_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bracket_picks_bracket_id_fkey"
+            columns: ["bracket_id"]
+            isOneToOne: false
+            referencedRelation: "brackets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bracket_picks_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bracket_picks_winner_track_id_fkey"
+            columns: ["winner_track_id"]
+            isOneToOne: false
+            referencedRelation: "bracket_tracks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bracket_tracks: {
+        Row: {
+          album: string
+          apple_url: string | null
+          artwork_url: string | null
+          bracket_id: string
+          id: string
+          playcount: number
+          position: number
+          preview_url: string | null
+          seed: number
+          spotify_url: string | null
+          title: string
+        }
+        Insert: {
+          album?: string
+          apple_url?: string | null
+          artwork_url?: string | null
+          bracket_id: string
+          id?: string
+          playcount?: number
+          position: number
+          preview_url?: string | null
+          seed: number
+          spotify_url?: string | null
+          title: string
+        }
+        Update: {
+          album?: string
+          apple_url?: string | null
+          artwork_url?: string | null
+          bracket_id?: string
+          id?: string
+          playcount?: number
+          position?: number
+          preview_url?: string | null
+          seed?: number
+          spotify_url?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bracket_tracks_bracket_id_fkey"
+            columns: ["bracket_id"]
+            isOneToOne: false
+            referencedRelation: "brackets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      brackets: {
+        Row: {
+          artist_image_url: string | null
+          artist_name: string
+          artist_spotify_id: string
+          closed_at: string | null
+          club_id: string
+          created_at: string
+          created_by: string
+          id: string
+          size: number
+          status: string
+        }
+        Insert: {
+          artist_image_url?: string | null
+          artist_name: string
+          artist_spotify_id?: string
+          closed_at?: string | null
+          club_id: string
+          created_at?: string
+          created_by: string
+          id?: string
+          size: number
+          status?: string
+        }
+        Update: {
+          artist_image_url?: string | null
+          artist_name?: string
+          artist_spotify_id?: string
+          closed_at?: string | null
+          club_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          size?: number
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brackets_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "brackets_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       club_favorite_tracks: {
         Row: {
           added_at: string
@@ -2539,6 +2777,9 @@ export type Database = {
       }
       album_has_ratings: { Args: { p_album: string }; Returns: boolean }
       aux_has_submitted: { Args: { p_battle: string }; Returns: boolean }
+      bracket_progress: { Args: { p_bracket: string }; Returns: Json }
+      bracket_seed_order: { Args: { p_size: number }; Returns: number[] }
+      can_run_bracket: { Args: { p_club: string }; Returns: boolean }
       cast_aux_vote: {
         Args: { p_battle: string; p_choice: string }
         Returns: undefined
@@ -2569,6 +2810,27 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "albums"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      close_bracket: {
+        Args: { p_bracket: string }
+        Returns: {
+          artist_image_url: string | null
+          artist_name: string
+          artist_spotify_id: string
+          closed_at: string | null
+          club_id: string
+          created_at: string
+          created_by: string
+          id: string
+          size: number
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "brackets"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -2607,6 +2869,34 @@ export type Database = {
       }
       club_leaderboard: { Args: { p_club: string }; Returns: Json }
       club_role: { Args: { p_club: string }; Returns: string }
+      create_bracket: {
+        Args: {
+          p_artist_image_url: string
+          p_artist_name: string
+          p_artist_spotify_id: string
+          p_club: string
+          p_size: number
+          p_tracks: Json
+        }
+        Returns: {
+          artist_image_url: string | null
+          artist_name: string
+          artist_spotify_id: string
+          closed_at: string | null
+          club_id: string
+          created_at: string
+          created_by: string
+          id: string
+          size: number
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "brackets"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_club: {
         Args: { p_emoji?: string; p_name: string }
         Returns: {
@@ -2640,6 +2930,22 @@ export type Database = {
           p_tracks: Json
         }
         Returns: string
+      }
+      crown_champion: {
+        Args: { p_bracket: string }
+        Returns: {
+          bracket_id: string
+          champion_track_id: string | null
+          completed_at: string | null
+          profile_id: string
+          started_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bracket_entries"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       cycle_club: { Args: { p_cycle: string }; Returns: string }
       delete_showdown_submission: {
@@ -2682,6 +2988,7 @@ export type Database = {
         }
       }
       get_showdown_history: { Args: { p_club: string }; Returns: Json }
+      has_completed_bracket: { Args: { p_bracket: string }; Returns: boolean }
       is_club_member: { Args: { p_club: string }; Returns: boolean }
       join_club: {
         Args: { p_code: string }
@@ -2763,6 +3070,15 @@ export type Database = {
         }
       }
       rotate_invite_code: { Args: { p_club: string }; Returns: string }
+      save_bracket_pick: {
+        Args: {
+          p_bracket: string
+          p_round: number
+          p_slot: number
+          p_winner: string
+        }
+        Returns: undefined
+      }
       send_meeting_reminders: { Args: never; Returns: undefined }
       set_club_mute: {
         Args: { p_club: string; p_muted: boolean }

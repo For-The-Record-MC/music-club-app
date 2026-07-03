@@ -1,6 +1,5 @@
 import { type ReactNode, type RefObject, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Image,
   Linking,
   Modal,
@@ -17,6 +16,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { SpinningRecord } from '@/components/SpinningRecord';
 import { useTheme } from '@/hooks/use-theme';
 import { avatarColors, fonts, radius } from '@/theme';
 
@@ -39,7 +39,14 @@ export function Screen({
   const { palette } = useTheme();
   const insets = useSafeAreaInsets();
   const inner = (
-    <View style={styles.pageInner}>{children}</View>
+    <View style={styles.pageInner}>
+      {refreshing ? (
+        <View style={{ alignItems: 'center', marginBottom: 16 }}>
+          <SpinningRecord size={28} />
+        </View>
+      ) : null}
+      {children}
+    </View>
   );
   return scroll ? (
     <ScrollView
@@ -59,7 +66,16 @@ export function Screen({
       alwaysBounceVertical={!!onRefresh}
       refreshControl={
         onRefresh ? (
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.text2} />
+          // iOS can't swap a custom view into RefreshControl, so the native
+          // spinner is hidden and the SpinningRecord above the content is the
+          // visible "refreshing" indicator instead. Android keeps its material
+          // control (tinted teal) — hiding it there leaves no pull affordance.
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="transparent"
+            colors={[palette.teal]}
+          />
         ) : undefined
       }
     >
@@ -138,7 +154,7 @@ export function Button({
       ]}
     >
       {loading ? (
-        <ActivityIndicator size="small" color={c.fg} />
+        <SpinningRecord size="small" color={c.fg} />
       ) : (
         <Text style={[styles.btnText, { color: c.fg }]}>{title}</Text>
       )}
@@ -401,6 +417,18 @@ export function InlineNote({ text, tone = 'muted' }: { text: string; tone?: 'mut
   const { palette } = useTheme();
   const color = tone === 'error' ? palette.coral : tone === 'success' ? palette.teal : palette.text3;
   return <Text style={[styles.note, { color }]}>{text}</Text>;
+}
+
+// Full-width loading state for screens: a spinning record on the platter.
+// Use in place of "Loading…" text while a screen's data is in flight.
+export function Loading({ label }: { label?: string }) {
+  const { palette } = useTheme();
+  return (
+    <View style={{ alignItems: 'center', paddingVertical: 48, gap: 14 }}>
+      <SpinningRecord />
+      {label ? <Text style={[styles.note, { color: palette.text3 }]}>{label}</Text> : null}
+    </View>
+  );
 }
 
 // Shown on a club tab when no club is selected yet.

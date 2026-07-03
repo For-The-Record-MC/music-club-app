@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { MentionInput, MentionText, resolveMentions, type MentionMember } from '@/components/Mentions';
@@ -7,6 +7,7 @@ import { Avatar, Badge, Button, Card, InlineNote, Label, Screen, TextField } fro
 import { useClubData } from '@/hooks/useClubData';
 import { useCycle } from '@/hooks/useCycle';
 import { useMeetingPosts } from '@/hooks/useMeetingPosts';
+import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
 import { fonts, radius } from '@/theme';
@@ -27,6 +28,11 @@ export default function RsvpScreen() {
   const { members, myRole } = useClubData(id);
   const { cycle, rsvps, guests, refresh } = useCycle(id);
   const board = useMeetingPosts(cycle?.id);
+  const reload = useCallback(
+    () => Promise.all([refresh(), board.refresh()]),
+    [refresh, board.refresh],
+  );
+  const { refreshing, onRefresh } = useRefresh(reload);
   const [guestName, setGuestName] = useState('');
   const [postText, setPostText] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -109,7 +115,7 @@ export default function RsvpScreen() {
         : { color: palette.coral, bg: palette.coralBg };
 
   return (
-    <Screen>
+    <Screen onRefresh={onRefresh} refreshing={refreshing}>
       <View style={styles.topbar}>
         <Pressable onPress={() => router.back()}>
           <Text style={[styles.back, { color: palette.text2 }]}>←</Text>

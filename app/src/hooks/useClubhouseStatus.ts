@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { useConvince } from '@/hooks/useConvince';
 import { useCycle } from '@/hooks/useCycle';
@@ -9,6 +9,7 @@ import { useMusicalTakes } from '@/hooks/useMusicalTakes';
 import { usePerfectPlaylist } from '@/hooks/usePerfectPlaylist';
 import { useShowdown } from '@/hooks/useShowdown';
 import { useSuggestions } from '@/hooks/useSuggestions';
+import { useTrackMadness } from '@/hooks/useTrackMadness';
 import { useAuthStore } from '@/stores/authStore';
 
 // A single glanceable status line per Clubhouse room. `flag` marks "something
@@ -28,22 +29,74 @@ export interface ClubhouseStatus {
   playlist: TileStatus;
   aux: TileStatus;
   bars: TileStatus;
+  madness: TileStatus;
+  loading: boolean;
+  refresh: () => Promise<void>;
 }
 
 // Reads the current club's live state and distills it into hub-tile summaries.
 // Reuses the same hooks the rooms themselves use, so the hub never drifts from
 // what you see when you open a room.
 export function useClubhouseStatus(clubId: string | undefined): ClubhouseStatus {
-  const { cycle } = useCycle(clubId);
-  const { posts } = useFeed(clubId);
-  const { view: showdown } = useShowdown(cycle?.id);
-  const { suggestions } = useSuggestions(clubId);
-  const { takes } = useMusicalTakes(clubId);
-  const { bars } = useBestBars(clubId);
-  const { posts: recs } = useConvince(clubId);
-  const { playlist } = usePerfectPlaylist(cycle?.id);
-  const { battles } = useAuxBattle(cycle?.id);
+  const cycleHook = useCycle(clubId);
+  const feedHook = useFeed(clubId);
+  const cycle = cycleHook.cycle;
+  const showdownHook = useShowdown(cycle?.id);
+  const suggestionsHook = useSuggestions(clubId);
+  const takesHook = useMusicalTakes(clubId);
+  const barsHook = useBestBars(clubId);
+  const convinceHook = useConvince(clubId);
+  const playlistHook = usePerfectPlaylist(cycle?.id);
+  const auxHook = useAuxBattle(cycle?.id);
+  const madnessHook = useTrackMadness(clubId);
   const userId = useAuthStore((s) => s.userId);
+
+  const posts = feedHook.posts;
+  const showdown = showdownHook.view;
+  const suggestions = suggestionsHook.suggestions;
+  const takes = takesHook.takes;
+  const bars = barsHook.bars;
+  const recs = convinceHook.posts;
+  const playlist = playlistHook.playlist;
+  const battles = auxHook.battles;
+  const madnessLive = madnessHook.live;
+
+  // The hub is "loading" until the club-keyed hooks settle; the cycle-keyed
+  // ones only gate once a cycle exists (their ids arrive a beat later).
+  const loading =
+    cycleHook.loading ||
+    feedHook.loading ||
+    suggestionsHook.loading ||
+    takesHook.loading ||
+    barsHook.loading ||
+    convinceHook.loading ||
+    madnessHook.loading;
+
+  const refresh = useCallback(async () => {
+    await Promise.all([
+      cycleHook.refresh(),
+      feedHook.refresh(),
+      showdownHook.refresh(),
+      suggestionsHook.refresh(),
+      takesHook.refresh(),
+      barsHook.refresh(),
+      convinceHook.refresh(),
+      playlistHook.refresh(),
+      auxHook.refresh(),
+      madnessHook.refresh(),
+    ]);
+  }, [
+    cycleHook.refresh,
+    feedHook.refresh,
+    showdownHook.refresh,
+    suggestionsHook.refresh,
+    takesHook.refresh,
+    barsHook.refresh,
+    convinceHook.refresh,
+    playlistHook.refresh,
+    auxHook.refresh,
+    madnessHook.refresh,
+  ]);
 
   return useMemo(() => {
     // Feed: how much has been shared since this cycle opened.
@@ -129,6 +182,20 @@ export function useClubhouseStatus(clubId: string | undefined): ClubhouseStatus 
       else auxStatus = { line: `${battles.length} matchup${battles.length === 1 ? '' : 's'}` };
     }
 
+    // Track Madness: nudge until YOUR bracket is crowned, then show the club's
+    // progress toward a decided bracket.
+    let madnessStatus: TileStatus;
+    if (!madnessLive) {
+      madnessStatus = { line: 'No bracket live' };
+    } else {
+      const done = madnessLive.progress.completed_ids.length;
+      const total = madnessLive.progress.total;
+      const mineDone = !!userId && madnessLive.progress.completed_ids.includes(userId);
+      madnessStatus = mineDone
+        ? { line: `${madnessLive.bracket.artist_name} · ${done}/${total} in` }
+        : { line: `${madnessLive.bracket.artist_name} · finish yours`, flag: true };
+    }
+
     return {
       feed,
       queue,
@@ -138,6 +205,9 @@ export function useClubhouseStatus(clubId: string | undefined): ClubhouseStatus 
       playlist: playlistStatus,
       aux: auxStatus,
       bars: barsStatus,
+      madness: madnessStatus,
+      loading,
+      refresh,
     };
-  }, [cycle, posts, suggestions, showdown, takes, bars, recs, playlist, battles, userId]);
+  }, [cycle, posts, suggestions, showdown, takes, bars, recs, playlist, battles, madnessLive, userId, loading, refresh]);
 }

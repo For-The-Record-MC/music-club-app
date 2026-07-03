@@ -6,6 +6,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Button, Card, InlineNote, Label, Screen, TextField } from '@/components/ui';
 import { ThemeChooser } from '@/components/ThemeChooser';
 import { useCycle } from '@/hooks/useCycle';
+import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
 import { fonts, radius } from '@/theme';
@@ -37,6 +38,7 @@ export default function PickAlbums() {
   const router = useRouter();
   const { cycle, albums, refresh } = useCycle(id);
   const { palette } = useTheme();
+  const { refreshing, onRefresh } = useRefresh(refresh);
 
   // Picks freeze once anyone rates: swapping an album in place would re-point its
   // existing reviews at a different record (RLS blocks the write server-side too).
@@ -65,7 +67,7 @@ export default function PickAlbums() {
   };
 
   return (
-    <Screen>
+    <Screen onRefresh={onRefresh} refreshing={refreshing}>
       <View style={styles.topbar}>
         <Pressable onPress={() => router.back()}>
           <Text style={[styles.back, { color: palette.text2 }]}>←</Text>

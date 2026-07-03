@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useMemo, useRef, useState } from 'react';
 
-import { Avatar, Button, Card, InlineNote, Label, ListenLinks, NoClubSelected, Screen, TextField } from '@/components/ui';
+import { Avatar, Button, Card, InlineNote, Label, ListenLinks, Loading, NoClubSelected, Screen, TextField } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
 import { useCycle } from '@/hooks/useCycle';
 import { usePerfectPlaylist } from '@/hooks/usePerfectPlaylist';
@@ -31,9 +31,9 @@ export default function PerfectPlaylistScreen() {
   const router = useRouter();
   const { palette } = useTheme();
   const userId = useAuthStore((s) => s.userId);
-  const { cycle } = useCycle(id);
+  const { cycle, loading: cycleLoading } = useCycle(id);
   const { members, myRole } = useClubData(id);
-  const { playlist, refresh } = usePerfectPlaylist(cycle?.id);
+  const { playlist, loading, refresh } = usePerfectPlaylist(cycle?.id);
   const { refreshing, onRefresh } = useRefresh(refresh);
 
   const [theme, setTheme] = useState('');
@@ -114,6 +114,8 @@ export default function PerfectPlaylistScreen() {
         </View>
       </View>
 
+      {loading || cycleLoading ? <Loading /> : (
+      <>
       {!cycle ? (
         <InlineNote text="No open cycle yet — the playlist starts when a cycle opens." />
       ) : !playlist ? (
@@ -213,6 +215,8 @@ export default function PerfectPlaylistScreen() {
             );
           })}
         </>
+      )}
+      </>
       )}
     </Screen>
   );

@@ -3,7 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Avatar, Button, Card, InlineNote, Label, Screen } from '@/components/ui';
+import { Avatar, Button, Card, InlineNote, Label, Loading, Screen } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
 import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
@@ -89,7 +89,7 @@ export default function CycleHighlightsScreen() {
       </View>
 
       {error ? <InlineNote text={error} tone="error" /> : null}
-      {loading && !data ? <InlineNote text="Loading…" /> : null}
+      {loading && !data ? <Loading /> : null}
 
       {data ? (
         <>
