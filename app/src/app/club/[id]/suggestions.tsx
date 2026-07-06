@@ -204,9 +204,12 @@ export default function Queue() {
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text numberOfLines={1} style={[styles.sTitle, { color: palette.text1 }]}>{s.title}</Text>
                   {s.artist ? <Text numberOfLines={1} style={[styles.sArtist, { color: palette.text2 }]}>{s.artist}</Text> : null}
-                  <Text style={[styles.sMeta, { color: palette.text3 }]}>
-                    {s.profiles?.display_name ?? 'Someone'} · {timeAgo(s.created_at)}
-                  </Text>
+                  <View style={styles.byline}>
+                    <Avatar name={s.profiles?.display_name ?? null} colorIndex={s.profiles?.avatar_color ?? 0} imageUrl={s.profiles?.avatar_url} size={16} />
+                    <Text numberOfLines={1} style={[styles.sMeta, { color: palette.text3 }]}>
+                      {s.profiles?.display_name ?? 'Someone'} · {timeAgo(s.created_at)}
+                    </Text>
+                  </View>
                 </View>
                 {s.author_id === userId ? (
                   <Pressable onPress={() => remove(s.id)} hitSlop={6}>
@@ -236,5 +239,6 @@ const styles = StyleSheet.create({
   sTitle: { fontFamily: fonts.sansBold, fontSize: 14 },
   sArtist: { fontFamily: fonts.sans, fontSize: 12 },
   sMeta: { fontFamily: fonts.mono, fontSize: 10, marginTop: 2 },
+  byline: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 },
   sNote: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 19, fontStyle: 'italic', marginTop: 8 },
 });

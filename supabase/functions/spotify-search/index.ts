@@ -33,6 +33,7 @@ interface SpotifySong {
   collectionName: string
   artworkUrl: string
   spotifyUrl: string
+  durationMs: number | null // Listening Bingo's time gate
 }
 
 interface SpotifyAlbum {
@@ -175,5 +176,6 @@ function normalize(payload: any, type: SearchType): SpotifySong[] | SpotifyAlbum
       collectionName: t.album?.name ?? '',
       artworkUrl: pickArtwork(t.album?.images),
       spotifyUrl: t.external_urls?.spotify ?? '',
+      durationMs: typeof t.duration_ms === 'number' ? t.duration_ms : null,
     }))
 }

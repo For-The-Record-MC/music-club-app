@@ -41,6 +41,7 @@ export default function Clubhouse() {
     { key: 'bars', emoji: '🎤', name: 'Best Bars', accent: 'blue', href: '/clubhouse/bars', status: status.bars },
     { key: 'convince', emoji: '🎯', name: 'Change My Tune', accent: 'teal', href: '/clubhouse/convince', status: status.convince },
     { key: 'madness', emoji: '🏆', name: 'Track Madness', accent: 'amber', href: '/clubhouse/madness', status: status.madness },
+    { key: 'bingo', emoji: '🎱', name: 'Listening Bingo', accent: 'coral', href: '/clubhouse/bingo', status: status.bingo },
   ];
 
   return (
@@ -153,5 +154,5 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   tileName: { fontFamily: fonts.sansBold, fontSize: 14, marginBottom: 2 },
-  tileStatus: { fontFamily: fonts.monoMedium, fontSize: 11, letterSpacing: 0.3 },
+  tileStatus: { fontFamily: fonts.sansMedium, fontSize: 11.5, letterSpacing: 0.1 },
 });

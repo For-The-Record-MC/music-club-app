@@ -69,6 +69,12 @@ const ROOMS: { emoji: string; title: string; body: string; accent: Accent }[] = 
     body: "One artist's biggest songs, seeded into a tournament. Fill out your own bracket matchup by matchup (listen links included) and crown a champion — then see who the club's champion is once everyone's in.",
     accent: 'amber',
   },
+  {
+    emoji: '🎱',
+    title: 'Listening Bingo',
+    body: 'A random 5x5 card of music categories, three qualifying lines, and one rule: you have to actually listen. Fill boxes with songs, let the timer run, and call BINGO — a teammate has to verify your line before it counts.',
+    accent: 'coral',
+  },
 ];
 
 export default function StudioGuide() {

@@ -144,6 +144,30 @@ export function renderActivity(event: ActivityEvent, actorName: string | null): 
         text: `The ${p.artist_name ?? ''} bracket is decided — see the club's champion.`,
         target: { pathname: '/clubhouse/madness' },
       };
+    case 'bingo_started':
+      return {
+        icon: '🎱',
+        text: `${who} dealt the Listening Bingo cards for cycle ${p.cycle_number ?? '?'} — go see yours.`,
+        target: { pathname: '/clubhouse/bingo' },
+      };
+    case 'bingo_claimed':
+      return {
+        icon: '🎱',
+        text: `${who} called BINGO! Someone check their line.`,
+        target: { pathname: '/clubhouse/bingo' },
+      };
+    case 'bingo_verified':
+      return {
+        icon: '🏆',
+        text: `${p.claimer_name ?? 'Someone'}'s bingo is verified${p.rank === 1 ? ' — first on the board!' : ` (#${p.rank ?? '?'})`}`,
+        target: { pathname: '/clubhouse/bingo' },
+      };
+    case 'bingo_closed':
+      return {
+        icon: '🎱',
+        text: `Bingo's over for cycle ${p.cycle_number ?? '?'} — ${p.winner_name ? `${p.winner_name} took the crown` : 'nobody hit bingo'}${Number(p.bingo_count) > 1 ? ` (${p.bingo_count} bingos in all)` : ''}.`,
+        target: { pathname: '/clubhouse/bingo' },
+      };
     case 'best_bar':
       return {
         icon: '🎤',
@@ -188,7 +212,9 @@ export function renderActivity(event: ActivityEvent, actorName: string | null): 
                   ? 'a Best Bar'
                   : p.context === 'bracket'
                     ? 'the Track Madness trash talk'
-                    : 'a feed comment';
+                    : p.context === 'bingo'
+                      ? 'the Listening Bingo table talk'
+                      : 'a feed comment';
       const snippet = p.snippet ? `: “${p.snippet}”` : '';
       let target: ActivityTarget | undefined;
       if (p.context === 'concert')
@@ -202,6 +228,7 @@ export function renderActivity(event: ActivityEvent, actorName: string | null): 
       else if (p.context === 'bar')
         target = { pathname: '/clubhouse/bars', params: p.bar_id ? { focus: String(p.bar_id) } : undefined };
       else if (p.context === 'bracket') target = { pathname: '/clubhouse/madness' };
+      else if (p.context === 'bingo') target = { pathname: '/clubhouse/bingo' };
       else
         target = { pathname: '/clubhouse/activity', params: p.post_id ? { focus: String(p.post_id) } : undefined };
       return { icon: '💬', text: `${who} mentioned you in ${where}${snippet}`, target };

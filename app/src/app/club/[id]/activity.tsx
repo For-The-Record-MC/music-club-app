@@ -47,6 +47,14 @@ export default function Activity() {
           <Text style={[styles.eyebrow, { color: palette.text3 }]}>WHAT'S BEEN HAPPENING</Text>
           <Text style={[styles.title, { color: palette.text1 }]}>🔔 Activity</Text>
         </View>
+        <Pressable
+          onPress={() => router.push('/notifications')}
+          hitSlop={8}
+          accessibilityLabel="Notification settings"
+          style={({ pressed }) => [styles.gear, { borderColor: palette.border }, pressed && { opacity: 0.7 }]}
+        >
+          <Text style={{ fontSize: 15 }}>⚙️</Text>
+        </Pressable>
         {mineCount > 0 ? (
           <Pressable
             onPress={() => setShowMine((v) => !v)}
@@ -126,6 +134,14 @@ export default function Activity() {
 
 const styles = StyleSheet.create({
   topbar: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 },
+  gear: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   mineToggle: {
     paddingVertical: 6,
     paddingHorizontal: 12,

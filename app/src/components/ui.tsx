@@ -170,11 +170,14 @@ export function ListenLinks({
   spotify,
   other,
   style,
+  onOpen,
 }: {
   apple?: string | null;
   spotify?: string | null;
   other?: string | null;
   style?: ViewStyle;
+  // Fired just before the link-out — Listening Bingo stamps its listen timer here.
+  onOpen?: () => void;
 }) {
   const { palette } = useTheme();
   const pills: { label: string; url: string; bg: string }[] = [];
@@ -187,7 +190,10 @@ export function ListenLinks({
       {pills.map((p) => (
         <Pressable
           key={p.label}
-          onPress={() => Linking.openURL(p.url)}
+          onPress={() => {
+            onOpen?.();
+            Linking.openURL(p.url);
+          }}
           style={({ pressed }) => [styles.listenPill, { backgroundColor: p.bg }, pressed && styles.listenPillPressed]}
         >
           <View style={styles.listenPlay}>

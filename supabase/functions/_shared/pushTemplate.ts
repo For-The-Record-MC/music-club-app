@@ -51,6 +51,10 @@ const CATEGORY: Record<string, Category> = {
   bracket_started: 'lifecycle',
   bracket_champion: 'social',
   bracket_closed: 'lifecycle',
+  bingo_started: 'lifecycle',
+  bingo_claimed: 'social',
+  bingo_verified: 'social',
+  bingo_closed: 'lifecycle',
 };
 
 export function pushCategory(eventType: string): Category | null {
@@ -153,6 +157,7 @@ export function pushTemplate(
         : p.context === 'convince' ? 'a Change My Tune rec'
         : p.context === 'bar' ? 'a Best Bar'
         : p.context === 'bracket' ? 'the Track Madness trash talk'
+        : p.context === 'bingo' ? 'the Listening Bingo table talk'
         : 'a feed comment';
       const snippet = p.snippet ? `: "${p.snippet}"` : '';
       let target: PushTarget = HOME;
@@ -162,6 +167,7 @@ export function pushTemplate(
       else if (p.context === 'convince') target = { pathname: '/clubhouse/convince', params: p.post_id ? { focus: String(p.post_id) } : undefined };
       else if (p.context === 'bar') target = { pathname: '/clubhouse/bars', params: p.bar_id ? { focus: String(p.bar_id) } : undefined };
       else if (p.context === 'bracket') target = { pathname: '/clubhouse/madness' };
+      else if (p.context === 'bingo') target = { pathname: '/clubhouse/bingo' };
       else target = { pathname: '/clubhouse/activity', params: p.post_id ? { focus: String(p.post_id) } : undefined };
       return { category, title: t('💬 You were mentioned'), body: `${who} mentioned you in ${where}${snippet}`, target };
     }
@@ -215,6 +221,34 @@ export function pushTemplate(
         title: t('🏆 The club has spoken'),
         body: `The ${p.artist_name ?? ''} bracket is decided — see the club's champion.`,
         target: { pathname: '/clubhouse/madness' },
+      };
+    case 'bingo_started':
+      return {
+        category,
+        title: t('🎱 Listening Bingo'),
+        body: `${who} dealt the cards for cycle ${cyc} — go see yours.`,
+        target: { pathname: '/clubhouse/bingo' },
+      };
+    case 'bingo_claimed':
+      return {
+        category,
+        title: t('🎱 BINGO called!'),
+        body: `${who} says they've got a line — someone verify it.`,
+        target: { pathname: '/clubhouse/bingo' },
+      };
+    case 'bingo_verified':
+      return {
+        category,
+        title: t('🏆 Bingo verified'),
+        body: `${p.claimer_name ?? 'Someone'}'s bingo is on the board${p.rank === 1 ? ' — first!' : ` (#${p.rank ?? '?'})`}.`,
+        target: { pathname: '/clubhouse/bingo' },
+      };
+    case 'bingo_closed':
+      return {
+        category,
+        title: t('🎱 Bingo is over'),
+        body: `Cycle ${cyc} bingo wrapped — ${p.winner_name ? `${p.winner_name} took the crown` : 'nobody hit bingo'}.`,
+        target: { pathname: '/clubhouse/bingo' },
       };
     case 'convince_post':
       return {

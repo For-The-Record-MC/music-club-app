@@ -9,6 +9,7 @@ import { useMusicalTakes } from '@/hooks/useMusicalTakes';
 import { usePerfectPlaylist } from '@/hooks/usePerfectPlaylist';
 import { useShowdown } from '@/hooks/useShowdown';
 import { useSuggestions } from '@/hooks/useSuggestions';
+import { useListeningBingo } from '@/hooks/useListeningBingo';
 import { useTrackMadness } from '@/hooks/useTrackMadness';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -30,6 +31,7 @@ export interface ClubhouseStatus {
   aux: TileStatus;
   bars: TileStatus;
   madness: TileStatus;
+  bingo: TileStatus;
   loading: boolean;
   refresh: () => Promise<void>;
 }
@@ -49,6 +51,7 @@ export function useClubhouseStatus(clubId: string | undefined): ClubhouseStatus 
   const playlistHook = usePerfectPlaylist(cycle?.id);
   const auxHook = useAuxBattle(cycle?.id);
   const madnessHook = useTrackMadness(clubId);
+  const bingoHook = useListeningBingo(clubId);
   const userId = useAuthStore((s) => s.userId);
 
   const posts = feedHook.posts;
@@ -60,6 +63,7 @@ export function useClubhouseStatus(clubId: string | undefined): ClubhouseStatus 
   const playlist = playlistHook.playlist;
   const battles = auxHook.battles;
   const madnessLive = madnessHook.live;
+  const bingoLive = bingoHook.live;
 
   // The hub is "loading" until the club-keyed hooks settle; the cycle-keyed
   // ones only gate once a cycle exists (their ids arrive a beat later).
@@ -70,7 +74,8 @@ export function useClubhouseStatus(clubId: string | undefined): ClubhouseStatus 
     takesHook.loading ||
     barsHook.loading ||
     convinceHook.loading ||
-    madnessHook.loading;
+    madnessHook.loading ||
+    bingoHook.loading;
 
   const refresh = useCallback(async () => {
     await Promise.all([
@@ -84,6 +89,7 @@ export function useClubhouseStatus(clubId: string | undefined): ClubhouseStatus 
       playlistHook.refresh(),
       auxHook.refresh(),
       madnessHook.refresh(),
+      bingoHook.refresh(),
     ]);
   }, [
     cycleHook.refresh,
@@ -96,6 +102,7 @@ export function useClubhouseStatus(clubId: string | undefined): ClubhouseStatus 
     playlistHook.refresh,
     auxHook.refresh,
     madnessHook.refresh,
+    bingoHook.refresh,
   ]);
 
   return useMemo(() => {
@@ -196,6 +203,25 @@ export function useClubhouseStatus(clubId: string | undefined): ClubhouseStatus 
         : { line: `${madnessLive.bracket.artist_name} · finish yours`, flag: true };
     }
 
+    // Listening Bingo: nudge when a claim needs your verify or your card is
+    // untouched; otherwise the running score.
+    let bingoStatus: TileStatus;
+    if (!bingoLive) {
+      bingoStatus = { line: 'No game live' };
+    } else {
+      const myCard = bingoLive.cards.find((c) => c.profile_id === userId);
+      const toVerify = bingoLive.claims.filter(
+        (c) => c.status === 'pending' && c.bingo_cards.profile_id !== userId,
+      ).length;
+      const bingos = bingoLive.claims.filter((c) => c.status === 'verified').length;
+      const myLit = myCard
+        ? bingoLive.boxes.filter((b) => b.card_id === myCard.id && b.activated_at).length
+        : 0;
+      if (toVerify > 0) bingoStatus = { line: `${toVerify} claim${toVerify === 1 ? '' : 's'} to verify`, flag: true };
+      else if (!myCard || myLit === 0) bingoStatus = { line: 'Your card awaits', flag: true };
+      else bingoStatus = { line: `${myLit}/24 lit${bingos > 0 ? ` · ${bingos} bingo${bingos === 1 ? '' : 's'}` : ''}` };
+    }
+
     return {
       feed,
       queue,
@@ -206,8 +232,9 @@ export function useClubhouseStatus(clubId: string | undefined): ClubhouseStatus 
       aux: auxStatus,
       bars: barsStatus,
       madness: madnessStatus,
+      bingo: bingoStatus,
       loading,
       refresh,
     };
-  }, [cycle, posts, suggestions, showdown, takes, bars, recs, playlist, battles, madnessLive, userId, loading, refresh]);
+  }, [cycle, posts, suggestions, showdown, takes, bars, recs, playlist, battles, madnessLive, bingoLive, userId, loading, refresh]);
 }
