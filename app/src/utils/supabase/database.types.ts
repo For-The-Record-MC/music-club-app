@@ -1133,6 +1133,8 @@ export type Database = {
           created_at: string
           created_by: string
           id: string
+          owner_id: string | null
+          scope: string
           size: number
           status: string
         }
@@ -1145,6 +1147,8 @@ export type Database = {
           created_at?: string
           created_by: string
           id?: string
+          owner_id?: string | null
+          scope?: string
           size: number
           status?: string
         }
@@ -1157,6 +1161,8 @@ export type Database = {
           created_at?: string
           created_by?: string
           id?: string
+          owner_id?: string | null
+          scope?: string
           size?: number
           status?: string
         }
@@ -1171,6 +1177,13 @@ export type Database = {
           {
             foreignKeyName: "brackets_created_by_fkey"
             columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "brackets_owner_id_fkey"
+            columns: ["owner_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -1405,6 +1418,7 @@ export type Database = {
           concert_time: string | null
           created_at: string
           id: string
+          image_url: string | null
           note: string | null
           origin_concert_id: string | null
           price: string | null
@@ -1423,6 +1437,7 @@ export type Database = {
           concert_time?: string | null
           created_at?: string
           id?: string
+          image_url?: string | null
           note?: string | null
           origin_concert_id?: string | null
           price?: string | null
@@ -1441,6 +1456,7 @@ export type Database = {
           concert_time?: string | null
           created_at?: string
           id?: string
+          image_url?: string | null
           note?: string | null
           origin_concert_id?: string | null
           price?: string | null
@@ -3116,6 +3132,7 @@ export type Database = {
       bracket_seed_order: { Args: { p_size: number }; Returns: number[] }
       can_run_bingo: { Args: { p_club: string }; Returns: boolean }
       can_run_bracket: { Args: { p_club: string }; Returns: boolean }
+      can_view_bracket: { Args: { p_bracket: string }; Returns: boolean }
       cast_aux_vote: {
         Args: { p_battle: string; p_choice: string }
         Returns: undefined
@@ -3198,6 +3215,8 @@ export type Database = {
           created_at: string
           created_by: string
           id: string
+          owner_id: string | null
+          scope: string
           size: number
           status: string
         }
@@ -3266,6 +3285,7 @@ export type Database = {
           p_artist_name: string
           p_artist_spotify_id: string
           p_club: string
+          p_scope?: string
           p_size: number
           p_tracks: Json
         }
@@ -3278,6 +3298,8 @@ export type Database = {
           created_at: string
           created_by: string
           id: string
+          owner_id: string | null
+          scope: string
           size: number
           status: string
         }
@@ -3339,6 +3361,7 @@ export type Database = {
         }
       }
       cycle_club: { Args: { p_cycle: string }; Returns: string }
+      cycle_studio_recap: { Args: { p_cycle: string }; Returns: Json }
       deal_bingo_card: {
         Args: { p_game: string }
         Returns: {
@@ -3396,6 +3419,10 @@ export type Database = {
       }
       get_showdown_history: { Args: { p_club: string }; Returns: Json }
       has_completed_bracket: { Args: { p_bracket: string }; Returns: boolean }
+      import_bracket_picks: {
+        Args: { p_bracket: string; p_picks: Json }
+        Returns: undefined
+      }
       is_club_member: { Args: { p_club: string }; Returns: boolean }
       join_club: {
         Args: { p_code: string }
@@ -3422,6 +3449,10 @@ export type Database = {
       list_showdown: { Args: { p_cycle: string }; Returns: Json }
       mark_activity_read: { Args: { p_club: string }; Returns: undefined }
       mark_bingo_listened: { Args: { p_box: string }; Returns: undefined }
+      member_studio_stats: {
+        Args: { p_club: string; p_profile: string }
+        Returns: Json
+      }
       my_announcement_quota: { Args: { p_club: string }; Returns: Json }
       my_song_quota: { Args: { p_club: string }; Returns: Json }
       notify_comment_mentions: {

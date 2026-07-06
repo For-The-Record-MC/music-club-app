@@ -83,7 +83,10 @@ export default function ListeningBingoScreen() {
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={[styles.eyebrow, { color: palette.text3 }]}>FILL THE CARD. PROVE THE LISTEN. CALL IT.</Text>
-          <Text style={[styles.title, { color: palette.text1 }]}>🎱 Listening Bingo</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+            <Image source={require('../../../assets/images/bingo.jpg')} style={{ width: 22, height: 22, borderRadius: 4 }} contentFit="contain" />
+            <Text style={[styles.title, { color: palette.text1 }]}>Listening Bingo</Text>
+          </View>
         </View>
       </View>
 

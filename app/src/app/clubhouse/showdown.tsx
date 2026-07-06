@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -31,7 +32,10 @@ export default function ClubhouseShowdown() {
           <Text style={[styles.eyebrow, { color: palette.text3 }]}>
             {cycle ? `CYCLE ${cycle.number}` : ''}
           </Text>
-          <Text style={[styles.title, { color: palette.text1 }]}>🎵 Jukebox Showdown</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+            <Image source={require('../../../assets/images/jukebox.png')} style={{ width: 22, height: 22 }} contentFit="contain" />
+            <Text style={[styles.title, { color: palette.text1 }]}>Jukebox Showdown</Text>
+          </View>
         </View>
       </View>
       {loading ? <Loading /> : <ShowdownPanel cycle={cycle} cycleNumber={cycle?.number} />}

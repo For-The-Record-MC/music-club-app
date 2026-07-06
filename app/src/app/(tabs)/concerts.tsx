@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Image } from 'expo-image';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ConcertCalendar } from '@/components/ConcertCalendar';
@@ -23,7 +24,7 @@ import {
   type ConcertComment,
   type ConcertStatus,
 } from '@/utils/supabase/db';
-import { type ConcertEvent } from '@/utils/ticketmaster';
+import { searchConcerts, type ConcertEvent } from '@/utils/ticketmaster';
 import { fonts, radius } from '@/theme';
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -68,9 +69,10 @@ interface Draft {
   price: string;
   ticketUrl: string;
   note: string;
+  imageUrl: string;
 }
 
-const emptyDraft = (): Draft => ({ artist: '', when: null, venue: '', price: '', ticketUrl: '', note: '' });
+const emptyDraft = (): Draft => ({ artist: '', when: null, venue: '', price: '', ticketUrl: '', note: '', imageUrl: '' });
 
 // A club the current user belongs to, trimmed to what the share UI needs.
 interface ClubLite {
@@ -83,7 +85,7 @@ interface ClubLite {
 // completion) stays per-club and is deliberately left out.
 type ShareFields = Pick<
   ConcertRow,
-  'artist' | 'concert_date' | 'concert_time' | 'venue' | 'price' | 'ticket_url' | 'note'
+  'artist' | 'concert_date' | 'concert_time' | 'venue' | 'price' | 'ticket_url' | 'note' | 'image_url'
 >;
 
 const shareFieldsOf = (c: ShareFields): ShareFields => ({
@@ -94,6 +96,7 @@ const shareFieldsOf = (c: ShareFields): ShareFields => ({
   price: c.price,
   ticket_url: c.ticket_url,
   note: c.note,
+  image_url: c.image_url,
 });
 
 // Cross-post a concert into another club as an independent copy that points
@@ -159,6 +162,39 @@ export default function Concerts() {
   );
   const { rows, loading, refresh } = useConcerts(id);
   const { refreshing, onRefresh } = useRefresh(refresh);
+
+  // Backfill artist images for concerts saved before image_url existed:
+  // best-effort Ticketmaster lookup by artist, stamped only on a confident
+  // name match, only for rows the caller can update (RLS: adder or admin).
+  // Once per mount; misses are simply retried on a future visit.
+  const imageBackfillRef = useRef(false);
+  useEffect(() => {
+    if (imageBackfillRef.current || !userId || rows.length === 0) return;
+    const candidates = rows.filter(
+      (c) => !c.image_url && (c.added_by === userId || isAdmin),
+    );
+    if (candidates.length === 0) return;
+    imageBackfillRef.current = true;
+    (async () => {
+      let stamped = 0;
+      for (const c of candidates.slice(0, 20)) {
+        try {
+          const res = await searchConcerts(c.artist, { countryCode: '' });
+          const needle = c.artist.trim().toLowerCase();
+          const hit = res.results.find(
+            (ev) => ev.imageUrl && ev.artist.toLowerCase().includes(needle),
+          );
+          if (hit) {
+            await concertsDb.update(c.id, { image_url: hit.imageUrl });
+            stamped++;
+          }
+        } catch {
+          // best-effort — skip and move on
+        }
+      }
+      if (stamped > 0) refresh();
+    })();
+  }, [rows, userId, isAdmin, refresh]);
   const { focus, scrollRef, onItemLayout } = useFocusTarget();
 
   // Your other clubs — the candidates for cross-posting a concert.
@@ -243,6 +279,7 @@ export default function Concerts() {
       when: ev.date ? new Date(`${ev.date}T${ev.time ?? '19:00:00'}`) : d.when,
       venue: ev.venue || d.venue,
       ticketUrl: ev.ticketUrl || d.ticketUrl,
+      imageUrl: ev.imageUrl || d.imageUrl,
     }));
   };
 
@@ -255,6 +292,7 @@ export default function Concerts() {
       price: c.price ?? '',
       ticketUrl: c.ticket_url ?? '',
       note: c.note ?? '',
+      imageUrl: c.image_url ?? '',
     });
     setError(null);
     setOpen(true);
@@ -276,6 +314,7 @@ export default function Concerts() {
       price: normalizePrice(draft.price),
       ticket_url: draft.ticketUrl.trim() || null,
       note: draft.note.trim() || null,
+      image_url: draft.imageUrl.trim() || null,
     };
 
     if (editingId) {
@@ -571,6 +610,9 @@ function ConcertCard({
   return (
     <Card style={StyleSheet.flatten([glow ? { borderColor: palette.amber } : null, past && styles.pastCard])}>
       <View style={styles.cHead}>
+        {concert.image_url ? (
+          <Image source={{ uri: concert.image_url }} style={styles.cImage} contentFit="cover" />
+        ) : null}
         <View style={{ flex: 1, minWidth: 0 }}>
           {thisMonth && !past ? (
             <Text style={[styles.thisMonth, { color: palette.teal, backgroundColor: palette.tealBg }]}>
@@ -963,7 +1005,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginBottom: 5,
   },
-  cHead: { flexDirection: 'row', alignItems: 'flex-start' },
+  cHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  cImage: { width: 56, height: 56, borderRadius: radius.md, marginTop: 2 },
   cArtist: { fontFamily: fonts.sansBold, fontSize: 15, marginBottom: 2 },
   cVenue: { fontFamily: fonts.sans, fontSize: 12, marginBottom: 2 },
   cMeta: { fontFamily: fonts.mono, fontSize: 11 },

@@ -244,7 +244,9 @@ CREATE TABLE brackets (
   status text NOT NULL DEFAULT 'open'::text,
   created_by uuid NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
-  closed_at timestamp with time zone
+  closed_at timestamp with time zone,
+  scope text NOT NULL DEFAULT 'club'::text,
+  owner_id uuid
 );
 
 CREATE TABLE club_favorite_tracks (
@@ -313,7 +315,8 @@ CREATE TABLE concerts (
   rating integer,
   completed_at timestamp with time zone,
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  origin_concert_id uuid
+  origin_concert_id uuid,
+  image_url text
 );
 
 CREATE TABLE convince_comments (
@@ -915,7 +918,11 @@ ALTER TABLE brackets ADD CONSTRAINT brackets_club_id_fkey FOREIGN KEY (club_id) 
 
 ALTER TABLE brackets ADD CONSTRAINT brackets_created_by_fkey FOREIGN KEY (created_by) REFERENCES profiles(id) ON DELETE CASCADE;
 
+ALTER TABLE brackets ADD CONSTRAINT brackets_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES profiles(id) ON DELETE CASCADE;
+
 ALTER TABLE brackets ADD CONSTRAINT brackets_pkey PRIMARY KEY (id);
+
+ALTER TABLE brackets ADD CONSTRAINT brackets_scope_check CHECK ((scope = ANY (ARRAY['club'::text, 'personal'::text])));
 
 ALTER TABLE brackets ADD CONSTRAINT brackets_size_check CHECK ((size = ANY (ARRAY[16, 32, 64])));
 
@@ -1394,7 +1401,9 @@ CREATE INDEX bracket_tracks_bracket_idx ON public.bracket_tracks USING btree (br
 
 CREATE INDEX brackets_club_idx ON public.brackets USING btree (club_id, created_at DESC);
 
-CREATE UNIQUE INDEX brackets_one_open_idx ON public.brackets USING btree (club_id) WHERE (status = 'open'::text);
+CREATE UNIQUE INDEX brackets_one_open_idx ON public.brackets USING btree (club_id) WHERE ((status = 'open'::text) AND (scope = 'club'::text));
+
+CREATE INDEX brackets_owner_idx ON public.brackets USING btree (owner_id, created_at DESC) WHERE (scope = 'personal'::text);
 
 CREATE INDEX club_favorite_tracks_club_idx ON public.club_favorite_tracks USING btree (club_id, added_at DESC);
 
@@ -1684,43 +1693,37 @@ CREATE POLICY bracket_comments_delete ON bracket_comments AS PERMISSIVE FOR DELE
   WHERE ((b.id = bracket_comments.bracket_id) AND (club_role(b.club_id) = ANY (ARRAY['owner'::text, 'admin'::text])))))));
 
 CREATE POLICY bracket_comments_insert ON bracket_comments AS PERMISSIVE FOR INSERT TO authenticated
-  WITH CHECK (((author_id = auth.uid()) AND (EXISTS ( SELECT 1
-   FROM brackets b
-  WHERE ((b.id = bracket_comments.bracket_id) AND is_club_member(b.club_id))))));
+  WITH CHECK (((author_id = auth.uid()) AND can_view_bracket(bracket_id)));
 
 CREATE POLICY bracket_comments_select ON bracket_comments AS PERMISSIVE FOR SELECT TO authenticated
-  USING ((EXISTS ( SELECT 1
-   FROM brackets b
-  WHERE ((b.id = bracket_comments.bracket_id) AND is_club_member(b.club_id)))));
+  USING (can_view_bracket(bracket_id));
 
 ALTER TABLE bracket_entries ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY bracket_entries_select ON bracket_entries AS PERMISSIVE FOR SELECT TO authenticated
   USING (((profile_id = auth.uid()) OR (EXISTS ( SELECT 1
    FROM brackets b
-  WHERE ((b.id = bracket_entries.bracket_id) AND is_club_member(b.club_id) AND ((b.status = 'closed'::text) OR has_completed_bracket(b.id)))))));
+  WHERE ((b.id = bracket_entries.bracket_id) AND can_view_bracket(b.id) AND ((b.status = 'closed'::text) OR ((b.scope = 'club'::text) AND has_completed_bracket(b.id))))))));
 
 ALTER TABLE bracket_picks ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY bracket_picks_select ON bracket_picks AS PERMISSIVE FOR SELECT TO authenticated
   USING (((profile_id = auth.uid()) OR (EXISTS ( SELECT 1
    FROM brackets b
-  WHERE ((b.id = bracket_picks.bracket_id) AND is_club_member(b.club_id) AND ((b.status = 'closed'::text) OR has_completed_bracket(b.id)))))));
+  WHERE ((b.id = bracket_picks.bracket_id) AND can_view_bracket(b.id) AND ((b.status = 'closed'::text) OR ((b.scope = 'club'::text) AND has_completed_bracket(b.id))))))));
 
 ALTER TABLE bracket_tracks ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY bracket_tracks_select ON bracket_tracks AS PERMISSIVE FOR SELECT TO authenticated
-  USING ((EXISTS ( SELECT 1
-   FROM brackets b
-  WHERE ((b.id = bracket_tracks.bracket_id) AND is_club_member(b.club_id)))));
+  USING (can_view_bracket(bracket_id));
 
 ALTER TABLE brackets ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY brackets_delete ON brackets AS PERMISSIVE FOR DELETE TO authenticated
-  USING (((status = 'open'::text) AND ((created_by = auth.uid()) OR (club_role(club_id) = ANY (ARRAY['owner'::text, 'admin'::text])))));
+  USING ((((scope = 'personal'::text) AND (owner_id = auth.uid())) OR ((scope = 'club'::text) AND (status = 'open'::text) AND ((created_by = auth.uid()) OR (club_role(club_id) = ANY (ARRAY['owner'::text, 'admin'::text]))))));
 
 CREATE POLICY brackets_select ON brackets AS PERMISSIVE FOR SELECT TO authenticated
-  USING (is_club_member(club_id));
+  USING (can_view_bracket(id));
 
 ALTER TABLE club_favorite_tracks ENABLE ROW LEVEL SECURITY;
 
@@ -2434,6 +2437,26 @@ AS $function$
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.can_view_bracket(p_bracket uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select exists (
+    select 1 from brackets b
+    where b.id = p_bracket
+      and (
+        (b.scope = 'club' and public.is_club_member(b.club_id))
+        or (b.scope = 'personal' and (
+          b.owner_id = auth.uid()
+          or (b.status = 'closed' and public.is_club_member(b.club_id))
+        ))
+      )
+  );
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.cast_aux_vote(p_battle uuid, p_choice uuid)
  RETURNS void
  LANGUAGE plpgsql
@@ -2751,7 +2774,11 @@ begin
   if not found then
     raise exception 'Bracket not found';
   end if;
-  if v_bracket.created_by <> auth.uid() and not public.can_run_bracket(v_bracket.club_id) then
+  if v_bracket.scope = 'personal' then
+    if v_bracket.owner_id <> auth.uid() then
+      raise exception 'This is a solo bracket';
+    end if;
+  elsif v_bracket.created_by <> auth.uid() and not public.can_run_bracket(v_bracket.club_id) then
     raise exception 'Only an admin or the current picker can close the bracket';
   end if;
   if v_bracket.status <> 'open' then
@@ -2762,10 +2789,12 @@ begin
   where id = p_bracket
   returning * into v_bracket;
 
-  perform public.publish_activity_event(
-    v_bracket.club_id, 'bracket_closed',
-    jsonb_build_object('artist_name', v_bracket.artist_name, 'bracket_id', p_bracket)
-  );
+  if v_bracket.scope = 'club' then
+    perform public.publish_activity_event(
+      v_bracket.club_id, 'bracket_closed',
+      jsonb_build_object('artist_name', v_bracket.artist_name, 'bracket_id', p_bracket)
+    );
+  end if;
 
   return v_bracket;
 end;
@@ -2948,17 +2977,20 @@ begin
     join profiles p on p.id = cm.profile_id
     cross join lateral (
       select
-        -- albums chosen: every album this member set in the club
+        -- albums chosen: real cycle picks only — archive uploads are shelf
+        -- stocking, not picking
         (select count(*)::int from albums a
            join cycles c on c.id = a.cycle_id
-          where c.club_id = p_club and a.set_by = cm.profile_id) as albums_chosen,
-        -- avg rating received on their picks — REVEALED cycles only (the seal)
+          where c.club_id = p_club and a.set_by = cm.profile_id
+            and c.kind <> 'archive') as albums_chosen,
+        -- avg rating received on their picks — REVEALED standard cycles only
         (select round(avg(rt.score)::numeric, 1) from ratings rt
            join albums a on a.id = rt.album_id
            join cycles c on c.id = a.cycle_id
           where c.club_id = p_club and a.set_by = cm.profile_id
-            and c.revealed_at is not null) as avg_rating_received,
-        -- ratings they submitted in the club
+            and c.revealed_at is not null and c.kind <> 'archive') as avg_rating_received,
+        -- ratings they submitted in the club (archive reviews count — the
+        -- effort is real regardless of shelf)
         (select count(*)::int from ratings rt
            join albums a on a.id = rt.album_id
            join cycles c on c.id = a.cycle_id
@@ -3064,7 +3096,7 @@ end;
 $function$
 ;
 
-CREATE OR REPLACE FUNCTION public.create_bracket(p_club uuid, p_artist_name text, p_artist_spotify_id text, p_artist_image_url text, p_size integer, p_tracks jsonb)
+CREATE OR REPLACE FUNCTION public.create_bracket(p_club uuid, p_artist_name text, p_artist_spotify_id text, p_artist_image_url text, p_size integer, p_tracks jsonb, p_scope text DEFAULT 'club'::text)
  RETURNS brackets
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -3077,8 +3109,21 @@ declare
   i int;
   t jsonb;
 begin
-  if not public.can_run_bracket(p_club) then
-    raise exception 'Only an admin or the current picker can start a bracket';
+  if p_scope not in ('club', 'personal') then
+    raise exception 'Invalid scope';
+  end if;
+  if p_scope = 'club' then
+    if not public.can_run_bracket(p_club) then
+      raise exception 'Only an admin or the current picker can start a bracket';
+    end if;
+    if exists (select 1 from brackets where club_id = p_club and status = 'open' and scope = 'club') then
+      raise exception 'A bracket is already live — close it first';
+    end if;
+  else
+    -- Solo: any member, no live-bracket limit.
+    if not public.is_club_member(p_club) then
+      raise exception 'Not a club member';
+    end if;
   end if;
   if p_size not in (16, 32, 64) then
     raise exception 'Bracket size must be 16, 32, or 64';
@@ -3086,15 +3131,14 @@ begin
   if jsonb_typeof(p_tracks) <> 'array' or jsonb_array_length(p_tracks) <> p_size then
     raise exception 'Expected exactly % tracks', p_size;
   end if;
-  if exists (select 1 from brackets where club_id = p_club and status = 'open') then
-    raise exception 'A bracket is already live — close it first';
-  end if;
 
-  insert into brackets (club_id, artist_name, artist_spotify_id, artist_image_url, size, created_by)
-  values (p_club, trim(p_artist_name), coalesce(p_artist_spotify_id, ''), p_artist_image_url, p_size, auth.uid())
+  insert into brackets (club_id, artist_name, artist_spotify_id, artist_image_url, size, created_by, scope, owner_id)
+  values (
+    p_club, trim(p_artist_name), coalesce(p_artist_spotify_id, ''), p_artist_image_url, p_size, auth.uid(),
+    p_scope, case when p_scope = 'personal' then auth.uid() end
+  )
   returning * into v_bracket;
 
-  -- Invert seed-order (position → seed) into seed → position.
   v_order := public.bracket_seed_order(p_size);
   v_pos := array_fill(0, array[p_size]);
   for i in 1..p_size loop
@@ -3117,10 +3161,13 @@ begin
     );
   end loop;
 
-  perform public.publish_activity_event(
-    p_club, 'bracket_started',
-    jsonb_build_object('artist_name', v_bracket.artist_name, 'size', p_size, 'bracket_id', v_bracket.id)
-  );
+  -- Solo runs are silent; only club brackets announce.
+  if p_scope = 'club' then
+    perform public.publish_activity_event(
+      p_club, 'bracket_started',
+      jsonb_build_object('artist_name', v_bracket.artist_name, 'size', p_size, 'bracket_id', v_bracket.id)
+    );
+  end if;
 
   return v_bracket;
 end;
@@ -3235,13 +3282,14 @@ begin
   if not public.is_club_member(v_bracket.club_id) then
     raise exception 'Not a club member';
   end if;
+  if v_bracket.scope = 'personal' and v_bracket.owner_id <> auth.uid() then
+    raise exception 'This is a solo bracket';
+  end if;
   if v_bracket.status <> 'open' then
     raise exception 'The bracket is closed';
   end if;
 
   v_rounds := floor(log(2, v_bracket.size))::int;
-  -- A full valid tree has size-1 picks (feeder validation + downstream cleanup
-  -- guarantee internal consistency, so the count check is sufficient).
   if (select count(*) from bracket_picks where bracket_id = p_bracket and profile_id = auth.uid())
      <> v_bracket.size - 1 then
     raise exception 'Finish every matchup before crowning a champion';
@@ -3259,13 +3307,17 @@ begin
     raise exception 'Your bracket is already locked';
   end if;
 
+  if v_bracket.scope = 'personal' then
+    update brackets set status = 'closed', closed_at = now() where id = p_bracket;
+    return v_entry;
+  end if;
+
   select count(*) filter (where e.completed_at is not null), count(*)
     into v_done, v_total
   from club_members cm
   left join bracket_entries e on e.bracket_id = p_bracket and e.profile_id = cm.profile_id
   where cm.club_id = v_bracket.club_id;
 
-  -- Spoiler-free on purpose: the push names the artist, never the song.
   perform public.publish_activity_event(
     v_bracket.club_id, 'bracket_champion',
     jsonb_build_object(
@@ -3294,6 +3346,142 @@ CREATE OR REPLACE FUNCTION public.cycle_club(p_cycle uuid)
  SET search_path TO 'public'
 AS $function$
   select club_id from cycles where id = p_cycle;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.cycle_studio_recap(p_cycle uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_cycle public.cycles;
+  v_from timestamptz;
+  v_to timestamptz;
+begin
+  select * into v_cycle from cycles where id = p_cycle;
+  if not found or not public.is_club_member(v_cycle.club_id) then
+    return null;
+  end if;
+  v_from := v_cycle.created_at;
+  v_to := coalesce(v_cycle.closed_at, now());
+
+  return jsonb_build_object(
+    'showdown', (
+      select jsonb_build_object(
+        'theme', sd.theme_text,
+        'podium', coalesce((
+          select jsonb_agg(row_json order by rn)
+          from (
+            select row_number() over (
+              order by
+                coalesce((select sum(v.value) from showdown_votes v where v.submission_id = s.id), 0) desc,
+                coalesce((select count(*) from showdown_votes v where v.submission_id = s.id and v.value = 1), 0) desc,
+                s.created_at asc
+            ) as rn,
+            jsonb_build_object(
+              'title', s.title, 'artist', s.artist, 'artwork_url', s.artwork_url,
+              'submitter', p.display_name,
+              'net', coalesce((select sum(v.value) from showdown_votes v where v.submission_id = s.id), 0)
+            ) as row_json
+            from showdown_submissions s
+            join profiles p on p.id = s.profile_id
+            where s.showdown_id = sd.id
+          ) ranked
+          where rn <= 3
+        ), '[]'::jsonb)
+      )
+      from showdowns sd where sd.cycle_id = p_cycle
+    ),
+    'aux', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'theme', ab.theme_text,
+        'a', pa.display_name, 'b', pb.display_name,
+        'winner', pw.display_name,
+        'a_votes', (select count(*) from aux_battle_votes v where v.battle_id = ab.id and v.choice = ab.member_a),
+        'b_votes', (select count(*) from aux_battle_votes v where v.battle_id = ab.id and v.choice = ab.member_b)
+      ) order by ab.created_at)
+      from aux_battles ab
+      join profiles pa on pa.id = ab.member_a
+      join profiles pb on pb.id = ab.member_b
+      left join profiles pw on pw.id = ab.winner_profile_id
+      where ab.cycle_id = p_cycle
+    ), '[]'::jsonb),
+    'playlist', (
+      select jsonb_build_object(
+        'theme', pp.theme_text,
+        'song_count', (select count(*) from perfect_playlist_songs s where s.playlist_id = pp.id),
+        'contributor_count', (select count(distinct s.profile_id) from perfect_playlist_songs s where s.playlist_id = pp.id)
+      )
+      from perfect_playlists pp where pp.cycle_id = p_cycle
+    ),
+    'bingo', (
+      select jsonb_build_object(
+        'cards', (select count(*) from bingo_cards k where k.game_id = g.id),
+        'standings', coalesce((
+          select jsonb_agg(jsonb_build_object(
+            'name', p.display_name, 'line_index', cl.line_index, 'self_certified', cl.self_certified
+          ) order by cl.resolved_at)
+          from bingo_claims cl
+          join bingo_cards k on k.id = cl.card_id
+          join profiles p on p.id = k.profile_id
+          where k.game_id = g.id and cl.status = 'verified'
+        ), '[]'::jsonb),
+        'blackouts', coalesce((
+          select jsonb_agg(p.display_name)
+          from bingo_cards k
+          join profiles p on p.id = k.profile_id
+          where k.game_id = g.id
+            and (select count(*) from bingo_boxes b where b.card_id = k.id and b.activated_at is not null) = 24
+        ), '[]'::jsonb)
+      )
+      from bingo_games g where g.cycle_id = p_cycle
+    ),
+    'brackets', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'id', br.id, 'artist_name', br.artist_name, 'size', br.size, 'closed_at', br.closed_at
+      ) order by br.closed_at)
+      from brackets br
+      where br.club_id = v_cycle.club_id and br.status = 'closed'
+        and br.scope = 'club'
+        and br.closed_at between v_from and v_to
+    ), '[]'::jsonb),
+    'window', jsonb_build_object(
+      'takes', coalesce((
+        select jsonb_agg(jsonb_build_object('author', p.display_name, 'snippet', left(mt.body, 140)) order by mt.created_at desc)
+        from (
+          select * from musical_takes
+          where club_id = v_cycle.club_id and created_at between v_from and v_to
+          order by created_at desc limit 6
+        ) mt
+        join profiles p on p.id = mt.author_id
+      ), '[]'::jsonb),
+      'bars', coalesce((
+        select jsonb_agg(jsonb_build_object(
+          'author', p.display_name, 'snippet', left(bb.lyric, 140), 'title', bb.title
+        ) order by bb.created_at desc)
+        from (
+          select * from best_bars
+          where club_id = v_cycle.club_id and created_at between v_from and v_to
+          order by created_at desc limit 6
+        ) bb
+        join profiles p on p.id = bb.author_id
+      ), '[]'::jsonb),
+      'share_count', (
+        select count(*) from feed_posts
+        where club_id = v_cycle.club_id and not is_album_suggestion
+          and created_at between v_from and v_to
+      ),
+      'convince_conversions', (
+        select count(*) from convince_targets t
+        join convince_posts cp on cp.id = t.post_id
+        where cp.club_id = v_cycle.club_id and t.verdict = 'converted'
+          and cp.created_at between v_from and v_to
+      )
+    )
+  );
+end;
 $function$
 ;
 
@@ -3914,6 +4102,81 @@ AS $function$
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.import_bracket_picks(p_bracket uuid, p_picks jsonb)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_bracket public.brackets;
+  v_rounds int;
+  pk jsonb;
+  v_round int;
+  v_slot int;
+  v_winner uuid;
+begin
+  select * into v_bracket from brackets where id = p_bracket;
+  if not found then
+    raise exception 'Bracket not found';
+  end if;
+  if not public.is_club_member(v_bracket.club_id) then
+    raise exception 'Not a club member';
+  end if;
+  if v_bracket.scope = 'personal' and v_bracket.owner_id <> auth.uid() then
+    raise exception 'This is a solo bracket';
+  end if;
+  if v_bracket.status <> 'open' then
+    raise exception 'The bracket is closed';
+  end if;
+  if exists (select 1 from bracket_picks where bracket_id = p_bracket and profile_id = auth.uid()) then
+    raise exception 'You already have picks here — imports need a fresh bracket';
+  end if;
+  if jsonb_typeof(p_picks) <> 'array' or jsonb_array_length(p_picks) <> v_bracket.size - 1 then
+    raise exception 'Expected exactly % picks', v_bracket.size - 1;
+  end if;
+
+  v_rounds := floor(log(2, v_bracket.size))::int;
+
+  insert into bracket_entries (bracket_id, profile_id)
+  values (p_bracket, auth.uid())
+  on conflict (bracket_id, profile_id) do nothing;
+
+  for pk in
+    select value from jsonb_array_elements(p_picks)
+    order by (value ->> 'round')::int, (value ->> 'slot')::int
+  loop
+    v_round := (pk ->> 'round')::int;
+    v_slot := (pk ->> 'slot')::int;
+    v_winner := (pk ->> 'winner')::uuid;
+    if v_round < 1 or v_round > v_rounds
+       or v_slot < 1 or v_slot > v_bracket.size / (2 ^ v_round)::int then
+      raise exception 'Invalid matchup %/%', v_round, v_slot;
+    end if;
+    if v_round = 1 then
+      if not exists (
+        select 1 from bracket_tracks
+        where bracket_id = p_bracket and id = v_winner and position in (2 * v_slot - 1, 2 * v_slot)
+      ) then
+        raise exception 'Pick %/% is not in that matchup', v_round, v_slot;
+      end if;
+    else
+      if not exists (
+        select 1 from bracket_picks
+        where bracket_id = p_bracket and profile_id = auth.uid()
+          and round = v_round - 1 and slot in (2 * v_slot - 1, 2 * v_slot)
+          and winner_track_id = v_winner
+      ) then
+        raise exception 'Pick %/% is not in that matchup', v_round, v_slot;
+      end if;
+    end if;
+    insert into bracket_picks (bracket_id, profile_id, round, slot, winner_track_id)
+    values (p_bracket, auth.uid(), v_round, v_slot, v_winner);
+  end loop;
+end;
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.is_club_member(p_club uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -4098,6 +4361,95 @@ begin
 
   update bingo_boxes set activated_at = now() where id = p_box;
 end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.member_studio_stats(p_club uuid, p_profile uuid)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select case when not public.is_club_member(p_club) then null else jsonb_build_object(
+    'showdown_wins', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'cycle_number', c.number, 'title', ss.title, 'artist', ss.artist, 'theme', sd.theme_text
+      ) order by c.number)
+      from showdowns sd
+      join cycles c on c.id = sd.cycle_id
+      join showdown_submissions ss on ss.id = sd.winner_submission_id
+      where sd.club_id = p_club and ss.profile_id = p_profile
+    ), '[]'::jsonb),
+    'aux_wins', coalesce((
+      select jsonb_agg(jsonb_build_object('cycle_number', c.number, 'theme', ab.theme_text) order by c.number)
+      from aux_battles ab
+      join cycles c on c.id = ab.cycle_id
+      where ab.club_id = p_club and ab.winner_profile_id = p_profile
+    ), '[]'::jsonb),
+    'bingo_crowns', coalesce((
+      select jsonb_agg(jsonb_build_object('at', fc.resolved_at) order by fc.resolved_at)
+      from (
+        select distinct on (k.game_id) k.game_id, k.profile_id, cl.resolved_at
+        from bingo_claims cl
+        join bingo_cards k on k.id = cl.card_id
+        join bingo_games g on g.id = k.game_id
+        where g.club_id = p_club and cl.status = 'verified'
+        order by k.game_id, cl.resolved_at asc
+      ) fc
+      where fc.profile_id = p_profile
+    ), '[]'::jsonb),
+    'blackouts', coalesce((
+      select jsonb_agg(jsonb_build_object('at', bo.done_at) order by bo.done_at)
+      from (
+        select k.id, max(b.activated_at) as done_at
+        from bingo_cards k
+        join bingo_games g on g.id = k.game_id
+        join bingo_boxes b on b.card_id = k.id
+        where g.club_id = p_club and k.profile_id = p_profile and b.activated_at is not null
+        group by k.id
+        having count(*) = 24
+      ) bo
+    ), '[]'::jsonb),
+    'champions', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'bracket_id', br.id, 'artist_name', br.artist_name, 'size', br.size,
+        'closed_at', br.closed_at, 'champ_title', t.title,
+        'champ_artwork_url', t.artwork_url, 'champ_seed', t.seed,
+        'scope', br.scope
+      ) order by e.completed_at desc)
+      from bracket_entries e
+      join brackets br on br.id = e.bracket_id
+      join bracket_tracks t on t.id = e.champion_track_id
+      where br.club_id = p_club and e.profile_id = p_profile and e.completed_at is not null
+        and (br.scope = 'club' or br.status = 'closed')
+    ), '[]'::jsonb),
+    'stats', jsonb_build_object(
+      'brackets_finished', (
+        select count(*) from bracket_entries e join brackets br on br.id = e.bracket_id
+        where br.club_id = p_club and e.profile_id = p_profile and e.completed_at is not null
+          and br.scope = 'club'
+      ),
+      'takes', (select count(*) from musical_takes where club_id = p_club and author_id = p_profile),
+      'bars', (select count(*) from best_bars where club_id = p_club and author_id = p_profile),
+      'boxes_lit', (
+        select count(*) from bingo_boxes b
+        join bingo_cards k on k.id = b.card_id
+        join bingo_games g on g.id = k.game_id
+        where g.club_id = p_club and k.profile_id = p_profile and b.activated_at is not null
+      ),
+      'bingos', (
+        select count(*) from bingo_claims cl
+        join bingo_cards k on k.id = cl.card_id
+        join bingo_games g on g.id = k.game_id
+        where g.club_id = p_club and k.profile_id = p_profile and cl.status = 'verified'
+      ),
+      'conversions', (
+        select count(*) from convince_targets t
+        join convince_posts cp on cp.id = t.post_id
+        where cp.club_id = p_club and cp.author_id = p_profile and t.verdict = 'converted'
+      )
+    )
+  ) end;
 $function$
 ;
 
@@ -4558,6 +4910,9 @@ begin
   if not public.is_club_member(v_bracket.club_id) then
     raise exception 'Not a club member';
   end if;
+  if v_bracket.scope = 'personal' and v_bracket.owner_id <> auth.uid() then
+    raise exception 'This is a solo bracket';
+  end if;
   if v_bracket.status <> 'open' then
     raise exception 'The bracket is closed';
   end if;
@@ -4604,8 +4959,6 @@ begin
   values (p_bracket, auth.uid(), p_round, p_slot, p_winner)
   on conflict (bracket_id, profile_id, round, slot) do update set winner_track_id = excluded.winner_track_id;
 
-  -- A track's path through the tree is unique, so downstream picks that chose
-  -- the replaced winner are exactly the invalid ones.
   if v_old is not null and v_old <> p_winner then
     for r in (p_round + 1)..v_rounds loop
       delete from bracket_picks

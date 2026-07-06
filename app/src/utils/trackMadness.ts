@@ -305,3 +305,52 @@ export async function fetchSeedCandidates(
   if (error || !data || data.ok === false || !Array.isArray(data.results)) return null;
   return { results: data.results, source: data.source === 'spotify' ? 'spotify' : 'lastfm' };
 }
+
+
+// ── Solo-rankings import ─────────────────────────────────
+// Turn a finished personal bracket into a full pick set for a NEW bracket of
+// the same artist. Track lists differ between seedings, so this maps by
+// advancement score, not by matchup: every win in the solo bracket earns its
+// track a point; new-bracket matchups are decided by higher score (unmatched
+// tracks score -1, ties break toward the better seed). The result is a
+// starting point the member reviews and can freely redo before crowning.
+
+function trackKey(t: { spotify_url: string | null; title: string }): string {
+  const m = t.spotify_url?.match(/track\/([A-Za-z0-9]+)/);
+  return m ? `id:${m[1]}` : `t:${t.title.trim().toLowerCase()}`;
+}
+
+export function deriveImportPicks(
+  size: number,
+  newTracks: BracketTrack[],
+  soloTracks: BracketTrack[],
+  soloPicks: { winner_track_id: string }[],
+): { round: number; slot: number; winner: string }[] {
+  // Advancement score per solo track id.
+  const wins = new Map<string, number>();
+  for (const p of soloPicks) wins.set(p.winner_track_id, (wins.get(p.winner_track_id) ?? 0) + 1);
+  // Solo score keyed by track identity.
+  const soloScore = new Map<string, number>();
+  for (const t of soloTracks) soloScore.set(trackKey(t), wins.get(t.id) ?? 0);
+
+  const score = (t: BracketTrack): number => soloScore.get(trackKey(t)) ?? -1;
+  const byPosition = new Map(newTracks.map((t) => [t.position, t]));
+  const rounds = bracketRounds(size);
+
+  const picks: { round: number; slot: number; winner: string }[] = [];
+  // winners[slot] per round, starting from positions.
+  let feeders: BracketTrack[] = Array.from({ length: size }, (_, i) => byPosition.get(i + 1)!);
+  for (let round = 1; round <= rounds; round++) {
+    const next: BracketTrack[] = [];
+    for (let slot = 1; slot <= size / 2 ** round; slot++) {
+      const a = feeders[2 * slot - 2];
+      const b = feeders[2 * slot - 1];
+      const winner =
+        score(a) > score(b) ? a : score(b) > score(a) ? b : a.seed <= b.seed ? a : b;
+      picks.push({ round, slot, winner: winner.id });
+      next.push(winner);
+    }
+    feeders = next;
+  }
+  return picks;
+}

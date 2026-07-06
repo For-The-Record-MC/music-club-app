@@ -947,6 +947,15 @@ export const musicalTakes = {
       )
       .eq('club_id', clubId)
       .order('created_at', { ascending: false }),
+  // A member's recent takes, for their profile page.
+  listByAuthor: (clubId: string, profileId: string, limit = 3) =>
+    supabase
+      .from('musical_takes')
+      .select('id, body, created_at, musical_take_positions(value)')
+      .eq('club_id', clubId)
+      .eq('author_id', profileId)
+      .order('created_at', { ascending: false })
+      .limit(limit),
   create: (clubId: string, authorId: string, body: string) =>
     supabase
       .from('musical_takes')
@@ -982,6 +991,15 @@ interface BarSongInput {
   appleUrl: string | null;
 }
 export const bestBars = {
+  // A member's recent bars, for their profile page.
+  listByAuthor: (clubId: string, profileId: string, limit = 3) =>
+    supabase
+      .from('best_bars')
+      .select('id, title, artist, artwork_url, lyric, created_at, best_bar_ratings(score)')
+      .eq('club_id', clubId)
+      .eq('author_id', profileId)
+      .order('created_at', { ascending: false })
+      .limit(limit),
   list: (clubId: string) =>
     supabase
       .from('best_bars')
@@ -1203,6 +1221,7 @@ export const trackMadness = {
       .select('*')
       .eq('club_id', clubId)
       .eq('status', 'open')
+      .eq('scope', 'club')
       .maybeSingle(),
   archive: (clubId: string) =>
     supabase
@@ -1210,7 +1229,20 @@ export const trackMadness = {
       .select('*')
       .eq('club_id', clubId)
       .eq('status', 'closed')
+      .eq('scope', 'club')
       .order('closed_at', { ascending: false }),
+  // One bracket by id — the profile shelf's deep link. RLS decides visibility
+  // (others' solos only when closed).
+  get: (bracketId: string) => supabase.from('brackets').select('*').eq('id', bracketId).maybeSingle(),
+  // The caller's solo runs (open and closed). RLS hides others' open solos.
+  myPersonal: (clubId: string, profileId: string) =>
+    supabase
+      .from('brackets')
+      .select('*')
+      .eq('club_id', clubId)
+      .eq('scope', 'personal')
+      .eq('owner_id', profileId)
+      .order('created_at', { ascending: false }),
   tracks: (bracketId: string) =>
     supabase.from('bracket_tracks').select('*').eq('bracket_id', bracketId).order('seed'),
   picks: (bracketId: string) =>
@@ -1229,6 +1261,7 @@ export const trackMadness = {
     artistImageUrl: string | null,
     size: number,
     tracks: Json,
+    scope: 'club' | 'personal' = 'club',
   ) =>
     supabase.rpc('create_bracket', {
       p_club: clubId,
@@ -1237,7 +1270,11 @@ export const trackMadness = {
       p_artist_image_url: artistImageUrl as string,
       p_size: size,
       p_tracks: tracks,
+      p_scope: scope,
     }),
+  // Bulk pick import (the "use my solo rankings" flow) — requires a clean slate.
+  importPicks: (bracketId: string, picks: { round: number; slot: number; winner: string }[]) =>
+    supabase.rpc('import_bracket_picks', { p_bracket: bracketId, p_picks: picks as unknown as Json }),
   savePick: (bracketId: string, round: number, slot: number, winnerTrackId: string) =>
     supabase.rpc('save_bracket_pick', {
       p_bracket: bracketId,
@@ -1349,6 +1386,61 @@ export const listeningBingo = {
   addComment: (gameId: string, authorId: string, text: string) =>
     supabase.from('bingo_comments').insert({ game_id: gameId, author_id: authorId, text: text.trim() }),
   removeComment: (id: string) => supabase.from('bingo_comments').delete().eq('id', id),
+};
+
+// Studio trophies + cycle Studio recap (TROPHIES_RECAP_PLAN.md). Both are
+// read-only jsonb RPCs computed from the game tables — no trophy writes exist
+// anywhere, so results are always retroactively complete.
+export interface StudioMemberStats {
+  showdown_wins: { cycle_number: number; title: string; artist: string; theme: string }[];
+  aux_wins: { cycle_number: number; theme: string }[];
+  bingo_crowns: { at: string }[];
+  blackouts: { at: string }[];
+  champions: {
+    bracket_id: string;
+    artist_name: string;
+    size: number;
+    closed_at: string | null;
+    champ_title: string;
+    champ_artwork_url: string | null;
+    champ_seed: number;
+    scope: 'club' | 'personal';
+  }[];
+  stats: {
+    brackets_finished: number;
+    takes: number;
+    bars: number;
+    boxes_lit: number;
+    bingos: number;
+    conversions: number;
+  };
+}
+
+export interface CycleStudioRecap {
+  showdown: {
+    theme: string;
+    podium: { title: string; artist: string; artwork_url: string | null; submitter: string | null; net: number }[];
+  } | null;
+  aux: { theme: string; a: string | null; b: string | null; winner: string | null; a_votes: number; b_votes: number }[];
+  playlist: { theme: string; song_count: number; contributor_count: number } | null;
+  bingo: {
+    cards: number;
+    standings: { name: string | null; line_index: number; self_certified: boolean }[];
+    blackouts: (string | null)[];
+  } | null;
+  brackets: { id: string; artist_name: string; size: number; closed_at: string | null }[];
+  window: {
+    takes: { author: string | null; snippet: string }[];
+    bars: { author: string | null; snippet: string; title: string }[];
+    share_count: number;
+    convince_conversions: number;
+  };
+}
+
+export const studio = {
+  memberStats: (clubId: string, profileId: string) =>
+    supabase.rpc('member_studio_stats', { p_club: clubId, p_profile: profileId }),
+  cycleRecap: (cycleId: string) => supabase.rpc('cycle_studio_recap', { p_cycle: cycleId }),
 };
 
 // Per-cycle meeting board — short notes about the upcoming meeting (new times,
