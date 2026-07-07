@@ -9,13 +9,15 @@ import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { fonts, radius } from '@/theme';
 import { memberName } from '@/utils/memberName';
-import { cycles as cyclesDb, streaming, type Cycle, type CycleHighlights } from '@/utils/supabase/db';
+import { lineName } from '@/utils/listeningBingo';
+import { cycles as cyclesDb, streaming, studio as studioDb, type Cycle, type CycleHighlights, type CycleStudioRecap } from '@/utils/supabase/db';
 
 // Ranked lists collapse to this many rows by default, with a "show more" toggle.
 const COLLAPSE = 5;
 
-// History detail: a closed cycle's highlights — album scores & winner, the
-// combined-signal top songs, standout reviews, and popular feed shares.
+// History detail: a closed cycle's recap, split into two tabs — The Record
+// (album scores & winner, top songs, reviews, shares) and The Studio (the
+// cycle's games & social wrap via the cycle_studio_recap RPC).
 export default function CycleHighlightsScreen() {
   const { id, cycleId } = useLocalSearchParams<{ id: string; cycleId: string }>();
   const router = useRouter();
@@ -29,18 +31,22 @@ export default function CycleHighlightsScreen() {
   // Long ranked lists collapse to the first 5 by default.
   const [showAllTop, setShowAllTop] = useState(false);
   const [showAllSaved, setShowAllSaved] = useState(false);
+  const [tab, setTab] = useState<'record' | 'studio'>('record');
+  const [recap, setRecap] = useState<CycleStudioRecap | null>(null);
 
   const isAdmin = myRole === 'owner' || myRole === 'admin';
 
   const refresh = useCallback(async () => {
     if (!cycleId) return;
-    const [{ data: d, error: err }, { data: row }] = await Promise.all([
+    const [{ data: d, error: err }, { data: row }, { data: sr }] = await Promise.all([
       cyclesDb.highlights(cycleId),
       cyclesDb.get(cycleId),
+      studioDb.cycleRecap(cycleId),
     ]);
     if (err) setError(err.message);
     else setData(d as unknown as CycleHighlights);
     setCycleRow(row ?? null);
+    setRecap((sr ?? null) as CycleStudioRecap | null);
     setLoading(false);
   }, [cycleId]);
 
@@ -88,10 +94,25 @@ export default function CycleHighlightsScreen() {
         </View>
       </View>
 
+      {/* Record / Studio tabs */}
+      <View style={[styles.tabs, { borderColor: palette.border }]}>
+        {([['record', '💿 The Record'], ['studio', '🎛️ The Studio']] as const).map(([key, label]) => (
+          <Pressable
+            key={key}
+            onPress={() => setTab(key)}
+            style={[styles.tabBtn, tab === key && { backgroundColor: palette.card, borderColor: palette.amber, borderWidth: 1 }]}
+          >
+            <Text style={[styles.tabText, { color: tab === key ? palette.text1 : palette.text3 }]}>{label}</Text>
+          </Pressable>
+        ))}
+      </View>
+
       {error ? <InlineNote text={error} tone="error" /> : null}
       {loading && !data ? <Loading /> : null}
 
-      {data ? (
+      {tab === 'studio' ? <StudioTab recap={recap} /> : null}
+
+      {tab === 'record' && data ? (
         <>
           {/* ── Album scores & winner ────────────────────────────────── */}
           <Label>Album scores</Label>
@@ -482,6 +503,159 @@ export default function CycleHighlightsScreen() {
   );
 }
 
+// The Studio tab: what the games & social rooms produced during this cycle.
+// Cycle-tied rooms report results; standing rooms are windowed to the cycle
+// (see cycle_studio_recap). Every block links to its room.
+function StudioTab({ recap }: { recap: CycleStudioRecap | null }) {
+  const router = useRouter();
+  const { palette } = useTheme();
+  if (!recap) return <Loading />;
+
+  const medals = ['🥇', '🥈', '🥉'];
+  const hasAnything =
+    recap.showdown || recap.aux.length > 0 || recap.playlist || recap.bingo ||
+    recap.brackets.length > 0 || recap.window.takes.length > 0 || recap.window.bars.length > 0 ||
+    recap.window.share_count > 0;
+
+  if (!hasAnything) {
+    return <InlineNote text="The studio was quiet this cycle — no games, takes, or shares." />;
+  }
+
+  return (
+    <>
+      {recap.showdown ? (
+        <>
+          <Label>Jukebox Showdown · “{recap.showdown.theme}”</Label>
+          <Card style={{ marginBottom: 8 }}>
+            {recap.showdown.podium.map((row, i) => (
+              <View key={i} style={[styles.studioRow, i > 0 && { borderTopColor: palette.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
+                <Text style={{ fontSize: 16 }}>{medals[i] ?? '·'}</Text>
+                {row.artwork_url ? <Image source={{ uri: row.artwork_url }} style={styles.shareArt} contentFit="cover" /> : null}
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text numberOfLines={1} style={[styles.songTitle, { color: palette.text1 }]}>{row.title}</Text>
+                  <Text numberOfLines={1} style={[styles.songArtist, { color: palette.text2 }]}>
+                    {row.artist}{row.submitter ? ` · ${row.submitter}` : ''}
+                  </Text>
+                </View>
+                <Text style={[styles.reactionCount, { color: palette.text3 }]}>{row.net > 0 ? `+${row.net}` : row.net}</Text>
+              </View>
+            ))}
+          </Card>
+        </>
+      ) : null}
+
+      {recap.aux.length > 0 ? (
+        <>
+          <Label>Aux Battle</Label>
+          <Card style={{ marginBottom: 8 }}>
+            {recap.aux.map((b, i) => (
+              <View key={i} style={[styles.studioRow, i > 0 && { borderTopColor: palette.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
+                <Text style={{ fontSize: 16 }}>🎚️</Text>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text numberOfLines={1} style={[styles.songTitle, { color: palette.text1 }]}>“{b.theme}”</Text>
+                  <Text numberOfLines={1} style={[styles.songArtist, { color: palette.text2 }]}>
+                    {b.winner ? `${b.winner} won ${b.a_votes}–${b.b_votes}` : `${b.a ?? '?'} vs ${b.b ?? '?'} — tied`}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </Card>
+        </>
+      ) : null}
+
+      {recap.playlist ? (
+        <>
+          <Label>The Perfect Playlist</Label>
+          <Card style={{ marginBottom: 8 }}>
+            <Text style={[styles.songTitle, { color: palette.text1 }]}>“{recap.playlist.theme}”</Text>
+            <Text style={[styles.songArtist, { color: palette.text2 }]}>
+              {recap.playlist.song_count} songs from {recap.playlist.contributor_count} member{recap.playlist.contributor_count === 1 ? '' : 's'}
+            </Text>
+          </Card>
+        </>
+      ) : null}
+
+      {recap.bingo ? (
+        <>
+          <Label>Listening Bingo</Label>
+          <Card style={{ marginBottom: 8 }}>
+            {recap.bingo.standings.length === 0 ? (
+              <Text style={[styles.songArtist, { color: palette.text2 }]}>
+                {recap.bingo.cards} card{recap.bingo.cards === 1 ? '' : 's'} dealt — no verified bingos.
+              </Text>
+            ) : (
+              recap.bingo.standings.map((st, i) => (
+                <View key={i} style={[styles.studioRow, i > 0 && { borderTopColor: palette.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
+                  <Text style={{ fontSize: 16 }}>{i === 0 ? '🏆' : '🎱'}</Text>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text numberOfLines={1} style={[styles.songTitle, { color: palette.text1 }]}>
+                      {st.name ?? 'Someone'} · {lineName(st.line_index)}
+                    </Text>
+                    {st.self_certified ? (
+                      <Text style={[styles.songArtist, { color: palette.text3 }]}>self-certified at close</Text>
+                    ) : null}
+                  </View>
+                </View>
+              ))
+            )}
+            {recap.bingo.blackouts.length > 0 ? (
+              <Text style={[styles.songArtist, { color: palette.text1, marginTop: 8 }]}>
+                ⬛ Blackout: {recap.bingo.blackouts.filter(Boolean).join(', ')}
+              </Text>
+            ) : null}
+          </Card>
+        </>
+      ) : null}
+
+      {recap.brackets.length > 0 ? (
+        <>
+          <Label>Track Madness</Label>
+          {recap.brackets.map((b) => (
+            <Pressable
+              key={b.id}
+              onPress={() => router.push({ pathname: '/clubhouse/madness', params: { focus: String(b.id) } })}
+            >
+              <Card style={{ marginBottom: 8 }}>
+                <View style={styles.studioRow}>
+                  <Text style={{ fontSize: 16 }}>🏆</Text>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text numberOfLines={1} style={[styles.songTitle, { color: palette.text1 }]}>
+                      {b.artist_name} · {b.size}-song bracket
+                    </Text>
+                    <Text style={[styles.songArtist, { color: palette.text2 }]}>decided this cycle — see the club's champion</Text>
+                  </View>
+                  <Text style={{ color: palette.text3 }}>›</Text>
+                </View>
+              </Card>
+            </Pressable>
+          ))}
+        </>
+      ) : null}
+
+      {recap.window.takes.length > 0 || recap.window.bars.length > 0 ? (
+        <>
+          <Label>Said in the studio</Label>
+          <Card style={{ marginBottom: 8 }}>
+            {[...recap.window.takes.map((t) => ({ icon: '🔥', text: `“${t.snippet}” — ${t.author ?? 'someone'}` })),
+              ...recap.window.bars.map((b) => ({ icon: '🎤', text: `“${b.snippet}” (${b.title}) — ${b.author ?? 'someone'}` }))].map((row, i) => (
+              <Text key={i} style={[styles.quoteLine, { color: palette.text2 }, i > 0 && { borderTopColor: palette.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
+                {row.icon} {row.text}
+              </Text>
+            ))}
+          </Card>
+        </>
+      ) : null}
+
+      {recap.window.share_count > 0 || recap.window.convince_conversions > 0 ? (
+        <Text style={[styles.studioFooter, { color: palette.text3 }]}>
+          {recap.window.share_count} song{recap.window.share_count === 1 ? '' : 's'} shared on Club Radio
+          {recap.window.convince_conversions > 0 ? ` · ${recap.window.convince_conversions} member${recap.window.convince_conversions === 1 ? '' : 's'} converted to a new artist` : ''}
+        </Text>
+      ) : null}
+    </>
+  );
+}
+
 // "Show N more / Show less" toggle under a list collapsed to COLLAPSE rows.
 // Renders nothing when the list is short enough to show in full.
 function ShowMoreRow({
@@ -580,6 +754,12 @@ const styles = StyleSheet.create({
   },
   playlistPlayIcon: { color: '#1DB954', fontSize: 11, marginLeft: 1 },
   playlistBtnText: { fontFamily: fonts.sansBold, fontSize: 14, color: '#fff', letterSpacing: 0.2 },
+  tabs: { flexDirection: 'row', gap: 6, borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.md, padding: 4, marginBottom: 14 },
+  tabBtn: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: radius.sm },
+  tabText: { fontFamily: fonts.sansBold, fontSize: 13 },
+  studioRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
+  quoteLine: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 19, paddingVertical: 8 },
+  studioFooter: { fontFamily: fonts.sans, fontSize: 12, marginTop: 6, lineHeight: 17 },
   showMore: {
     alignItems: 'center',
     paddingVertical: 10,

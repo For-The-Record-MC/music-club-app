@@ -1,8 +1,8 @@
 import { Image } from 'expo-image';
 import { Linking } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar, Badge, Button, Card, Loading, Screen } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
@@ -14,14 +14,14 @@ import { memberName } from '@/utils/memberName';
 import {
   albums as albumsDb,
   archive as archiveDb,
-  auxBattle as auxDb,
-  convince as convinceDb,
+  bestBars as barsDb,
   feed as feedDb,
+  musicalTakes as takesDb,
   leaderboard,
-  showdown as showdownDb,
   profiles as profilesDb,
   profileTracks as tracksDb,
   ratings as ratingsDb,
+  studio as studioDb,
   TRACK_SLOTS,
   TRACK_SLOT_LABELS,
   type Album,
@@ -29,6 +29,7 @@ import {
   type LeaderboardRow,
   type Profile,
   type ProfileTrack,
+  type StudioMemberStats,
 } from '@/utils/supabase/db';
 
 const SLOT_EMOJI: Record<string, string> = { new: '✨', old: '📼', obsession: '🔁' };
@@ -55,23 +56,23 @@ export default function MemberProfile() {
   const [archivePicks, setArchivePicks] = useState<Album[]>([]);
   const [albumAvgs, setAlbumAvgs] = useState<Record<string, number>>({});
   const [posts, setPosts] = useState<FeedPost[]>([]);
-  const [convinced, setConvinced] = useState(0);
-  const [auxWins, setAuxWins] = useState(0);
-  const [showdownWins, setShowdownWins] = useState(0);
+  const [studioStats, setStudioStats] = useState<StudioMemberStats | null>(null);
+  const [takes, setTakes] = useState<{ id: string; body: string; agree: number; disagree: number }[]>([]);
+  const [bars, setBars] = useState<{ id: string; title: string; artist: string; artwork_url: string | null; lyric: string; avg: number | null }[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     if (!id || !profileId) return;
-    const [boardRes, profileRes, tracksRes, picksRes, archiveRes, postsRes, convincedRes, auxRes, sdWinnersRes] = await Promise.all([
+    const [boardRes, profileRes, tracksRes, picksRes, archiveRes, postsRes, studioRes, takesRes, barsRes] = await Promise.all([
       leaderboard.get(id),
       profilesDb.getById(profileId),
       tracksDb.listByProfile(profileId),
       albumsDb.listByMember(id, profileId),
       archiveDb.listByMember(id, profileId),
       feedDb.listByAuthor(id, profileId),
-      convinceDb.convincedCount(id, profileId),
-      auxDb.winsCount(id, profileId),
-      showdownDb.winners(id),
+      studioDb.memberStats(id, profileId),
+      takesDb.listByAuthor(id, profileId),
+      barsDb.listByAuthor(id, profileId),
     ]);
     setBoard((boardRes.data as LeaderboardRow[] | null) ?? []);
     setProfileRow((profileRes.data as Profile | null) ?? null);
@@ -80,11 +81,24 @@ export default function MemberProfile() {
     setPicks(pickRows);
     setArchivePicks((archiveRes.data ?? []) as Album[]);
     setPosts((postsRes.data ?? []) as FeedPost[]);
-    setConvinced(convincedRes.count ?? 0);
-    setAuxWins(auxRes.count ?? 0);
-    // Showdown wins: winning submissions across the club whose author is this member.
-    const sdWinners = (sdWinnersRes.data ?? []) as { showdown_submissions: { profile_id: string } | null }[];
-    setShowdownWins(sdWinners.filter((w) => w.showdown_submissions?.profile_id === profileId).length);
+    setStudioStats((studioRes.data ?? null) as StudioMemberStats | null);
+    setTakes(((takesRes.data ?? []) as any[]).map((t) => ({
+      id: t.id,
+      body: t.body,
+      agree: (t.musical_take_positions ?? []).filter((x: any) => x.value > 0).length,
+      disagree: (t.musical_take_positions ?? []).filter((x: any) => x.value < 0).length,
+    })));
+    setBars(((barsRes.data ?? []) as any[]).map((b) => {
+      const scores = (b.best_bar_ratings ?? []).map((r: any) => r.score);
+      return {
+        id: b.id,
+        title: b.title,
+        artist: b.artist,
+        artwork_url: b.artwork_url,
+        lyric: b.lyric,
+        avg: scores.length ? scores.reduce((a: number, x: number) => a + x, 0) / scores.length : null,
+      };
+    }));
 
     // Per-album averages, only for revealed cycles (RLS returns nothing else).
     const revealedIds = pickRows.filter((p) => p.cycles?.revealed_at).map((p) => p.id);
@@ -119,6 +133,15 @@ export default function MemberProfile() {
   }, [board, me, profileId]);
 
   const trackFor = (slot: string) => tracks.find((t) => t.slot === slot) ?? null;
+  // Featured-track notes stay collapsed behind a chip so the card reads clean.
+  const [openNotes, setOpenNotes] = useState<Set<string>>(new Set());
+  const toggleNote = (slot: string) =>
+    setOpenNotes((prev) => {
+      const next = new Set(prev);
+      if (next.has(slot)) next.delete(slot);
+      else next.add(slot);
+      return next;
+    });
 
   if (loading && !me) {
     return (
@@ -164,6 +187,16 @@ export default function MemberProfile() {
             #{activeRank} Most Active · {Math.round(me?.active_score ?? 0)} pts
           </Text>
         ) : null}
+        {profileRow?.avatar_url && profileRow.avatar_label ? (
+          <Pressable
+            onPress={() => profileRow.avatar_album_url && Linking.openURL(profileRow.avatar_album_url)}
+            disabled={!profileRow.avatar_album_url}
+          >
+            <Text style={[styles.pfpFrom, { color: palette.text3 }]} numberOfLines={1}>
+              pfp from {profileRow.avatar_label}{profileRow.avatar_album_url ? ' ↗' : ''}
+            </Text>
+          </Pressable>
+        ) : null}
         {isMe ? (
           <Button
             title="Edit profile"
@@ -174,87 +207,102 @@ export default function MemberProfile() {
         ) : null}
       </Card>
 
-      {/* The album their profile picture comes from */}
-      {profileRow?.avatar_url && profileRow.avatar_label ? (
+      {/* Featured tracks — spinning records on the platter */}
+      <Text style={[styles.section, { color: palette.text2 }]}>IN ROTATION</Text>
+      <View style={styles.rotationRow}>
+        {TRACK_SLOTS.map((slot) => {
+          const t = trackFor(slot);
+          const noteOpen = openNotes.has(slot);
+          return (
+            <Pressable
+              key={slot}
+              style={{ flex: 1 }}
+              onPress={
+                t?.spotify_url
+                  ? () => Linking.openURL(t.spotify_url!)
+                  : isMe && !t
+                    ? () => router.push('/profile-setup')
+                    : undefined
+              }
+            >
+              <Card style={styles.rotationCard}>
+                <SpinningTrack uri={t?.artwork_url ?? null} size={72} />
+                <Text style={[styles.slotLabel, { color: palette.text3, marginTop: 8 }]}>
+                  {SLOT_EMOJI[slot]} {TRACK_SLOT_LABELS[slot].toUpperCase()}
+                </Text>
+                {t ? (
+                  <>
+                    <Text numberOfLines={2} style={[styles.rotationTitle, { color: palette.text1 }]}>{t.track_name}</Text>
+                    <Text numberOfLines={1} style={[styles.rotationMeta, { color: palette.text3 }]}>{t.artist_name}</Text>
+                    {t.caption ? (
+                      <Pressable onPress={() => toggleNote(slot)} hitSlop={6}>
+                        <Text
+                          style={[
+                            styles.noteChip,
+                            {
+                              color: noteOpen ? palette.amber : palette.text3,
+                              borderColor: noteOpen ? palette.amber : palette.border,
+                              marginTop: 5,
+                            },
+                          ]}
+                        >
+                          {noteOpen ? '📝 ▴' : '📝'}
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                    {t.caption && noteOpen ? (
+                      <Text style={[styles.rotationCaption, { color: palette.text3 }]}>“{t.caption}”</Text>
+                    ) : null}
+                  </>
+                ) : (
+                  <Text style={[styles.emptySlotText, { color: palette.text3 }]}>{isMe ? '+ Add a track' : 'Not set'}</Text>
+                )}
+              </Card>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {/* Trophy shelf + champions gallery — wins & feats only; participation
+          stays numeric in the stats grid (TROPHIES_RECAP_PLAN.md). */}
+      {studioStats ? <TrophyShelf data={studioStats} /> : null}
+      {studioStats && studioStats.champions.length > 0 ? (
         <>
-          <Text style={[styles.section, { color: palette.text2 }]}>PROFILE PICTURE FROM</Text>
-          <Pressable
-            onPress={() =>
-              profileRow.avatar_album_url && Linking.openURL(profileRow.avatar_album_url)
-            }
-            disabled={!profileRow.avatar_album_url}
-          >
-            <Card>
-              <View style={styles.trackRow}>
-                <Image
-                  source={{ uri: profileRow.avatar_url }}
-                  style={styles.trackArt}
-                  contentFit="cover"
-                />
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={[styles.trackName, { color: palette.text1 }]} numberOfLines={2}>
-                    {profileRow.avatar_label}
+          <Text style={[styles.section, { color: palette.text2 }]}>CHAMPIONS CROWNED</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galleryRow}>
+            {studioStats.champions.map((c) => (
+              <Pressable
+                key={c.bracket_id}
+                // Solo brackets open as themselves; club brackets open as THIS
+                // member's breakdown (with a jump to the official board).
+                onPress={() =>
+                  router.push({
+                    pathname: '/clubhouse/madness',
+                    params:
+                      c.scope === 'personal'
+                        ? { focus: String(c.bracket_id) }
+                        : { focus: String(c.bracket_id), member: String(profileId) },
+                  })
+                }
+              >
+                <Card style={styles.champCard}>
+                  {c.champ_artwork_url ? (
+                    <Image source={{ uri: c.champ_artwork_url }} style={styles.champArt} contentFit="cover" />
+                  ) : (
+                    <View style={[styles.champArt, { backgroundColor: palette.surface }]} />
+                  )}
+                  <Text numberOfLines={1} style={[styles.champTitle, { color: palette.text1 }]}>
+                    👑 {c.champ_title}
                   </Text>
-                </View>
-                {profileRow.avatar_album_url ? (
-                  <Text style={[styles.play, { color: palette.teal }]}>↗</Text>
-                ) : null}
-              </View>
-            </Card>
-          </Pressable>
+                  <Text numberOfLines={1} style={[styles.champMeta, { color: palette.text3 }]}>
+                    {c.artist_name} · #{c.champ_seed} seed{c.scope === 'personal' ? ' · solo' : ''}
+                  </Text>
+                </Card>
+              </Pressable>
+            ))}
+          </ScrollView>
         </>
       ) : null}
-
-      {/* Featured tracks */}
-      <Text style={[styles.section, { color: palette.text2 }]}>FEATURED TRACKS</Text>
-      {TRACK_SLOTS.map((slot) => {
-        const t = trackFor(slot);
-        return (
-          <Card key={slot} style={{ marginBottom: 8 }}>
-            <Text style={[styles.slotLabel, { color: palette.text3 }]}>
-              {SLOT_EMOJI[slot]} {TRACK_SLOT_LABELS[slot].toUpperCase()}
-            </Text>
-            {t ? (
-              <Pressable
-                onPress={() => t.spotify_url && Linking.openURL(t.spotify_url)}
-                style={styles.trackRow}
-              >
-                {t.artwork_url ? (
-                  <Image source={{ uri: t.artwork_url }} style={styles.trackArt} contentFit="cover" />
-                ) : (
-                  <View style={[styles.trackArt, { backgroundColor: palette.surface }]} />
-                )}
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={[styles.trackName, { color: palette.text1 }]} numberOfLines={1}>
-                    {t.track_name}
-                  </Text>
-                  <Text style={[styles.trackArtist, { color: palette.text2 }]} numberOfLines={1}>
-                    {t.artist_name}
-                    {t.album_name ? ` · ${t.album_name}` : ''}
-                  </Text>
-                  {t.caption ? (
-                    <Text style={[styles.caption, { color: palette.text3 }]} numberOfLines={2}>
-                      “{t.caption}”
-                    </Text>
-                  ) : null}
-                </View>
-                {t.spotify_url ? (
-                  <Text style={[styles.play, { color: palette.teal }]}>▶</Text>
-                ) : null}
-              </Pressable>
-            ) : (
-              <Pressable
-                onPress={isMe ? () => router.push('/profile-setup') : undefined}
-                style={styles.emptySlot}
-              >
-                <Text style={[styles.emptySlotText, { color: palette.text3 }]}>
-                  {isMe ? '+ Add a track' : 'Not set'}
-                </Text>
-              </Pressable>
-            )}
-          </Card>
-        );
-      })}
 
       {/* Stats */}
       {me ? (
@@ -273,75 +321,118 @@ export default function MemberProfile() {
               <Stat label="Reactions in" value={me.stats.interactions_received} />
               <Stat label="Concerts added" value={me.stats.concerts_added} />
               <Stat label="Meetings" value={me.stats.meetings_attended} />
-              <Stat label="Convinced" value={convinced} />
-              <Stat label="Showdown wins" value={showdownWins} />
-              <Stat label="Aux Battle wins" value={auxWins} />
+              <Stat label="Convinced" value={studioStats?.stats.conversions ?? 0} />
+              <Stat label="Showdown wins" value={studioStats?.showdown_wins.length ?? 0} />
+              <Stat label="Aux Battle wins" value={studioStats?.aux_wins.length ?? 0} />
+              <Stat label="Brackets finished" value={studioStats?.stats.brackets_finished ?? 0} />
+              <Stat label="Takes posted" value={studioStats?.stats.takes ?? 0} />
+              <Stat label="Bars dropped" value={studioStats?.stats.bars ?? 0} />
+              <Stat label="Boxes lit" value={studioStats?.stats.boxes_lit ?? 0} />
+              <Stat label="Bingos" value={studioStats?.stats.bingos ?? 0} />
             </View>
           </Card>
         </>
       ) : null}
 
-      {/* Their picks */}
+      {/* Their picks — artwork rail (tap for the album page) */}
       {picks.length > 0 ? (
         <>
           <Text style={[styles.section, { color: palette.text2 }]}>ALBUMS PICKED</Text>
-          {picks.map((a) => {
-            const avg = a.cycles?.revealed_at ? albumAvgs[a.id] : undefined;
-            return (
-              <Pressable key={a.id} onPress={() => router.push(`/club/${id}/album/${a.id}`)}>
-                <Card style={{ marginBottom: 8 }}>
-                  <View style={styles.trackRow}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galleryRow}>
+            {picks.map((a) => {
+              const avg = a.cycles?.revealed_at ? albumAvgs[a.id] : undefined;
+              return (
+                <Pressable key={a.id} onPress={() => router.push(`/club/${id}/album/${a.id}`)}>
+                  <Card style={styles.champCard}>
                     {a.artwork_url ? (
-                      <Image source={{ uri: a.artwork_url }} style={styles.trackArt} contentFit="cover" />
+                      <Image source={{ uri: a.artwork_url }} style={styles.champArt} contentFit="cover" />
                     ) : (
-                      <View style={[styles.trackArt, { backgroundColor: palette.surface }]} />
+                      <View style={[styles.champArt, { backgroundColor: palette.surface }]} />
                     )}
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={[styles.trackName, { color: palette.text1 }]} numberOfLines={1}>
-                        {a.title}
-                      </Text>
-                      <Text style={[styles.trackArtist, { color: palette.text2 }]} numberOfLines={1}>
-                        {a.artist}
-                      </Text>
-                    </View>
-                    {avg != null ? (
-                      <View style={styles.statBox}>
-                        <Text style={[styles.statValue, { color: palette.text1 }]}>{avg.toFixed(1)}</Text>
-                        <Text style={[styles.statUnit, { color: palette.text3 }]}>avg</Text>
-                      </View>
-                    ) : (
-                      <Text style={[styles.sealed, { color: palette.text3 }]}>
-                        {a.cycles?.revealed_at ? '—' : '🔒'}
-                      </Text>
-                    )}
-                  </View>
-                </Card>
-              </Pressable>
-            );
-          })}
+                    <Text numberOfLines={1} style={[styles.champTitle, { color: palette.text1 }]}>{a.title}</Text>
+                    <Text numberOfLines={1} style={[styles.champMeta, { color: palette.text3 }]}>
+                      {avg != null ? `${avg.toFixed(1)} avg` : a.cycles?.revealed_at ? a.artist : `🔒 ${a.artist}`}
+                    </Text>
+                  </Card>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
         </>
       ) : null}
 
-      {/* Pre-FTR picks — archive albums they claimed. Cosmetic identity only;
-          never counted in the competitive stats above. */}
+      {/* Pre-FTR picks — capped rail; the full shelf lives in the Archive */}
       {archivePicks.length > 0 ? (
         <>
-          <Text style={[styles.section, { color: palette.text2 }]}>PRE-FTR PICKS</Text>
-          {archivePicks.map((a) => (
-            <Pressable key={a.id} onPress={() => router.push(`/club/${id}/album/${a.id}`)}>
+          <Text style={[styles.section, { color: palette.text2 }]}>PRE-FTR PICKS · {archivePicks.length}</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galleryRow}>
+            {archivePicks.slice(0, 12).map((a) => (
+              <Pressable key={a.id} onPress={() => router.push(`/club/${id}/album/${a.id}`)}>
+                <Card style={styles.champCard}>
+                  {a.artwork_url ? (
+                    <Image source={{ uri: a.artwork_url }} style={styles.champArt} contentFit="cover" />
+                  ) : (
+                    <View style={[styles.champArt, { backgroundColor: palette.surface }]} />
+                  )}
+                  <Text numberOfLines={1} style={[styles.champTitle, { color: palette.text1 }]}>{a.title}</Text>
+                  <Text numberOfLines={1} style={[styles.champMeta, { color: palette.text3 }]}>{a.artist}</Text>
+                </Card>
+              </Pressable>
+            ))}
+            {archivePicks.length > 12 ? (
+              <Pressable onPress={() => router.push(`/club/${id}/archive`)}>
+                <Card style={{ ...styles.champCard, justifyContent: 'center', minHeight: 140 }}>
+                  <Text style={[styles.moreCard, { color: palette.text2 }]}>+{archivePicks.length - 12}</Text>
+                  <Text style={[styles.champMeta, { color: palette.text3 }]}>in the Archive</Text>
+                </Card>
+              </Pressable>
+            ) : null}
+          </ScrollView>
+        </>
+      ) : null}
+
+      {/* Hot takes they've dropped */}
+      {takes.length > 0 ? (
+        <>
+          <Text style={[styles.section, { color: palette.text2 }]}>MIC DROPS</Text>
+          {takes.map((t) => (
+            <Pressable
+              key={t.id}
+              onPress={() => router.push({ pathname: '/clubhouse/takes', params: { focus: String(t.id) } })}
+            >
+              <Card style={{ marginBottom: 8 }}>
+                <Text style={[styles.quote, { color: palette.text1 }]}>🔥 “{t.body}”</Text>
+                {t.agree + t.disagree > 0 ? (
+                  <Text style={[styles.quoteMeta, { color: palette.text3 }]}>
+                    {t.agree} agree · {t.disagree} disagree
+                  </Text>
+                ) : null}
+              </Card>
+            </Pressable>
+          ))}
+        </>
+      ) : null}
+
+      {/* Bars they've shouted out */}
+      {bars.length > 0 ? (
+        <>
+          <Text style={[styles.section, { color: palette.text2 }]}>BEST BARS</Text>
+          {bars.map((b) => (
+            <Pressable
+              key={b.id}
+              onPress={() => router.push({ pathname: '/clubhouse/bars', params: { focus: String(b.id) } })}
+            >
               <Card style={{ marginBottom: 8 }}>
                 <View style={styles.trackRow}>
-                  {a.artwork_url ? (
-                    <Image source={{ uri: a.artwork_url }} style={styles.trackArt} contentFit="cover" />
-                  ) : (
-                    <View style={[styles.trackArt, { backgroundColor: palette.surface }]} />
-                  )}
+                  {b.artwork_url ? (
+                    <Image source={{ uri: b.artwork_url }} style={styles.barArt} contentFit="cover" />
+                  ) : null}
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={[styles.trackName, { color: palette.text1 }]} numberOfLines={1}>
-                      {a.title}
+                    <Text style={[styles.quote, { color: palette.text1 }]} numberOfLines={3}>
+                      🎤 “{b.lyric}”
                     </Text>
-                    <Text style={[styles.trackArtist, { color: palette.text2 }]} numberOfLines={1}>
-                      {a.artist}
+                    <Text style={[styles.quoteMeta, { color: palette.text3 }]} numberOfLines={1}>
+                      {b.title}{b.artist ? ` · ${b.artist}` : ''}{b.avg != null ? ` · goes ${b.avg.toFixed(1)}/10 hard` : ''}
                     </Text>
                   </View>
                 </View>
@@ -351,30 +442,168 @@ export default function MemberProfile() {
         </>
       ) : null}
 
-      {/* Recent posts */}
+      {/* Recent posts — artwork rail, matching the picks/champions rails */}
       {posts.length > 0 ? (
         <>
           <Text style={[styles.section, { color: palette.text2 }]}>RECENTLY SHARED</Text>
-          {posts.map((p) => (
-            <Pressable
-              key={p.id}
-              onPress={() => router.push({ pathname: '/clubhouse/activity', params: { focus: String(p.id) } })}
-            >
-              <Card style={{ marginBottom: 8 }}>
-                <Text style={[styles.trackName, { color: palette.text1 }]} numberOfLines={1}>
-                  {p.title}
-                </Text>
-                {p.artist ? (
-                  <Text style={[styles.trackArtist, { color: palette.text2 }]} numberOfLines={1}>
-                    {p.artist}
-                  </Text>
-                ) : null}
-              </Card>
-            </Pressable>
-          ))}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galleryRow}>
+            {posts.map((p) => {
+              const art = (p.metadata as { artwork?: string } | null)?.artwork;
+              return (
+                <Pressable
+                  key={p.id}
+                  // Album suggestions live in The Queue, not Club Radio —
+                  // mirror the activity feed's routing split.
+                  onPress={() =>
+                    p.is_album_suggestion
+                      ? router.push({ pathname: '/club/[id]/suggestions', params: { id: String(id) } })
+                      : router.push({ pathname: '/clubhouse/activity', params: { focus: String(p.id) } })
+                  }
+                >
+                  <Card style={styles.champCard}>
+                    {art ? (
+                      <Image source={{ uri: art }} style={styles.champArt} contentFit="cover" />
+                    ) : (
+                      <View style={{ ...styles.champArt, backgroundColor: palette.surface, alignItems: 'center', justifyContent: 'center' }}>
+                        <Text style={{ fontSize: 26 }}>🎧</Text>
+                      </View>
+                    )}
+                    <Text numberOfLines={1} style={[styles.champTitle, { color: palette.text1 }]}>{p.title}</Text>
+                    <Text numberOfLines={1} style={[styles.champMeta, { color: palette.text3 }]}>{p.artist || ' '}</Text>
+                  </Card>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
         </>
       ) : null}
     </Screen>
+  );
+}
+
+// A featured track as a record on the platter: circular album art on a vinyl
+// rim, slowly rotating on its axis (SpinningRecord's loop, at 33⅓-ish pace).
+// No artwork → a bare platter.
+function SpinningTrack({ uri, size = 92 }: { uri: string | null; size?: number }) {
+  const { palette, isDark } = useTheme();
+  const spin = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.timing(spin, { toValue: 1, duration: 24000, easing: Easing.linear, useNativeDriver: true }),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [spin]);
+
+  const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+  const vinyl = isDark ? '#161616' : '#1c1c1a';
+
+  return (
+    <Animated.View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        backgroundColor: vinyl,
+        alignItems: 'center',
+        justifyContent: 'center',
+        transform: [{ rotate }],
+      }}
+    >
+      {uri ? (
+        <Image
+          source={{ uri }}
+          style={{ width: size - 12, height: size - 12, borderRadius: (size - 12) / 2 }}
+          contentFit="cover"
+        />
+      ) : (
+        <View style={{ width: size - 12, height: size - 12, borderRadius: (size - 12) / 2, backgroundColor: palette.surface }} />
+      )}
+      {/* Spindle hole — the fixed axis the record turns on. */}
+      <View
+        style={{
+          position: 'absolute',
+          width: Math.max(6, size * 0.09),
+          height: Math.max(6, size * 0.09),
+          borderRadius: size,
+          backgroundColor: vinyl,
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.25)',
+        }}
+      />
+    </Animated.View>
+  );
+}
+
+// Emoji trophy cases with counts; tap a case to expand its receipts.
+function TrophyShelf({ data }: { data: StudioMemberStats }) {
+  const { palette } = useTheme();
+  const [open, setOpen] = useState<string | null>(null);
+
+  const cases: { key: string; emoji: string; label: string; count: number; receipts: string[] }[] = [
+    {
+      key: 'showdown',
+      emoji: '🏆',
+      label: 'Showdown',
+      count: data.showdown_wins.length,
+      receipts: data.showdown_wins.map((w) => `Cycle ${w.cycle_number} · “${w.title}”${w.theme ? ` (${w.theme})` : ''}`),
+    },
+    {
+      key: 'aux',
+      emoji: '🎚️',
+      label: 'Aux Battle',
+      count: data.aux_wins.length,
+      receipts: data.aux_wins.map((w) => `Cycle ${w.cycle_number} · “${w.theme}”`),
+    },
+    {
+      key: 'crown',
+      emoji: '🎱',
+      label: 'Bingo crown',
+      count: data.bingo_crowns.length,
+      receipts: data.bingo_crowns.map((c) => `First bingo of the game · ${new Date(c.at).toLocaleDateString()}`),
+    },
+    {
+      key: 'blackout',
+      emoji: '⬛',
+      label: 'Blackout',
+      count: data.blackouts.length,
+      receipts: data.blackouts.map((b) => `Full card · ${new Date(b.at).toLocaleDateString()}`),
+    },
+  ].filter((c) => c.count > 0);
+
+  if (cases.length === 0) return null;
+  const openCase = cases.find((c) => c.key === open) ?? null;
+
+  return (
+    <>
+      <Text style={[styles.section, { color: palette.text2 }]}>TROPHY SHELF</Text>
+      <Card>
+        <View style={styles.shelfRow}>
+          {cases.map((c) => (
+            <Pressable
+              key={c.key}
+              onPress={() => setOpen(open === c.key ? null : c.key)}
+              style={[
+                styles.trophyCase,
+                { borderColor: open === c.key ? palette.amber : palette.border, backgroundColor: open === c.key ? palette.amberBg : 'transparent' },
+              ]}
+            >
+              <Text style={styles.trophyEmoji}>{c.emoji}</Text>
+              <Text style={[styles.trophyCount, { color: palette.text1 }]}>×{c.count}</Text>
+              <Text style={[styles.trophyLabel, { color: palette.text3 }]}>{c.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+        {openCase
+          ? openCase.receipts.map((r, i) => (
+              <Text key={i} style={[styles.receipt, { color: palette.text2, borderTopColor: palette.border }]}>
+                {openCase.emoji} {r}
+              </Text>
+            ))
+          : null}
+      </Card>
+    </>
   );
 }
 
@@ -403,7 +632,22 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   section: { fontFamily: fonts.monoMedium, fontSize: 9, letterSpacing: 2, marginTop: 18, marginBottom: 8 },
-  slotLabel: { fontFamily: fonts.monoMedium, fontSize: 9, letterSpacing: 1.5, marginBottom: 8 },
+  slotLabel: { fontFamily: fonts.sansMedium, fontSize: 10, letterSpacing: 0.4, marginBottom: 2, textAlign: 'center' },
+  pfpFrom: { fontFamily: fonts.sans, fontSize: 11, fontStyle: 'italic', maxWidth: 260 },
+  moreCard: { fontFamily: fonts.sansBold, fontSize: 22 },
+  rotationRow: { flexDirection: 'row', gap: 8 },
+  rotationCard: { flex: 1, alignItems: 'center', gap: 2, paddingHorizontal: 6 },
+  rotationTitle: { fontFamily: fonts.sansBold, fontSize: 12, textAlign: 'center' },
+  rotationMeta: { fontFamily: fonts.sans, fontSize: 11, textAlign: 'center' },
+  rotationCaption: { fontFamily: fonts.sans, fontSize: 10, lineHeight: 14, fontStyle: 'italic', marginTop: 4, textAlign: 'center' },
+  noteChip: {
+    fontSize: 11,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    overflow: 'hidden',
+  },
   trackRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   trackArt: { width: 48, height: 48, borderRadius: radius.sm },
   trackName: { fontFamily: fonts.sansBold, fontSize: 14 },
@@ -413,9 +657,23 @@ const styles = StyleSheet.create({
   emptySlot: { paddingVertical: 10, alignItems: 'center' },
   emptySlotText: { fontFamily: fonts.mono, fontSize: 12 },
   statGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  statCell: { width: '25%', alignItems: 'center', paddingVertical: 10 },
+  statCell: { width: '25%', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 2 },
   statCellValue: { fontFamily: fonts.sansBold, fontSize: 18 },
-  statCellLabel: { fontFamily: fonts.mono, fontSize: 8, letterSpacing: 0.3, marginTop: 3, textAlign: 'center' },
+  statCellLabel: { fontFamily: fonts.sansMedium, fontSize: 10, lineHeight: 13, marginTop: 3, textAlign: 'center' },
+  shelfRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  trophyCase: { alignItems: 'center', borderWidth: 1, borderRadius: radius.md, paddingVertical: 8, paddingHorizontal: 12, minWidth: 72 },
+  trophyEmoji: { fontSize: 22 },
+  trophyCount: { fontFamily: fonts.sansBold, fontSize: 13, marginTop: 2 },
+  trophyLabel: { fontFamily: fonts.sans, fontSize: 9, marginTop: 1 },
+  receipt: { fontFamily: fonts.sans, fontSize: 12, lineHeight: 17, paddingTop: 8, marginTop: 8, borderTopWidth: StyleSheet.hairlineWidth },
+  galleryRow: { gap: 8, paddingRight: 8 },
+  champCard: { width: 120, alignItems: 'center', gap: 4 },
+  champArt: { width: 96, height: 96, borderRadius: radius.sm },
+  champTitle: { fontFamily: fonts.sansBold, fontSize: 11, maxWidth: 104 },
+  champMeta: { fontFamily: fonts.sans, fontSize: 10, maxWidth: 104 },
+  quote: { fontFamily: fonts.sansMedium, fontSize: 13, lineHeight: 19, fontStyle: 'italic' },
+  quoteMeta: { fontFamily: fonts.sans, fontSize: 11, marginTop: 4 },
+  barArt: { width: 40, height: 40, borderRadius: radius.sm },
   statBox: { alignItems: 'flex-end', minWidth: 36 },
   statValue: { fontFamily: fonts.sansBold, fontSize: 16 },
   statUnit: { fontFamily: fonts.mono, fontSize: 8, marginTop: 1 },

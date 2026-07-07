@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -23,6 +23,7 @@ import {
   bracketRounds,
   computeConsensus,
   computeStats,
+  deriveImportPicks,
   fetchSeedCandidates,
   matchupFeeders,
   nextMatchups,
@@ -47,11 +48,12 @@ function formatPlays(n: number): string {
 export default function TrackMadnessScreen() {
   const id = useCurrentClubStore((s) => s.clubId) ?? undefined;
   const router = useRouter();
+  const { focus, member } = useLocalSearchParams<{ focus?: string; member?: string }>();
   const { palette } = useTheme();
   const userId = useAuthStore((s) => s.userId);
   const { cycle } = useCycle(id);
   const { members, myRole } = useClubData(id);
-  const { live, archive, loading, refresh, loadBracket } = useTrackMadness(id);
+  const { live, archive, personal, loading, refresh, loadBracket } = useTrackMadness(id);
   const { refreshing, onRefresh } = useRefresh(refresh);
 
   const canRun = myRole === 'owner' || myRole === 'admin' || (!!cycle && cycle.status === 'open' && cycle.picker_id === userId);
@@ -71,13 +73,83 @@ export default function TrackMadnessScreen() {
   // A closed bracket the member tapped open from the archive shelf.
   const [archived, setArchived] = useState<BracketState | null>(null);
   const openArchived = async (b: Bracket) => setArchived(await loadBracket(b));
+  // A solo bracket (open or closed) the owner tapped open.
+  const [solo, setSolo] = useState<BracketState | null>(null);
+  // One member's copy of a CLUB bracket (profile deep link): their champion +
+  // head-to-heads, with a jump to the full board.
+  const [breakdown, setBreakdown] = useState<{ state: BracketState; profileId: string } | null>(null);
+  const openSolo = async (b: Bracket) => setSolo(await loadBracket(b));
+  const [startingSolo, setStartingSolo] = useState(false);
+
+  // Deep link from a profile's champion card: open that bracket directly —
+  // including another member's closed solo run, which lives in no list here.
+  const focusedRef = useRef<string | null>(null);
+  // True while the deep-linked bracket loads — the screen holds on the record
+  // spinner instead of flashing the main room first.
+  const [focusLoading, setFocusLoading] = useState(!!focus);
+  useEffect(() => {
+    if (!focus || focusedRef.current === focus) return;
+    focusedRef.current = focus;
+    setFocusLoading(true);
+    (async () => {
+      try {
+        const { data } = await trackMadness.get(String(focus));
+        if (data) {
+          const state = await loadBracket(data as Bracket);
+          if ((data as Bracket).scope === 'personal') setSolo(state);
+          else if (member) setBreakdown({ state, profileId: String(member) });
+          else setArchived(state);
+        }
+      } finally {
+        setFocusLoading(false);
+      }
+    })();
+  }, [focus, member, loadBracket]);
+  // A finished solo run of the same artist as the live club bracket — offered
+  // as a one-tap "import my rankings" starting point.
+  const importCandidate = useMemo(() => {
+    if (!live) return null;
+    return (
+      personal.find(
+        (p) =>
+          p.status === 'closed' &&
+          ((p.artist_spotify_id && p.artist_spotify_id === live.bracket.artist_spotify_id) ||
+            p.artist_name.toLowerCase() === live.bracket.artist_name.toLowerCase()),
+      ) ?? null
+    );
+  }, [live, personal]);
+
+  const importSolo = async (): Promise<string | null> => {
+    if (!live || !importCandidate) return 'Nothing to import.';
+    const soloState = await loadBracket(importCandidate);
+    const myPicks = soloState.picks.filter((pk) => pk.profile_id === userId);
+    const picks = deriveImportPicks(live.bracket.size, live.tracks, soloState.tracks, myPicks);
+    const { error } = await trackMadness.importPicks(live.bracket.id, picks);
+    if (error) return error.message ?? 'Import failed.';
+    refresh();
+    return null;
+  };
 
   if (!id) return <NoClubSelected what="track madness" />;
 
   return (
     <Screen onRefresh={onRefresh} refreshing={refreshing}>
       <View style={styles.topbar}>
-        <Pressable onPress={() => (archived ? setArchived(null) : router.back())} hitSlop={8}>
+        <Pressable
+          onPress={() => {
+            // Opened via a profile deep link → back returns to that profile,
+            // not the room's main view.
+            if (focusedRef.current && router.canGoBack()) {
+              router.back();
+              return;
+            }
+            if (breakdown) setBreakdown(null);
+            else if (solo) setSolo(null);
+            else if (archived) setArchived(null);
+            else router.back();
+          }}
+          hitSlop={8}
+        >
           <Text style={[styles.back, { color: palette.text2 }]}>←</Text>
         </Pressable>
         <View style={{ flex: 1 }}>
@@ -86,16 +158,81 @@ export default function TrackMadnessScreen() {
         </View>
       </View>
 
-      {archived ? (
+      {focusLoading ? (
+        <Loading label="Pulling the bracket…" />
+      ) : breakdown ? (
+        <MemberBreakdown
+          state={breakdown.state}
+          profileId={breakdown.profileId}
+          userId={userId}
+          mentionMembers={mentionMembers}
+          onChange={async () => setBreakdown({ ...breakdown, state: await loadBracket(breakdown.state.bracket) })}
+          onFullBoard={() => {
+            setArchived(breakdown.state);
+            setBreakdown(null);
+          }}
+        />
+      ) : solo ? (
+        <LiveBracket
+          state={solo}
+          userId={userId}
+          canRun={solo.bracket.status === 'open'}
+          solo
+          mentionMembers={mentionMembers}
+          onChange={async () => {
+            // Re-load; a crown closes solo brackets, so fall back to refresh.
+            const updated = await loadBracket(solo.bracket);
+            setSolo(updated);
+            refresh();
+          }}
+        />
+      ) : archived ? (
         <LiveBracket state={archived} userId={userId} canRun={false} mentionMembers={mentionMembers} onChange={() => openArchived(archived.bracket)} />
       ) : (
         <>
           {loading ? <Loading /> : live ? (
-            <LiveBracket state={live} userId={userId} canRun={canRun} mentionMembers={mentionMembers} onChange={refresh} />
+            <LiveBracket
+              state={live}
+              userId={userId}
+              canRun={canRun}
+              mentionMembers={mentionMembers}
+              onChange={refresh}
+              importLabel={importCandidate ? `⚡ Import my solo ${importCandidate.artist_name} rankings` : null}
+              onImport={importSolo}
+            />
           ) : canRun ? (
             <CreateBracket clubId={id} onCreated={refresh} />
           ) : (
             <InlineNote text="No bracket live right now — an admin or the picker can start one." />
+          )}
+
+          {/* Solo runs: private brackets on your own time. */}
+          <Text style={[styles.sectionTitle, { color: palette.text3 }]}>MY SOLO BRACKETS</Text>
+          {personal.map((b) => (
+            <Pressable key={b.id} onPress={() => openSolo(b)}>
+              <Card style={styles.archiveRow}>
+                {b.artist_image_url ? <Image source={{ uri: b.artist_image_url }} style={styles.artistArt} contentFit="cover" /> : null}
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text numberOfLines={1} style={[styles.sTitle, { color: palette.text1 }]}>{b.artist_name}</Text>
+                  <Text style={[styles.sArtist, { color: palette.text3 }]}>
+                    {b.size} songs · {b.status === 'open' ? 'in progress' : `crowned ${b.closed_at ? timeAgo(b.closed_at) : ''}`}
+                  </Text>
+                </View>
+                <Text style={{ color: palette.text3 }}>›</Text>
+              </Card>
+            </Pressable>
+          ))}
+          {startingSolo ? (
+            <CreateBracket
+              clubId={id}
+              scope="personal"
+              onCreated={() => {
+                setStartingSolo(false);
+                refresh();
+              }}
+            />
+          ) : (
+            <Button title="🎧 Start a solo bracket" variant="ghost" onPress={() => setStartingSolo(true)} />
           )}
 
           {archive.length > 0 ? (
@@ -127,7 +264,7 @@ export default function TrackMadnessScreen() {
 // Creation flow: artist search → seeded review list → publish.
 // ─────────────────────────────────────────────────────────
 
-function CreateBracket({ clubId, onCreated }: { clubId: string; onCreated: () => void }) {
+function CreateBracket({ clubId, onCreated, scope = 'club' }: { clubId: string; onCreated: () => void; scope?: 'club' | 'personal' }) {
   const { palette } = useTheme();
   const [artist, setArtist] = useState<SpotifyArtist | null>(null);
   const [candidates, setCandidates] = useState<SeedCandidate[] | null>(null);
@@ -210,6 +347,7 @@ function CreateBracket({ clubId, onCreated }: { clubId: string; onCreated: () =>
         preview_url: apple[i]?.previewUrl ?? null,
         playcount: c.playcount,
       })),
+      scope,
     );
     setPublishing(false);
     setPublishStep('');
@@ -223,10 +361,11 @@ function CreateBracket({ clubId, onCreated }: { clubId: string; onCreated: () =>
   if (!artist || !candidates) {
     return (
       <Card>
-        <Label>Start a bracket</Label>
+        <Label>{scope === 'personal' ? 'Start a solo bracket' : 'Start a bracket'}</Label>
         <Text style={[styles.hint, { color: palette.text3 }]}>
-          Pick an artist — their most-played songs get seeded into a tournament and every
-          member fills out their own bracket.
+          {scope === 'personal'
+            ? 'Your own private tournament — pick any artist, crown a champion on your own time. If the club ever runs this artist, you can import your rankings.'
+            : 'Pick an artist — their most-played songs get seeded into a tournament and every member fills out their own bracket.'}
         </Text>
         <ArtistSearch onPick={seed} disabled={seeding} />
         {seeding ? <InlineNote text="Building the field — ranking their catalog…" /> : null}
@@ -303,7 +442,7 @@ function CreateBracket({ clubId, onCreated }: { clubId: string; onCreated: () =>
       ) : null}
 
       <Button
-        title={publishing ? publishStep || 'Publishing…' : `🏆 Publish the ${size}-song bracket`}
+        title={publishing ? publishStep || 'Publishing…' : scope === 'personal' ? `🎧 Start my ${size}-song bracket` : `🏆 Publish the ${size}-song bracket`}
         onPress={publish}
         loading={publishing}
         style={{ marginTop: 14 }}
@@ -422,12 +561,18 @@ function LiveBracket({
   canRun,
   mentionMembers,
   onChange,
+  solo = false,
+  importLabel = null,
+  onImport,
 }: {
   state: BracketState;
   userId: string | null;
   canRun: boolean;
   mentionMembers: MentionMember[];
   onChange: () => void;
+  solo?: boolean;
+  importLabel?: string | null;
+  onImport?: () => Promise<string | null>;
 }) {
   const { palette } = useTheme();
   const { bracket, tracks, picks, entries, progress, comments } = state;
@@ -556,7 +701,9 @@ function LiveBracket({
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={[styles.artistName, { color: palette.text1 }]}>{bracket.artist_name}</Text>
             <Text style={[styles.hint, { color: palette.text3 }]}>
-              {size}-song bracket · {closed ? 'closed' : `${doneCount} of ${progress.total} finished`}
+              {solo
+                ? `${size}-song solo bracket · ${closed ? 'crowned' : 'just you'}`
+                : `${size}-song bracket · ${closed ? 'closed' : `${doneCount} of ${progress.total} finished`}`}
             </Text>
           </View>
         </View>
@@ -568,6 +715,21 @@ function LiveBracket({
         ) : null}
       </Card>
       {error ? <InlineNote text={error} tone="error" /> : null}
+
+      {/* One-tap solo-rankings import — fresh brackets only (no picks yet) */}
+      {!solo && !closed && !iAmDone && importLabel && onImport && Object.keys(myPicks).length === 0 ? (
+        <Button
+          title={busy ? 'Importing…' : importLabel}
+          variant="ghost"
+          loading={busy}
+          onPress={async () => {
+            setBusy(true);
+            const err = await onImport();
+            setBusy(false);
+            if (err) setError(err);
+          }}
+        />
+      ) : null}
 
       {/* My versus flow */}
       {!closed && !iAmDone ? (
@@ -616,8 +778,31 @@ function LiveBracket({
         </>
       ) : null}
 
+      {/* Solo result: the owner's champion + their full head-to-head tree —
+          browsable by anyone who can see the bracket (i.e. once it's closed). */}
+      {solo && resultsVisible ? (() => {
+        const ownerEntry = entries.find((e) => e.completed_at) ?? null;
+        if (!ownerEntry) return null;
+        const ownerPicks = toPickMap(picks.filter((p) => p.profile_id === ownerEntry.profile_id));
+        const champ = ownerEntry.champion_track_id ? byId.get(ownerEntry.champion_track_id) : null;
+        const isMine = ownerEntry.profile_id === userId;
+        const m = mentionMembers.find((mm) => mm.profile_id === ownerEntry.profile_id) ?? null;
+        return (
+          <>
+            <Card>
+              <Label>{isMine ? 'Your champion' : `${memberName(m?.display_name, m?.email)}'s champion`}</Label>
+              {champ ? <TrackRow track={champ} big /> : null}
+            </Card>
+            <Text style={[styles.sectionTitle, { color: palette.text3 }]}>
+              {isMine ? 'MY HEAD-TO-HEADS' : 'THEIR HEAD-TO-HEADS'}
+            </Text>
+            <BracketTree size={size} tracks={tracks} picks={ownerPicks} />
+          </>
+        );
+      })() : null}
+
       {/* Results: consensus + stats + member champions (spoiler-gated) */}
-      {resultsVisible ? (
+      {!solo && resultsVisible ? (
         <>
           {iAmDone && !closed ? (
             <InlineNote text={`You're locked in${doneCount < progress.total ? ` — ${progress.total - doneCount} still picking` : ''}.`} />
@@ -677,7 +862,76 @@ function LiveBracket({
         </>
       ) : null}
 
-      {/* Comments */}
+      {/* Comments — solo brackets included: once a run is browsable, the club
+          can talk trash about the owner's picks right here. */}
+      <CommentThread state={state} userId={userId} mentionMembers={mentionMembers} onChange={onChange} />
+    </>
+  );
+}
+
+// One member's copy of a club bracket, as linked from their profile shelf:
+// champion, their full head-to-head tree, the shared comment thread, and a
+// jump to the official board (consensus + everyone's brackets). Spoiler guard
+// still applies server-side: an unfinished viewer gets no picks back.
+function MemberBreakdown({
+  state,
+  profileId,
+  userId,
+  mentionMembers,
+  onChange,
+  onFullBoard,
+}: {
+  state: BracketState;
+  profileId: string;
+  userId: string | null;
+  mentionMembers: MentionMember[];
+  onChange: () => void;
+  onFullBoard: () => void;
+}) {
+  const { palette } = useTheme();
+  const { bracket, tracks, picks, entries } = state;
+  const byId = useMemo(() => new Map(tracks.map((t) => [t.id, t])), [tracks]);
+  const m = mentionMembers.find((mm) => mm.profile_id === profileId) ?? null;
+  const who = profileId === userId ? 'Your' : `${memberName(m?.display_name, m?.email)}'s`;
+  const entry = entries.find((e) => e.profile_id === profileId) ?? null;
+  const theirPicks = useMemo(
+    () => toPickMap(picks.filter((p) => p.profile_id === profileId)),
+    [picks, profileId],
+  );
+  const champ = entry?.champion_track_id ? byId.get(entry.champion_track_id) : null;
+
+  return (
+    <>
+      <Card>
+        <View style={styles.reviewHead}>
+          {bracket.artist_image_url ? <Image source={{ uri: bracket.artist_image_url }} style={styles.artistArtLg} contentFit="cover" /> : null}
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={[styles.artistName, { color: palette.text1 }]}>{bracket.artist_name}</Text>
+            <Text style={[styles.hint, { color: palette.text3 }]}>{who} bracket · {bracket.size} songs</Text>
+          </View>
+        </View>
+      </Card>
+
+      {champ ? (
+        <Card>
+          <Label>{who} champion</Label>
+          <TrackRow track={champ} big />
+        </Card>
+      ) : null}
+
+      {Object.keys(theirPicks).length > 0 ? (
+        <>
+          <Text style={[styles.sectionTitle, { color: palette.text3 }]}>
+            {profileId === userId ? 'MY HEAD-TO-HEADS' : 'THEIR HEAD-TO-HEADS'}
+          </Text>
+          <BracketTree size={bracket.size} tracks={tracks} picks={theirPicks} />
+        </>
+      ) : (
+        <InlineNote text="Their picks unlock once you finish your own bracket (no spoilers)." />
+      )}
+
+      <Button title="🏆 See the official board" variant="ghost" onPress={onFullBoard} />
+
       <CommentThread state={state} userId={userId} mentionMembers={mentionMembers} onChange={onChange} />
     </>
   );

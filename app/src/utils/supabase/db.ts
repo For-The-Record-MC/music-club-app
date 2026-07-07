@@ -33,6 +33,13 @@ export type BracketTrack = Tables<'bracket_tracks'>;
 export type BracketEntry = Tables<'bracket_entries'>;
 export type BracketPick = Tables<'bracket_picks'>;
 export type BracketComment = Tables<'bracket_comments'>;
+export type BingoGame = Tables<'bingo_games'>;
+export type BingoGameCategory = Tables<'bingo_game_categories'>;
+export type BingoCard = Tables<'bingo_cards'>;
+export type BingoBox = Tables<'bingo_boxes'>;
+export type BingoClaim = Tables<'bingo_claims'>;
+export type BingoChallenge = Tables<'bingo_challenges'>;
+export type BingoComment = Tables<'bingo_comments'>;
 export type SongNoteShare = Tables<'song_note_shares'>;
 export type AlbumImpression = Tables<'album_impressions'>;
 export type VibeTag = Tables<'vibe_tags'>;
@@ -940,6 +947,15 @@ export const musicalTakes = {
       )
       .eq('club_id', clubId)
       .order('created_at', { ascending: false }),
+  // A member's recent takes, for their profile page.
+  listByAuthor: (clubId: string, profileId: string, limit = 3) =>
+    supabase
+      .from('musical_takes')
+      .select('id, body, created_at, musical_take_positions(value)')
+      .eq('club_id', clubId)
+      .eq('author_id', profileId)
+      .order('created_at', { ascending: false })
+      .limit(limit),
   create: (clubId: string, authorId: string, body: string) =>
     supabase
       .from('musical_takes')
@@ -975,6 +991,15 @@ interface BarSongInput {
   appleUrl: string | null;
 }
 export const bestBars = {
+  // A member's recent bars, for their profile page.
+  listByAuthor: (clubId: string, profileId: string, limit = 3) =>
+    supabase
+      .from('best_bars')
+      .select('id, title, artist, artwork_url, lyric, created_at, best_bar_ratings(score)')
+      .eq('club_id', clubId)
+      .eq('author_id', profileId)
+      .order('created_at', { ascending: false })
+      .limit(limit),
   list: (clubId: string) =>
     supabase
       .from('best_bars')
@@ -1196,6 +1221,7 @@ export const trackMadness = {
       .select('*')
       .eq('club_id', clubId)
       .eq('status', 'open')
+      .eq('scope', 'club')
       .maybeSingle(),
   archive: (clubId: string) =>
     supabase
@@ -1203,7 +1229,20 @@ export const trackMadness = {
       .select('*')
       .eq('club_id', clubId)
       .eq('status', 'closed')
+      .eq('scope', 'club')
       .order('closed_at', { ascending: false }),
+  // One bracket by id — the profile shelf's deep link. RLS decides visibility
+  // (others' solos only when closed).
+  get: (bracketId: string) => supabase.from('brackets').select('*').eq('id', bracketId).maybeSingle(),
+  // The caller's solo runs (open and closed). RLS hides others' open solos.
+  myPersonal: (clubId: string, profileId: string) =>
+    supabase
+      .from('brackets')
+      .select('*')
+      .eq('club_id', clubId)
+      .eq('scope', 'personal')
+      .eq('owner_id', profileId)
+      .order('created_at', { ascending: false }),
   tracks: (bracketId: string) =>
     supabase.from('bracket_tracks').select('*').eq('bracket_id', bracketId).order('seed'),
   picks: (bracketId: string) =>
@@ -1222,6 +1261,7 @@ export const trackMadness = {
     artistImageUrl: string | null,
     size: number,
     tracks: Json,
+    scope: 'club' | 'personal' = 'club',
   ) =>
     supabase.rpc('create_bracket', {
       p_club: clubId,
@@ -1230,7 +1270,11 @@ export const trackMadness = {
       p_artist_image_url: artistImageUrl as string,
       p_size: size,
       p_tracks: tracks,
+      p_scope: scope,
     }),
+  // Bulk pick import (the "use my solo rankings" flow) — requires a clean slate.
+  importPicks: (bracketId: string, picks: { round: number; slot: number; winner: string }[]) =>
+    supabase.rpc('import_bracket_picks', { p_bracket: bracketId, p_picks: picks as unknown as Json }),
   savePick: (bracketId: string, round: number, slot: number, winnerTrackId: string) =>
     supabase.rpc('save_bracket_pick', {
       p_bracket: bracketId,
@@ -1251,6 +1295,152 @@ export const trackMadness = {
   addComment: (bracketId: string, authorId: string, text: string) =>
     supabase.from('bracket_comments').insert({ bracket_id: bracketId, author_id: authorId, text: text.trim() }),
   removeComment: (id: string) => supabase.from('bracket_comments').delete().eq('id', id),
+};
+
+// Listening Bingo — cycle-tied 5x5 category bingo. Boards are fully public
+// inside the club (no spoiler guard), so reads are plain selects; all writes
+// flow through security-definer RPCs that enforce the game rules (time-gated
+// listens, per-card song uniqueness, claim/verify state machine).
+export const listeningBingo = {
+  open: (clubId: string) =>
+    supabase.from('bingo_games').select('*').eq('club_id', clubId).eq('status', 'open').maybeSingle(),
+  archive: (clubId: string) =>
+    supabase
+      .from('bingo_games')
+      .select('*')
+      .eq('club_id', clubId)
+      .eq('status', 'closed')
+      .order('closed_at', { ascending: false }),
+  // The built-in pool for the launch screen (admin trims/adds before dealing).
+  builtinCategories: () => supabase.from('bingo_categories').select('*').order('created_at'),
+  gameCategories: (gameId: string) =>
+    supabase.from('bingo_game_categories').select('*').eq('game_id', gameId),
+  cards: (gameId: string) =>
+    supabase
+      .from('bingo_cards')
+      .select('*, profiles(display_name, email, avatar_color, avatar_url)')
+      .eq('game_id', gameId)
+      .order('dealt_at'),
+  boxes: (gameId: string) =>
+    supabase
+      .from('bingo_boxes')
+      .select('*, bingo_cards!inner(game_id)')
+      .eq('bingo_cards.game_id', gameId)
+      .order('position'),
+  claims: (gameId: string) =>
+    supabase
+      .from('bingo_claims')
+      .select('*, bingo_cards!inner(game_id, profile_id), bingo_challenges(*)')
+      .eq('bingo_cards.game_id', gameId)
+      .order('claimed_at'),
+  create: (clubId: string, labels: string[]) =>
+    supabase.rpc('create_bingo_game', { p_club: clubId, p_labels: labels }),
+  deal: (gameId: string) => supabase.rpc('deal_bingo_card', { p_game: gameId }),
+  setSong: (
+    boxId: string,
+    song: {
+      title: string;
+      artist: string;
+      artworkUrl?: string | null;
+      spotifyUrl?: string | null;
+      appleUrl?: string | null;
+      spotifyId?: string | null;
+      durationMs?: number | null;
+      lastfmPlaycount?: number | null;
+    },
+  ) =>
+    supabase.rpc('set_bingo_song', {
+      p_box: boxId,
+      p_title: song.title,
+      p_artist: song.artist,
+      p_artwork_url: song.artworkUrl ?? undefined,
+      p_spotify_url: song.spotifyUrl ?? undefined,
+      p_apple_url: song.appleUrl ?? undefined,
+      p_spotify_id: song.spotifyId ?? undefined,
+      p_duration_ms: song.durationMs ?? undefined,
+      p_lastfm_playcount: song.lastfmPlaycount ?? undefined,
+    }),
+  // Backfill/refresh the rarity playcount on one of the caller's own boxes
+  // (metadata only — song and listen state untouched).
+  setPlaycount: (boxId: string, playcount: number) =>
+    supabase.rpc('set_bingo_playcount', { p_box: boxId, p_playcount: playcount }),
+  startListen: (boxId: string) => supabase.rpc('start_bingo_listen', { p_box: boxId }),
+  markListened: (boxId: string) => supabase.rpc('mark_bingo_listened', { p_box: boxId }),
+  claim: (cardId: string, lineIndex: number) =>
+    supabase.rpc('claim_bingo', { p_card: cardId, p_line: lineIndex }),
+  resolveClaim: (claimId: string, approve: boolean, challenges: { position: number; reason: string }[] = []) =>
+    supabase.rpc('resolve_bingo_claim', {
+      p_claim: claimId,
+      p_approve: approve,
+      p_challenges: challenges as unknown as Json,
+    }),
+  close: (gameId: string) => supabase.rpc('close_bingo_game', { p_game: gameId }),
+  // Launcher/admin escape hatch for a botched launch (open games only; RLS).
+  remove: (gameId: string) => supabase.from('bingo_games').delete().eq('id', gameId),
+  comments: (gameId: string) =>
+    supabase
+      .from('bingo_comments')
+      .select('*, profiles(display_name, email, avatar_color, avatar_url)')
+      .eq('game_id', gameId)
+      .order('created_at'),
+  addComment: (gameId: string, authorId: string, text: string) =>
+    supabase.from('bingo_comments').insert({ game_id: gameId, author_id: authorId, text: text.trim() }),
+  removeComment: (id: string) => supabase.from('bingo_comments').delete().eq('id', id),
+};
+
+// Studio trophies + cycle Studio recap (TROPHIES_RECAP_PLAN.md). Both are
+// read-only jsonb RPCs computed from the game tables — no trophy writes exist
+// anywhere, so results are always retroactively complete.
+export interface StudioMemberStats {
+  showdown_wins: { cycle_number: number; title: string; artist: string; theme: string }[];
+  aux_wins: { cycle_number: number; theme: string }[];
+  bingo_crowns: { at: string }[];
+  blackouts: { at: string }[];
+  champions: {
+    bracket_id: string;
+    artist_name: string;
+    size: number;
+    closed_at: string | null;
+    champ_title: string;
+    champ_artwork_url: string | null;
+    champ_seed: number;
+    scope: 'club' | 'personal';
+  }[];
+  stats: {
+    brackets_finished: number;
+    takes: number;
+    bars: number;
+    boxes_lit: number;
+    bingos: number;
+    conversions: number;
+  };
+}
+
+export interface CycleStudioRecap {
+  showdown: {
+    theme: string;
+    podium: { title: string; artist: string; artwork_url: string | null; submitter: string | null; net: number }[];
+  } | null;
+  aux: { theme: string; a: string | null; b: string | null; winner: string | null; a_votes: number; b_votes: number }[];
+  playlist: { theme: string; song_count: number; contributor_count: number } | null;
+  bingo: {
+    cards: number;
+    standings: { name: string | null; line_index: number; self_certified: boolean }[];
+    blackouts: (string | null)[];
+  } | null;
+  brackets: { id: string; artist_name: string; size: number; closed_at: string | null }[];
+  window: {
+    takes: { author: string | null; snippet: string }[];
+    bars: { author: string | null; snippet: string; title: string }[];
+    share_count: number;
+    convince_conversions: number;
+  };
+}
+
+export const studio = {
+  memberStats: (clubId: string, profileId: string) =>
+    supabase.rpc('member_studio_stats', { p_club: clubId, p_profile: profileId }),
+  cycleRecap: (cycleId: string) => supabase.rpc('cycle_studio_recap', { p_cycle: cycleId }),
 };
 
 // Per-cycle meeting board — short notes about the upcoming meeting (new times,

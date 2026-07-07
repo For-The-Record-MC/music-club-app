@@ -130,7 +130,6 @@ export function ClubSwitcher() {
             trailing={THEME_LABEL[themeMode]}
             onPress={cycleMode}
           />
-          <MenuRow icon="🔔" label="Notifications" onPress={() => go('/notifications')} />
           <MenuRow icon="❓" label="How the club works" onPress={() => go('/how-it-works')} />
           <MenuRow icon="⤴" label="Sign out" tone="danger" onPress={() => { setOpen(false); signOut(); }} />
           <MenuRow icon="🗑" label="Delete account" tone="danger" onPress={deleteAccount} />

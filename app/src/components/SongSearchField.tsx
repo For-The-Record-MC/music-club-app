@@ -17,6 +17,10 @@ export interface PickedSong {
   spotifyUrl: string | null;
   spotifyUri: string | null;
   appleUrl: string | null;
+  // Spotify-sourced extras (null when the pick came from iTunes). Listening
+  // Bingo uses durationMs for its listen gate and spotifyId for dedup.
+  spotifyId: string | null;
+  durationMs: number | null;
 }
 
 interface Result {
@@ -27,6 +31,8 @@ interface Result {
   spotifyUrl: string | null;
   spotifyUri: string | null;
   appleUrl: string | null;
+  spotifyId: string | null;
+  durationMs: number | null;
 }
 
 // Self-contained song type-ahead: Spotify-first search falling back to iTunes,
@@ -63,6 +69,8 @@ export function SongSearchField({
           spotifyUrl: s.spotifyUrl,
           spotifyUri: s.uri,
           appleUrl: null,
+          spotifyId: s.id,
+          durationMs: s.durationMs ?? null,
         }))
       : (await searchItunes(term)).map((s) => ({
           key: String(s.trackId),
@@ -72,6 +80,8 @@ export function SongSearchField({
           spotifyUrl: null,
           spotifyUri: null,
           appleUrl: s.appleUrl,
+          spotifyId: null,
+          durationMs: null,
         }));
     if (seq === searchSeq.current) setResults(found);
   };
@@ -87,6 +97,8 @@ export function SongSearchField({
       spotifyUrl: r.spotifyUrl,
       spotifyUri: r.spotifyUri,
       appleUrl: r.appleUrl,
+      spotifyId: r.spotifyId,
+      durationMs: r.durationMs,
     };
     onPick(song);
     // Resolve the missing service's link (best-effort, guarded against a newer pick).

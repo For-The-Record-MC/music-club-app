@@ -609,6 +609,336 @@ export type Database = {
           },
         ]
       }
+      bingo_boxes: {
+        Row: {
+          activated_at: string | null
+          apple_url: string | null
+          artist: string
+          artwork_url: string | null
+          card_id: string
+          category_id: string
+          duration_ms: number | null
+          id: string
+          lastfm_playcount: number | null
+          listen_started_at: string | null
+          position: number
+          spotify_id: string | null
+          spotify_url: string | null
+          title: string | null
+        }
+        Insert: {
+          activated_at?: string | null
+          apple_url?: string | null
+          artist?: string
+          artwork_url?: string | null
+          card_id: string
+          category_id: string
+          duration_ms?: number | null
+          id?: string
+          lastfm_playcount?: number | null
+          listen_started_at?: string | null
+          position: number
+          spotify_id?: string | null
+          spotify_url?: string | null
+          title?: string | null
+        }
+        Update: {
+          activated_at?: string | null
+          apple_url?: string | null
+          artist?: string
+          artwork_url?: string | null
+          card_id?: string
+          category_id?: string
+          duration_ms?: number | null
+          id?: string
+          lastfm_playcount?: number | null
+          listen_started_at?: string | null
+          position?: number
+          spotify_id?: string | null
+          spotify_url?: string | null
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bingo_boxes_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "bingo_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bingo_boxes_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "bingo_game_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bingo_cards: {
+        Row: {
+          dealt_at: string
+          game_id: string
+          id: string
+          profile_id: string
+          qualifying_lines: number[]
+        }
+        Insert: {
+          dealt_at?: string
+          game_id: string
+          id?: string
+          profile_id: string
+          qualifying_lines: number[]
+        }
+        Update: {
+          dealt_at?: string
+          game_id?: string
+          id?: string
+          profile_id?: string
+          qualifying_lines?: number[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bingo_cards_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "bingo_games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bingo_cards_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bingo_categories: {
+        Row: {
+          created_at: string
+          id: string
+          label: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string
+        }
+        Relationships: []
+      }
+      bingo_challenges: {
+        Row: {
+          challenger_id: string
+          claim_id: string
+          created_at: string
+          id: string
+          position: number
+          reason: string
+        }
+        Insert: {
+          challenger_id: string
+          claim_id: string
+          created_at?: string
+          id?: string
+          position: number
+          reason: string
+        }
+        Update: {
+          challenger_id?: string
+          claim_id?: string
+          created_at?: string
+          id?: string
+          position?: number
+          reason?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bingo_challenges_challenger_id_fkey"
+            columns: ["challenger_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bingo_challenges_claim_id_fkey"
+            columns: ["claim_id"]
+            isOneToOne: false
+            referencedRelation: "bingo_claims"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bingo_claims: {
+        Row: {
+          card_id: string
+          claimed_at: string
+          id: string
+          line_index: number
+          resolved_at: string | null
+          resolved_by: string | null
+          self_certified: boolean
+          status: string
+        }
+        Insert: {
+          card_id: string
+          claimed_at?: string
+          id?: string
+          line_index: number
+          resolved_at?: string | null
+          resolved_by?: string | null
+          self_certified?: boolean
+          status?: string
+        }
+        Update: {
+          card_id?: string
+          claimed_at?: string
+          id?: string
+          line_index?: number
+          resolved_at?: string | null
+          resolved_by?: string | null
+          self_certified?: boolean
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bingo_claims_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "bingo_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bingo_claims_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bingo_comments: {
+        Row: {
+          author_id: string
+          created_at: string
+          game_id: string
+          id: string
+          text: string
+        }
+        Insert: {
+          author_id: string
+          created_at?: string
+          game_id: string
+          id?: string
+          text: string
+        }
+        Update: {
+          author_id?: string
+          created_at?: string
+          game_id?: string
+          id?: string
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bingo_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bingo_comments_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "bingo_games"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bingo_game_categories: {
+        Row: {
+          game_id: string
+          id: string
+          label: string
+        }
+        Insert: {
+          game_id: string
+          id?: string
+          label: string
+        }
+        Update: {
+          game_id?: string
+          id?: string
+          label?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bingo_game_categories_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "bingo_games"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bingo_games: {
+        Row: {
+          closed_at: string | null
+          club_id: string
+          created_at: string
+          created_by: string
+          cycle_id: string
+          id: string
+          status: string
+        }
+        Insert: {
+          closed_at?: string | null
+          club_id: string
+          created_at?: string
+          created_by: string
+          cycle_id: string
+          id?: string
+          status?: string
+        }
+        Update: {
+          closed_at?: string | null
+          club_id?: string
+          created_at?: string
+          created_by?: string
+          cycle_id?: string
+          id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bingo_games_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bingo_games_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bingo_games_cycle_id_fkey"
+            columns: ["cycle_id"]
+            isOneToOne: false
+            referencedRelation: "cycles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bracket_comments: {
         Row: {
           author_id: string
@@ -803,6 +1133,8 @@ export type Database = {
           created_at: string
           created_by: string
           id: string
+          owner_id: string | null
+          scope: string
           size: number
           status: string
         }
@@ -815,6 +1147,8 @@ export type Database = {
           created_at?: string
           created_by: string
           id?: string
+          owner_id?: string | null
+          scope?: string
           size: number
           status?: string
         }
@@ -827,6 +1161,8 @@ export type Database = {
           created_at?: string
           created_by?: string
           id?: string
+          owner_id?: string | null
+          scope?: string
           size?: number
           status?: string
         }
@@ -841,6 +1177,13 @@ export type Database = {
           {
             foreignKeyName: "brackets_created_by_fkey"
             columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "brackets_owner_id_fkey"
+            columns: ["owner_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -1075,6 +1418,7 @@ export type Database = {
           concert_time: string | null
           created_at: string
           id: string
+          image_url: string | null
           note: string | null
           origin_concert_id: string | null
           price: string | null
@@ -1093,6 +1437,7 @@ export type Database = {
           concert_time?: string | null
           created_at?: string
           id?: string
+          image_url?: string | null
           note?: string | null
           origin_concert_id?: string | null
           price?: string | null
@@ -1111,6 +1456,7 @@ export type Database = {
           concert_time?: string | null
           created_at?: string
           id?: string
+          image_url?: string | null
           note?: string | null
           origin_concert_id?: string | null
           price?: string | null
@@ -2777,9 +3123,16 @@ export type Database = {
       }
       album_has_ratings: { Args: { p_album: string }; Returns: boolean }
       aux_has_submitted: { Args: { p_battle: string }; Returns: boolean }
+      bingo_box_locked: {
+        Args: { p_card: string; p_position: number }
+        Returns: boolean
+      }
+      bingo_line_positions: { Args: { p_line: number }; Returns: number[] }
       bracket_progress: { Args: { p_bracket: string }; Returns: Json }
       bracket_seed_order: { Args: { p_size: number }; Returns: number[] }
+      can_run_bingo: { Args: { p_club: string }; Returns: boolean }
       can_run_bracket: { Args: { p_club: string }; Returns: boolean }
+      can_view_bracket: { Args: { p_bracket: string }; Returns: boolean }
       cast_aux_vote: {
         Args: { p_battle: string; p_choice: string }
         Returns: undefined
@@ -2814,6 +3167,43 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      claim_bingo: {
+        Args: { p_card: string; p_line: number }
+        Returns: {
+          card_id: string
+          claimed_at: string
+          id: string
+          line_index: number
+          resolved_at: string | null
+          resolved_by: string | null
+          self_certified: boolean
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bingo_claims"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      close_bingo_game: {
+        Args: { p_game: string }
+        Returns: {
+          closed_at: string | null
+          club_id: string
+          created_at: string
+          created_by: string
+          cycle_id: string
+          id: string
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bingo_games"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       close_bracket: {
         Args: { p_bracket: string }
         Returns: {
@@ -2825,6 +3215,8 @@ export type Database = {
           created_at: string
           created_by: string
           id: string
+          owner_id: string | null
+          scope: string
           size: number
           status: string
         }
@@ -2869,12 +3261,31 @@ export type Database = {
       }
       club_leaderboard: { Args: { p_club: string }; Returns: Json }
       club_role: { Args: { p_club: string }; Returns: string }
+      create_bingo_game: {
+        Args: { p_club: string; p_labels: string[] }
+        Returns: {
+          closed_at: string | null
+          club_id: string
+          created_at: string
+          created_by: string
+          cycle_id: string
+          id: string
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bingo_games"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_bracket: {
         Args: {
           p_artist_image_url: string
           p_artist_name: string
           p_artist_spotify_id: string
           p_club: string
+          p_scope?: string
           p_size: number
           p_tracks: Json
         }
@@ -2887,6 +3298,8 @@ export type Database = {
           created_at: string
           created_by: string
           id: string
+          owner_id: string | null
+          scope: string
           size: number
           status: string
         }
@@ -2948,6 +3361,23 @@ export type Database = {
         }
       }
       cycle_club: { Args: { p_cycle: string }; Returns: string }
+      cycle_studio_recap: { Args: { p_cycle: string }; Returns: Json }
+      deal_bingo_card: {
+        Args: { p_game: string }
+        Returns: {
+          dealt_at: string
+          game_id: string
+          id: string
+          profile_id: string
+          qualifying_lines: number[]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bingo_cards"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       delete_showdown_submission: {
         Args: { p_showdown: string }
         Returns: undefined
@@ -2989,6 +3419,10 @@ export type Database = {
       }
       get_showdown_history: { Args: { p_club: string }; Returns: Json }
       has_completed_bracket: { Args: { p_bracket: string }; Returns: boolean }
+      import_bracket_picks: {
+        Args: { p_bracket: string; p_picks: Json }
+        Returns: undefined
+      }
       is_club_member: { Args: { p_club: string }; Returns: boolean }
       join_club: {
         Args: { p_code: string }
@@ -3014,6 +3448,11 @@ export type Database = {
       }
       list_showdown: { Args: { p_cycle: string }; Returns: Json }
       mark_activity_read: { Args: { p_club: string }; Returns: undefined }
+      mark_bingo_listened: { Args: { p_box: string }; Returns: undefined }
+      member_studio_stats: {
+        Args: { p_club: string; p_profile: string }
+        Returns: Json
+      }
       my_announcement_quota: { Args: { p_club: string }; Returns: Json }
       my_song_quota: { Args: { p_club: string }; Returns: Json }
       notify_comment_mentions: {
@@ -3037,6 +3476,25 @@ export type Database = {
         Returns: undefined
       }
       reset_aux_battle: { Args: { p_cycle: string }; Returns: undefined }
+      resolve_bingo_claim: {
+        Args: { p_approve: boolean; p_challenges?: Json; p_claim: string }
+        Returns: {
+          card_id: string
+          claimed_at: string
+          id: string
+          line_index: number
+          resolved_at: string | null
+          resolved_by: string | null
+          self_certified: boolean
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bingo_claims"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       reveal_cycle: {
         Args: { p_cycle: string }
         Returns: {
@@ -3080,6 +3538,24 @@ export type Database = {
         Returns: undefined
       }
       send_meeting_reminders: { Args: never; Returns: undefined }
+      set_bingo_playcount: {
+        Args: { p_box: string; p_playcount: number }
+        Returns: undefined
+      }
+      set_bingo_song: {
+        Args: {
+          p_apple_url?: string
+          p_artist: string
+          p_artwork_url?: string
+          p_box: string
+          p_duration_ms?: number
+          p_lastfm_playcount?: number
+          p_spotify_id?: string
+          p_spotify_url?: string
+          p_title: string
+        }
+        Returns: undefined
+      }
       set_club_mute: {
         Args: { p_club: string; p_muted: boolean }
         Returns: undefined
@@ -3188,6 +3664,7 @@ export type Database = {
       }
       spotify_album_id_from_url: { Args: { p_url: string }; Returns: string }
       start_aux_battle: { Args: { p_cycle: string }; Returns: number }
+      start_bingo_listen: { Args: { p_box: string }; Returns: undefined }
       start_perfect_playlist: {
         Args: {
           p_apple_url?: string

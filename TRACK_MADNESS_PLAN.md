@@ -15,6 +15,16 @@ from the plan below:
 - **Apple links resolve client-side at publish** (iTunes Search, batches of 4)
   rather than in the Edge Function — iTunes throttles per-IP bursts, and the
   admin's phone is the friendlier IP.
+- **Personal (solo) brackets added 2026-07-06** (`20260706040000_personal_brackets.sql`):
+  any member can run private brackets outside the club one (`scope` column;
+  one-open-per-club constraint now club-scope only). Solo runs are silent (no
+  events), private until closed (then club-browsable + on the owner's profile
+  shelf tagged "solo"), never count in competitive stats or cycle recaps, and
+  auto-close on crown. If the club launches a bracket for an artist a member
+  has already done solo, a one-tap **import** pre-fills their picks from the
+  solo run's advancement scores (matched by Spotify track id, fallback title;
+  ties → better seed) via `import_bracket_picks` — fully editable before
+  crowning. Visibility unified under `can_view_bracket()`.
 - **Bracket view is sectioned rounds** (collapsible per-round matchup lists),
   not a pinch-zoom tree — phone-honest v1; a zoomable tree remains a v2 idea.
 

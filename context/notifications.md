@@ -40,8 +40,8 @@ regardless of categories. Members can't UPDATE their own membership row (RLS is
 owner-only for role management), so the toggle goes through the
 `set_club_mute(p_club, p_muted)` RPC.
 
-UI: `app/src/app/notifications.tsx` (reached from the account menu in
-`ClubSwitcher`) — four category switches + a per-club mute list.
+UI: `app/src/app/notifications.tsx` (reached from the ⚙️ button on the bell's
+Activity screen) — four category switches + a per-club mute list.
 
 ## Display text — two template files, keep in sync
 
@@ -81,6 +81,16 @@ event's club first. The response listener + cold-start handler are installed in
 
 ## Ops / secrets (out of git)
 
+- **`send-push` must be deployed with `verify_jwt = false`** — the DB trigger
+  authenticates via `x-push-secret`, not a JWT, and with verification on the
+  gateway 401s every push before the function runs. This is now pinned in
+  `supabase/config.toml` (`[functions.send-push] verify_jwt = false`) so a plain
+  `supabase functions deploy send-push` stays safe. **Outage postmortem
+  (2026-07-03→05):** a redeploy without the old `--no-verify-jwt` flag (before
+  the config pin existed) silently broke all push for two days — bell rows kept
+  appearing (the trigger fails open) while every `net._http_response` row showed
+  `401 UNAUTHORIZED_NO_AUTH_HEADER`. That table is the first place to look when
+  "bell works, push doesn't."
 - Function env: `PUSH_SHARED_SECRET` (set via `supabase secrets set`).
 - Vault: `send_push_url` = `https://<ref>.supabase.co/functions/v1/send-push`,
   `send_push_secret` = same value as `PUSH_SHARED_SECRET`. Set with

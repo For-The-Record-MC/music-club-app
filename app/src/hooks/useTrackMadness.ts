@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
+import { useAuthStore } from '@/stores/authStore';
 import { registerCache } from '@/utils/dataCache';
 import {
   trackMadness,
@@ -48,14 +49,17 @@ export interface BracketState {
 interface MadnessSnapshot {
   live: BracketState | null;
   archive: Bracket[];
+  personal: Bracket[];
 }
 
 // Stale-while-revalidate cache keyed by club id — see useFeed for the pattern.
 const cache = registerCache(new Map<string, MadnessSnapshot>());
 
 export function useTrackMadness(clubId: string | undefined) {
+  const userId = useAuthStore((s) => s.userId);
   const [live, setLive] = useState<BracketState | null>(() => (clubId ? cache.get(clubId)?.live : undefined) ?? null);
   const [archive, setArchive] = useState<Bracket[]>(() => (clubId ? cache.get(clubId)?.archive : undefined) ?? []);
+  const [personal, setPersonal] = useState<Bracket[]>(() => (clubId ? cache.get(clubId)?.personal : undefined) ?? []);
   const [loading, setLoading] = useState(() => !(clubId && cache.has(clubId)));
 
   const loadBracket = useCallback(async (bracket: Bracket): Promise<BracketState> => {
@@ -84,22 +88,26 @@ export function useTrackMadness(clubId: string | undefined) {
     if (!clubId) {
       setLive(null);
       setArchive([]);
+      setPersonal([]);
       setLoading(false);
       return;
     }
-    const [{ data: open }, { data: closed }] = await Promise.all([
+    const [{ data: open }, { data: closed }, mine] = await Promise.all([
       trackMadness.open(clubId),
       trackMadness.archive(clubId),
+      userId ? trackMadness.myPersonal(clubId, userId) : Promise.resolve({ data: [] }),
     ]);
     const next: MadnessSnapshot = {
       live: open ? await loadBracket(open as Bracket) : null,
       archive: (closed ?? []) as Bracket[],
+      personal: (mine.data ?? []) as Bracket[],
     };
     cache.set(clubId, next);
     setLive(next.live);
     setArchive(next.archive);
+    setPersonal(next.personal);
     setLoading(false);
-  }, [clubId, loadBracket]);
+  }, [clubId, userId, loadBracket]);
 
   // On mount or club switch: serve the cached snapshot immediately and
   // revalidate; only show the record when this club has never been loaded.
@@ -107,9 +115,10 @@ export function useTrackMadness(clubId: string | undefined) {
     const hit = clubId ? cache.get(clubId) : undefined;
     setLive(hit?.live ?? null);
     setArchive(hit?.archive ?? []);
+    setPersonal(hit?.personal ?? []);
     setLoading(!hit);
     refresh();
   }, [clubId, refresh]);
 
-  return { live, archive, loading, refresh, loadBracket };
+  return { live, archive, personal, loading, refresh, loadBracket };
 }

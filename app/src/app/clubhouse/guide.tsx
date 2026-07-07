@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -14,7 +15,7 @@ const accentFg = (p: Palette, a: Accent) => p[a];
 const accentBg = (p: Palette, a: Accent) =>
   p[`${a}Bg` as 'tealBg' | 'purpleBg' | 'coralBg' | 'amberBg' | 'blueBg'];
 
-const ROOMS: { emoji: string; title: string; body: string; accent: Accent }[] = [
+const ROOMS: { emoji: string; image?: number; title: string; body: string; accent: Accent }[] = [
   {
     emoji: '📻',
     title: 'Club Radio',
@@ -29,6 +30,7 @@ const ROOMS: { emoji: string; title: string; body: string; accent: Accent }[] = 
   },
   {
     emoji: '🎵',
+    image: require('../../../assets/images/jukebox.png'),
     title: 'Jukebox Showdown',
     body: 'A themed song battle each cycle. Submit one song for the theme, then spend 2 upvotes and a downvote on the rest. Votes stay blind until the meeting, when a winner is crowned.',
     accent: 'purple',
@@ -69,6 +71,13 @@ const ROOMS: { emoji: string; title: string; body: string; accent: Accent }[] = 
     body: "One artist's biggest songs, seeded into a tournament. Fill out your own bracket matchup by matchup (listen links included) and crown a champion — then see who the club's champion is once everyone's in.",
     accent: 'amber',
   },
+  {
+    emoji: '🎱',
+    image: require('../../../assets/images/bingo.jpg'),
+    title: 'Listening Bingo',
+    body: 'A random 5x5 card of music categories, three qualifying lines, and one rule: you have to actually listen. Fill boxes with songs, let the timer run, and call BINGO — a teammate has to verify your line before it counts.',
+    accent: 'coral',
+  },
 ];
 
 export default function StudioGuide() {
@@ -100,7 +109,11 @@ export default function StudioGuide() {
       {ROOMS.map((r) => (
         <View key={r.title} style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
           <View style={[styles.chip, { backgroundColor: accentBg(palette, r.accent) }]}>
-            <Text style={styles.chipEmoji}>{r.emoji}</Text>
+            {r.image ? (
+              <Image source={r.image} style={styles.chipImage} contentFit="contain" />
+            ) : (
+              <Text style={styles.chipEmoji}>{r.emoji}</Text>
+            )}
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={[styles.cardTitle, { color: accentFg(palette, r.accent) }]}>{r.title}</Text>
@@ -152,6 +165,7 @@ const styles = StyleSheet.create({
   },
   chip: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   chipEmoji: { fontSize: 22 },
+  chipImage: { width: 26, height: 26 },
   cardTitle: { fontFamily: fonts.sansBold, fontSize: 15, marginBottom: 4 },
   cardText: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 19 },
   footer: {

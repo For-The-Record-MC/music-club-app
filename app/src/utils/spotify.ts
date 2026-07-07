@@ -16,6 +16,9 @@ export interface SpotifySong {
   collectionName: string;
   artworkUrl: string;
   spotifyUrl: string;
+  // Track length — Listening Bingo's listen gate. Nullable: an older deployed
+  // spotify-search omits it (callers fall back to a fixed-time gate).
+  durationMs?: number | null;
 }
 
 export interface SpotifyAlbum {

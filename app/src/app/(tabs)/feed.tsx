@@ -1,5 +1,6 @@
+import { Image } from 'expo-image';
 import { useRouter, type Href } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { Loading, NoClubSelected, Screen } from '@/components/ui';
 import { useClubhouseStatus, type TileStatus } from '@/hooks/useClubhouseStatus';
@@ -16,6 +17,9 @@ type Accent = 'teal' | 'purple' | 'coral' | 'blue' | 'amber';
 interface Tile {
   key: string;
   emoji: string;
+  // Optional raster icon (rendered instead of the emoji) — the jukebox tile
+  // uses real art; everything else stays emoji.
+  image?: number;
   name: string;
   accent: Accent;
   href?: Href; // present = live room; absent = not yet shipped ("Soon")
@@ -28,20 +32,28 @@ export default function Clubhouse() {
   const { palette } = useTheme();
   const status = useClubhouseStatus(id);
   const { refreshing, onRefresh } = useRefresh(status.refresh);
+  const { height: windowHeight } = useWindowDimensions();
 
   if (!id) return <NoClubSelected what="clubhouse" />;
 
   const tiles: Tile[] = [
     { key: 'feed', emoji: '📻', name: 'Club Radio', accent: 'teal', href: '/clubhouse/activity', status: status.feed },
     { key: 'queue', emoji: '💿', name: 'The Queue', accent: 'amber', href: { pathname: '/club/[id]/suggestions', params: { id } }, status: status.queue },
-    { key: 'showdown', emoji: '🎵', name: 'Jukebox Showdown', accent: 'purple', href: '/clubhouse/showdown', status: status.showdown },
+    { key: 'showdown', emoji: '🎵', image: require('../../../assets/images/jukebox.png'), name: 'Jukebox Showdown', accent: 'purple', href: '/clubhouse/showdown', status: status.showdown },
     { key: 'playlist', emoji: '🎶', name: 'The Perfect Playlist', accent: 'blue', href: '/clubhouse/playlist', status: status.playlist },
     { key: 'aux', emoji: '🎚️', name: 'Aux Battle', accent: 'coral', href: '/clubhouse/aux', status: status.aux },
     { key: 'takes', emoji: '🔥', name: 'Mic Droppers', accent: 'purple', href: '/clubhouse/takes', status: status.takes },
     { key: 'bars', emoji: '🎤', name: 'Best Bars', accent: 'blue', href: '/clubhouse/bars', status: status.bars },
     { key: 'convince', emoji: '🎯', name: 'Change My Tune', accent: 'teal', href: '/clubhouse/convince', status: status.convince },
     { key: 'madness', emoji: '🏆', name: 'Track Madness', accent: 'amber', href: '/clubhouse/madness', status: status.madness },
+    { key: 'bingo', emoji: '🎱', image: require('../../../assets/images/bingo.jpg'), name: 'Listening Bingo', accent: 'coral', href: '/clubhouse/bingo', status: status.bingo },
   ];
+
+  // Fill the screen: split the usable height across the grid rows (2-up), with
+  // a floor so small phones scroll instead of crushing tiles, and a little
+  // breathing room left at the bottom.
+  const gridRows = Math.ceil(tiles.length / 2);
+  const tileHeight = Math.max(116, Math.floor((windowHeight - 260) / gridRows) - 8);
 
   return (
     <Screen onRefresh={onRefresh} refreshing={refreshing}>
@@ -79,19 +91,21 @@ export default function Clubhouse() {
               disabled={!live}
               style={({ pressed }) => [
                 styles.tile,
-                { backgroundColor: palette.card, borderColor: palette.border },
+                { backgroundColor: palette.card, borderColor: palette.border, height: tileHeight },
                 live && pressed && { opacity: 0.85, borderColor: accent },
                 !live && { opacity: 0.6 },
               ]}
             >
-              <View style={styles.tileTop}>
-                <View style={[styles.emojiWrap, { backgroundColor: accentBg }]}>
+              {t.status?.flag ? <View style={[styles.dot, { backgroundColor: accent }]} /> : null}
+              {!live ? (
+                <Text style={[styles.soon, { color: palette.text3, borderColor: palette.border }]}>SOON</Text>
+              ) : null}
+              <View style={[styles.emojiWrap, { backgroundColor: accentBg }]}>
+                {t.image ? (
+                  <Image source={t.image} style={styles.tileImage} contentFit="contain" />
+                ) : (
                   <Text style={styles.emoji}>{t.emoji}</Text>
-                </View>
-                {t.status?.flag ? <View style={[styles.dot, { backgroundColor: accent }]} /> : null}
-                {!live ? (
-                  <Text style={[styles.soon, { color: palette.text3, borderColor: palette.border }]}>SOON</Text>
-                ) : null}
+                )}
               </View>
               <Text style={[styles.tileName, { color: palette.text1 }]} numberOfLines={2}>
                 {t.name}
@@ -127,22 +141,25 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radius.lg,
-    padding: 12,
-    minHeight: 102,
-    justifyContent: 'space-between',
+    padding: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
   },
-  tileTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   emojiWrap: {
-    width: 34,
-    height: 34,
+    width: 48,
+    height: 48,
     borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emoji: { fontSize: 17 },
-  dot: { width: 9, height: 9, borderRadius: 5, marginLeft: 'auto' },
+  emoji: { fontSize: 26 },
+  tileImage: { width: 34, height: 34 },
+  dot: { position: 'absolute', top: 10, right: 10, width: 9, height: 9, borderRadius: 5 },
   soon: {
-    marginLeft: 'auto',
+    position: 'absolute',
+    top: 10,
+    right: 10,
     fontFamily: fonts.monoMedium,
     fontSize: 8,
     letterSpacing: 1,
@@ -152,6 +169,6 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     overflow: 'hidden',
   },
-  tileName: { fontFamily: fonts.sansBold, fontSize: 14, marginBottom: 2 },
-  tileStatus: { fontFamily: fonts.monoMedium, fontSize: 11, letterSpacing: 0.3 },
+  tileName: { fontFamily: fonts.sansBold, fontSize: 15.5, textAlign: 'center' },
+  tileStatus: { fontFamily: fonts.sansMedium, fontSize: 12.5, letterSpacing: 0.1, textAlign: 'center' },
 });

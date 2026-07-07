@@ -389,6 +389,18 @@ verify_jwt = true
 [functions.bracket-seed]
 verify_jwt = true
 
+# Listening Bingo rarity: Last.fm track.getInfo playcount lookup. verify_jwt
+# keeps it members-only. Reuses secret LASTFM_API_KEY (best-effort without it).
+[functions.track-stats]
+verify_jwt = true
+
+# Push fan-out. Called by the notify_send_push DB trigger via pg_net, which
+# authenticates with the x-push-secret header — NOT a user JWT. verify_jwt MUST
+# stay false or the gateway 401s every push before the function runs (this
+# exact outage happened 2026-07-03→05 after a redeploy without the flag).
+[functions.send-push]
+verify_jwt = false
+
 # Owner connects Spotify: server-side code→token exchange + connection storage.
 [functions.spotify-oauth]
 verify_jwt = true

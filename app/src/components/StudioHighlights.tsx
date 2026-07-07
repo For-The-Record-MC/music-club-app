@@ -11,6 +11,7 @@ import { useFeed, type FeedRow } from '@/hooks/useFeed';
 import { useMusicalTakes } from '@/hooks/useMusicalTakes';
 import { usePerfectPlaylist } from '@/hooks/usePerfectPlaylist';
 import { useShowdown } from '@/hooks/useShowdown';
+import { useListeningBingo } from '@/hooks/useListeningBingo';
 import { useTrackMadness } from '@/hooks/useTrackMadness';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
@@ -68,6 +69,7 @@ export function StudioHighlights({ clubId, cycleId }: { clubId: string; cycleId:
   const { bars } = useBestBars(clubId);
   const { takes } = useMusicalTakes(clubId);
   const { live: madness } = useTrackMadness(clubId);
+  const { live: bingo } = useListeningBingo(clubId);
 
   const [width, setWidth] = useState(0);
   const [active, setActive] = useState(0);
@@ -223,8 +225,35 @@ export function StudioHighlights({ clubId, cycleId }: { clubId: string; cycleId:
       });
     }
 
+    // Listening Bingo — the live game: verify nudge beats the running score.
+    if (bingo) {
+      const myCard = bingo.cards.find((c) => c.profile_id === userId);
+      const toVerify = bingo.claims.filter(
+        (c) => c.status === 'pending' && c.bingo_cards.profile_id !== userId,
+      ).length;
+      const bingos = bingo.claims.filter((c) => c.status === 'verified').length;
+      const myLit = myCard ? bingo.boxes.filter((b) => b.card_id === myCard.id && b.activated_at).length : 0;
+      out.push({
+        key: 'bingo',
+        accent: 'coral',
+        emoji: '🎱',
+        room: 'LISTENING BINGO',
+        onPress: () => router.push({ pathname: '/clubhouse/bingo' }),
+        body: (
+          <View>
+            <Text numberOfLines={1} style={[styles.bigTitle, { color: palette.text1 }]}>
+              {toVerify > 0 ? 'A bingo needs a witness' : bingos > 0 ? `${bingos} bingo${bingos === 1 ? '' : 's'} on the board` : 'The cards are dealt'}
+            </Text>
+            <Text style={[styles.sub, { color: palette.text2 }]}>
+              {toVerify > 0 ? `${toVerify} claim${toVerify === 1 ? '' : 's'} waiting on a verify` : `Your card: ${myLit}/24 lit`}
+            </Text>
+          </View>
+        ),
+      });
+    }
+
     return out;
-  }, [cycle, posts, showdown, battles, playlist, bars, takes, madness, userId, palette, router]);
+  }, [cycle, posts, showdown, battles, playlist, bars, takes, madness, bingo, userId, palette, router]);
 
   if (highlights.length === 0) return null;
 
