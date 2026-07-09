@@ -40,19 +40,39 @@ Deno.serve(async (req) => {
     }
     if (!title || !artist) return json({ playcount: null, listeners: null })
 
-    const url =
-      `https://ws.audioscrobbler.com/2.0/?method=track.getInfo&format=json&autocorrect=1` +
-      `&api_key=${key}&track=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`
-    const res = await fetch(url)
-    if (!res.ok) return json({ playcount: null, listeners: null })
-    const data = await res.json()
-    const track = data?.track
-    const playcount = track?.playcount != null ? Number(track.playcount) : null
-    const listeners = track?.listeners != null ? Number(track.listeners) : null
-    return json({
-      playcount: Number.isFinite(playcount as number) ? playcount : null,
-      listeners: Number.isFinite(listeners as number) ? listeners : null,
-    })
+    // Spotify metadata vs Last.fm's catalog: Spotify joins every collaborator
+    // into one artist string ("mgk, blackbear") and decorates titles with
+    // "(feat. …)" / "- Acoustic" etc.; Last.fm indexes by primary artist and
+    // clean title. Look up the cleaned pair first, fall back to the raw one.
+    const primaryArtist = artist.split(',')[0].trim()
+    const cleanTitle = title
+      .replace(/\s*[([](?:feat|ft|with)\.?[^)\]]*[)\]]/gi, '')
+      .replace(/\s+-\s+.*$/i, '')
+      .trim() || title
+
+    const lookup = async (t: string, a: string) => {
+      const url =
+        `https://ws.audioscrobbler.com/2.0/?method=track.getInfo&format=json&autocorrect=1` +
+        `&api_key=${key}&track=${encodeURIComponent(t)}&artist=${encodeURIComponent(a)}`
+      const res = await fetch(url)
+      if (!res.ok) return null
+      const track = (await res.json())?.track
+      const playcount = track?.playcount != null ? Number(track.playcount) : null
+      const listeners = track?.listeners != null ? Number(track.listeners) : null
+      if (!Number.isFinite(playcount as number)) return null
+      return { playcount, listeners: Number.isFinite(listeners as number) ? listeners : null }
+    }
+
+    const cleaned = await lookup(cleanTitle, primaryArtist)
+    // A cleaned hit with a real count wins; a tiny count on a decorated title
+    // usually means we found some obscure alias — take the better of the two.
+    const raw =
+      cleanTitle !== title || primaryArtist !== artist
+        ? await lookup(title, artist)
+        : null
+    const best =
+      (cleaned?.playcount ?? -1) >= (raw?.playcount ?? -1) ? cleaned : raw
+    return json(best ?? { playcount: null, listeners: null })
   } catch (e) {
     return json({ ok: false, message: e instanceof Error ? e.message : String(e) }, 500)
   }

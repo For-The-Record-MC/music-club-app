@@ -1336,6 +1336,8 @@ export const listeningBingo = {
   create: (clubId: string, labels: string[]) =>
     supabase.rpc('create_bingo_game', { p_club: clubId, p_labels: labels }),
   deal: (gameId: string) => supabase.rpc('deal_bingo_card', { p_game: gameId }),
+  // Blackout reward: a fully-lit latest card unlocks a fresh one (max 3/game).
+  requestCard: (gameId: string) => supabase.rpc('request_bingo_card', { p_game: gameId }),
   setSong: (
     boxId: string,
     song: {

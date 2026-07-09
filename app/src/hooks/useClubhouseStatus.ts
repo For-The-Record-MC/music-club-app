@@ -209,16 +209,14 @@ export function useClubhouseStatus(clubId: string | undefined): ClubhouseStatus 
     if (!bingoLive) {
       bingoStatus = { line: 'No game live' };
     } else {
-      const myCard = bingoLive.cards.find((c) => c.profile_id === userId);
+      const myCardIds = new Set(bingoLive.cards.filter((c) => c.profile_id === userId).map((c) => c.id));
       const toVerify = bingoLive.claims.filter(
         (c) => c.status === 'pending' && c.bingo_cards.profile_id !== userId,
       ).length;
       const bingos = bingoLive.claims.filter((c) => c.status === 'verified').length;
-      const myLit = myCard
-        ? bingoLive.boxes.filter((b) => b.card_id === myCard.id && b.activated_at).length
-        : 0;
+      const myLit = bingoLive.boxes.filter((b) => myCardIds.has(b.card_id) && b.activated_at).length;
       if (toVerify > 0) bingoStatus = { line: `${toVerify} claim${toVerify === 1 ? '' : 's'} to verify`, flag: true };
-      else if (!myCard || myLit === 0) bingoStatus = { line: 'Your card awaits', flag: true };
+      else if (myCardIds.size === 0 || myLit === 0) bingoStatus = { line: 'Your card awaits', flag: true };
       else bingoStatus = { line: `${myLit}/24 lit${bingos > 0 ? ` · ${bingos} bingo${bingos === 1 ? '' : 's'}` : ''}` };
     }
 

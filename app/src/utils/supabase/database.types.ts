@@ -677,6 +677,7 @@ export type Database = {
       }
       bingo_cards: {
         Row: {
+          card_number: number
           dealt_at: string
           game_id: string
           id: string
@@ -684,6 +685,7 @@ export type Database = {
           qualifying_lines: number[]
         }
         Insert: {
+          card_number?: number
           dealt_at?: string
           game_id: string
           id?: string
@@ -691,6 +693,7 @@ export type Database = {
           qualifying_lines: number[]
         }
         Update: {
+          card_number?: number
           dealt_at?: string
           game_id?: string
           id?: string
@@ -3127,6 +3130,23 @@ export type Database = {
         Args: { p_card: string; p_position: number }
         Returns: boolean
       }
+      bingo_deal_internal: {
+        Args: { p_card_number: number; p_game: string }
+        Returns: {
+          card_number: number
+          dealt_at: string
+          game_id: string
+          id: string
+          profile_id: string
+          qualifying_lines: number[]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bingo_cards"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       bingo_line_positions: { Args: { p_line: number }; Returns: number[] }
       bracket_progress: { Args: { p_bracket: string }; Returns: Json }
       bracket_seed_order: { Args: { p_size: number }; Returns: number[] }
@@ -3365,6 +3385,7 @@ export type Database = {
       deal_bingo_card: {
         Args: { p_game: string }
         Returns: {
+          card_number: number
           dealt_at: string
           game_id: string
           id: string
@@ -3474,6 +3495,23 @@ export type Database = {
       remove_perfect_playlist_song: {
         Args: { p_song: string }
         Returns: undefined
+      }
+      request_bingo_card: {
+        Args: { p_game: string }
+        Returns: {
+          card_number: number
+          dealt_at: string
+          game_id: string
+          id: string
+          profile_id: string
+          qualifying_lines: number[]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bingo_cards"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       reset_aux_battle: { Args: { p_cycle: string }; Returns: undefined }
       resolve_bingo_claim: {

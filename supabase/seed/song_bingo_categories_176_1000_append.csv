@@ -1,0 +1,826 @@
+id,category
+176,Song by an artist from Africa
+177,Song by an artist from Asia
+178,Song by an artist from Europe
+179,Song by an artist from South America
+180,Song by an artist from the Caribbean
+181,Song by an artist from Oceania
+182,Song by an artist from Canada
+183,Song by an artist from Mexico
+184,Song by an artist from Brazil
+185,Song by an artist from Jamaica
+186,Song by an artist from Nigeria
+187,Song by an artist from South Korea
+188,Song by an artist from Japan
+189,Song by an artist from France
+190,Song by an artist from the UK
+191,Song by an artist from Ireland
+192,Song by an artist from Australia
+193,Song by an artist from New Orleans
+194,Song by an artist from Detroit
+195,Song by an artist from Atlanta
+196,Song by an artist from Chicago
+197,Song by an artist from Los Angeles
+198,Song by an artist from Philadelphia
+199,Song by an artist from Texas
+200,Song by an artist from the Pacific Northwest
+201,Song by an artist from the Midwest
+202,Song by an artist from the South
+203,Song by an artist from a small town
+204,Song by an artist whose name is an acronym
+205,Song by an artist with punctuation in their name
+206,Song by an artist with a food in their name
+207,Song by an artist with a weather word in their name
+208,Song by an artist with a body part in their name
+209,Song by an artist with a royal title in their name
+210,Song by an artist with a family role in their name
+211,Song by an artist with a month in their name
+212,Song by an artist with a geographic word in their name
+213,Song by an artist with a space-related name
+214,Song by an artist with a plant in their name
+215,Song by an artist with a profession in their name
+216,Song by an artist whose real name you know
+217,Song by an artist whose real name surprised you
+218,Song by an artist who produces their own music
+219,Song by an artist who writes for other artists
+220,Song by an artist who was in a reality show
+221,Song by an artist who was in a Disney or Nickelodeon project
+222,Song by an artist who was in a famous band before going solo
+223,Song by an artist who is better known as a producer
+224,Song by an artist who is better known as a songwriter
+225,Song by an artist who is better known as a DJ
+226,Song by an artist with a famous parent
+227,Song by an artist with a famous sibling
+228,Song by an artist who performs in costume or character
+229,Song by an artist with a masked identity
+230,Song by an artist who uses Auto-Tune as a signature sound
+231,Song by an artist known for falsetto
+232,Song by an artist known for whispery vocals
+233,Song by an artist known for raspy vocals
+234,Song by an artist known for screaming vocals
+235,Song by an artist known for talk-singing
+236,Song by an artist whose voice you recognized immediately
+237,Song by an artist you could not identify by voice alone
+238,Song by an artist who died young
+239,Song by an artist who released music posthumously
+240,Song by an artist who had a major comeback after 10+ years
+241,Song by an artist who disappeared from the mainstream
+242,Song by an artist who was part of a famous feud
+243,Song by an artist with a cult fanbase
+244,Song by an artist you discovered through another artist
+245,Song by an artist with a tiny discography
+246,Song by an artist with a massive discography
+247,Song by an artist who has released music in multiple languages
+248,Song by an artist who switched genres
+249,Song by an artist who started as a rapper and later sang
+250,Song by an artist who started as a singer and later rapped
+251,Song by an artist who has a side project
+252,Song by a band with no original members left
+253,Song by a band named after a place
+254,Song by a band named after a book or movie
+255,Song by a band with an intentionally misspelled name
+256,Song with the word 'rain' in the title
+257,Song with the word 'fire' in the title
+258,Song with the word 'moon' in the title
+259,Song with the word 'sun' in the title
+260,Song with the word 'star' in the title
+261,Song with the word 'heart' in the title
+262,Song with the word 'love' in the title
+263,Song with the word 'hate' in the title
+264,Song with the word 'baby' in the title
+265,Song with the word 'night' in the title
+266,Song with the word 'morning' in the title
+267,Song with the word 'home' in the title
+268,Song with the word 'road' in the title
+269,Song with the word 'street' in the title
+270,Song with the word 'river' in the title
+271,Song with the word 'ocean' in the title
+272,Song with the word 'mountain' in the title
+273,Song with the word 'car' in the title
+274,Song with the word 'train' in the title
+275,Song with the word 'plane' in the title
+276,Song with the word 'phone' in the title
+277,Song with the word 'radio' in the title
+278,Song with the word 'money' in the title
+279,Song with the word 'gold' in the title
+280,Song with the word 'blue' in the title
+281,Song with the word 'red' in the title
+282,Song with the word 'black' in the title
+283,Song with the word 'white' in the title
+284,Song with the word 'green' in the title
+285,Song with the word 'pink' in the title
+286,Song with the word 'purple' in the title
+287,Song with the word 'silver' in the title
+288,Song with the word 'diamond' in the title
+289,Song with the word 'king' in the title
+290,Song with the word 'queen' in the title
+291,Song with the word 'angel' in the title
+292,Song with the word 'devil' in the title
+293,Song with the word 'heaven' in the title
+294,Song with the word 'hell' in the title
+295,Song with the word 'ghost' in the title
+296,Song with the word 'dream' in the title
+297,Song with the word 'memory' in the title
+298,Song with the word 'time' in the title
+299,Song with the word 'forever' in the title
+300,Song with the word 'today' in the title
+301,Song with the word 'tomorrow' in the title
+302,Song with the word 'yesterday' in the title
+303,Song with the word 'alone' in the title
+304,Song with the word 'together' in the title
+305,Song with the word 'dance' in the title
+306,Song with the word 'party' in the title
+307,Song with the word 'tears' in the title
+308,Song with the word 'smile' in the title
+309,Song with the word 'eyes' in the title
+310,Song with the word 'hands' in the title
+311,Song with the word 'body' in the title
+312,Song with the word 'blood' in the title
+313,Song with the word 'bones' in the title
+314,Song with the word 'city' in the title
+315,Song with the word 'hotel' in the title
+316,Song with the word 'room' in the title
+317,Song with the word 'door' in the title
+318,Song with the word 'window' in the title
+319,Song with the word 'light' in the title
+320,Song with the word 'shadow' in the title
+321,Song with the word 'smoke' in the title
+322,Song with the word 'fireworks' in the title
+323,Song with the word 'coffee' in the title
+324,Song with the word 'whiskey' in the title
+325,Song with the word 'beer' in the title
+326,Song with the word 'champagne' in the title
+327,Song with the word 'roses' in the title
+328,Song with the word 'flowers' in the title
+329,Song with the word 'summer' in the title
+330,Song with the word 'winter' in the title
+331,Song with the word 'spring' in the title
+332,Song with the word 'fall' in the title
+333,Song with the word 'Sunday' in the title
+334,Song with the word 'Monday' in the title
+335,Song with the word 'Friday' in the title
+336,Song with the word 'midnight' in the title
+337,Song with the word 'noon' in the title
+338,Song with the word 'highway' in the title
+339,Song with the word 'taxi' in the title
+340,Song with the word 'subway' in the title
+341,Song with the word 'island' in the title
+342,Song with the word 'planet' in the title
+343,Song with the word 'space' in the title
+344,Song with the word 'monster' in the title
+345,Song with the word 'magic' in the title
+346,Song with the word 'church' in the title
+347,Song with the word 'school' in the title
+348,Song with the word 'work' in the title
+349,Song with the word 'boss' in the title
+350,Song with the word 'doctor' in the title
+351,Song with the word 'rich' in the title
+352,Song with the word 'poor' in the title
+353,Song with the word 'famous' in the title
+354,Song with the word 'lonely' in the title
+355,Song with the word 'wild' in the title
+356,Song with the word 'sweet' in the title
+357,Song with the word 'dirty' in the title
+358,Song with the word 'clean' in the title
+359,Song with the word 'slow' in the title
+360,Song with the word 'fast' in the title
+361,Song with the word 'loud' in the title
+362,Song with the word 'quiet' in the title
+363,Song with the word 'broken' in the title
+364,Song with the word 'golden' in the title
+365,Song with the word 'electric' in the title
+366,Song with the word 'digital' in the title
+367,Song with the word 'analog' in the title
+368,Song with the word 'record' in the title
+369,Song with the word 'needle' in the title
+370,Song with the word 'groove' in the title
+371,Song with the word 'song' in the title
+372,Song with the word 'music' in the title
+373,Song with the word 'letter' in the title
+374,Song with the word 'kiss' in the title
+375,Song with the word 'shoes' in the title
+376,Song with the word 'jacket' in the title
+377,Song with the word 'mirror' in the title
+378,Song with the word 'camera' in the title
+379,Song with the word 'picture' in the title
+380,Song with the word 'movie' in the title
+381,Song with the word 'game' in the title
+382,Song with the word 'war' in the title
+383,Song with the word 'peace' in the title
+384,Song with the word 'homecoming' in the title
+385,Song with the word 'birthday' in the title
+386,Song that includes a phone call
+387,Song that includes a text message
+388,Song that includes a voicemail
+389,Song that includes a letter
+390,Song that includes a name being repeated
+391,Song that includes a color being repeated
+392,Song that includes a city being named
+393,Song that includes a brand name
+394,Song that includes a car model
+395,Song that includes a luxury item
+396,Song that includes a food order
+397,Song that includes a drink order
+398,Song that includes a prayer
+399,Song that includes a curse word in the chorus
+400,Song that includes a countdown
+401,Song that includes a spoken intro
+402,Song that includes a spoken outro
+403,Song that includes laughter
+404,Song that includes crying
+405,Song that includes a doorbell
+406,Song that includes sirens
+407,Song that includes crowd noise
+408,Song that includes rain sounds
+409,Song that includes ocean sounds
+410,Song that includes bird sounds
+411,Song that includes a dog barking
+412,Song that includes a train sound
+413,Song that includes a radio DJ
+414,Song that includes a fake news report
+415,Song that includes a sampled interview
+416,Song with a flute part
+417,Song with a clarinet part
+418,Song with an oboe part
+419,Song with a trumpet solo
+420,Song with a trombone part
+421,Song with a tuba or sousaphone part
+422,Song with a violin lead
+423,Song with cello as a main texture
+424,Song with a harp part
+425,Song with a banjo part
+426,Song with mandolin
+427,Song with sitar
+428,Song with tabla
+429,Song with congas
+430,Song with bongos
+431,Song with cowbell
+432,Song with maracas
+433,Song with castanets
+434,Song with a xylophone or marimba part
+435,Song with glockenspiel
+436,Song with a pipe organ
+437,Song with a church organ
+438,Song with a synth lead
+439,Song with a vocoder
+440,Song with a talk box
+441,Song with a drum machine you can clearly hear
+442,Song with 808 cowbell
+443,Song with a booming 808 bass
+444,Song with a walking bassline
+445,Song with slap bass
+446,Song with a distorted bassline
+447,Song with fingerpicked guitar
+448,Song with acoustic guitar as the main instrument
+449,Song with distorted electric guitar
+450,Song with a clean electric guitar riff
+451,Song with a piano ballad intro
+452,Song with Rhodes or Wurlitzer keys
+453,Song with a string quartet feel
+454,Song with orchestral swells
+455,Song with a marching band feel
+456,Song with a brass band feel
+457,Song with a gospel choir ending
+458,Song with layered harmonies
+459,Song with call-and-response vocals
+460,Song with a duet section
+461,Song with a group chant
+462,Song with crowd singalong energy
+463,Song with a false ending
+464,Song with a hidden track feel
+465,Song with a cold open
+466,Song that starts with the chorus
+467,Song that never repeats a chorus
+468,Song with a bridge that steals the show
+469,Song with a post-chorus hook
+470,Song with a pre-chorus better than the chorus
+471,Song with a breakdown section
+472,Song with a drop
+473,Song with no chorus
+474,Song with no bridge
+475,Song with a tempo change
+476,Song with a time signature that feels unusual
+477,Song in waltz time
+478,Song built around a loop
+479,Song built around one chord
+480,Song that changes genres halfway through
+481,Song that starts quiet and ends huge
+482,Song that starts huge and strips down
+483,Song with intentionally lo-fi production
+484,Song with very polished production
+485,Song with bedroom-pop production
+486,Song with a live-band feel
+487,Song with a demo-like feel
+488,Song with a cassette tape texture
+489,Song with vinyl crackle
+490,Song with a reversed sound effect
+491,Song with a record scratch
+492,Song with a DJ tag
+493,Song with producer tags
+494,Song with chopped-and-screwed vocals
+495,Song with pitched-up vocals
+496,Song with pitched-down vocals
+497,Song with layered ad-libs
+498,Song where the ad-libs are the best part
+499,Song where the drums carry it
+500,Song where the melody carries it
+501,Song where the lyrics carry it
+502,Song where the production carries it
+503,Song where silence or space is a major part
+504,Song with a very busy arrangement
+505,Song with a minimalist arrangement
+506,Song that sounds expensive
+507,Song that sounds intentionally cheap
+508,Song that sounds like it was recorded in a room
+509,Song that sounds like it was recorded in a stadium
+510,Song that sounds like a voicemail
+511,Song that sounds like a lullaby
+512,Song that sounds like a marching song
+513,Song that sounds like a chant
+514,Song that sounds underwater
+515,Song that sounds futuristic
+516,Song that sounds dusty
+517,Song that sounds sunny
+518,Song that sounds nocturnal
+519,Song with a perfect opening 10 seconds
+520,Song with a perfect final 10 seconds
+521,Song with a transition into the next track
+522,Song that works best with headphones
+523,Song that works best in a car
+524,Song that works best on speakers
+525,Song that would be ruined by bad speakers
+526,Song that has a feature but no credited feature
+527,Song where the feature steals the song
+528,Song where the hook is sung by someone else
+529,Song with a sample you recognized immediately
+530,Song with a sample you had to look up
+531,Song with interpolation rather than a direct sample
+532,Dancehall song
+533,Dub song
+534,Roots reggae song
+535,Lovers rock song
+536,Soca song
+537,Kompa song
+538,Zouk song
+539,Bossa nova song
+540,Samba song
+541,MPB song
+542,Tango song
+543,Flamenco song
+544,Fado song
+545,Highlife song
+546,Afrobeat song
+547,Afropop song
+548,Rai song
+549,Qawwali song
+550,Bollywood song
+551,Punjabi pop song
+552,Desi hip-hop song
+553,Arabic pop song
+554,Turkish psych-rock song
+555,Anatolian rock song
+556,Cantopop song
+557,Mandopop song
+558,Thai pop song
+559,Vietnamese pop song
+560,P-pop song
+561,K-indie song
+562,City pop song
+563,Vaporwave song
+564,Future funk song
+565,Chillwave song
+566,Trip-hop song
+567,Downtempo song
+568,UK garage song
+569,2-step garage song
+570,Jungle song
+571,Breakbeat song
+572,Trance song
+573,Eurodance song
+574,Italo disco song
+575,Hi-NRG song
+576,Electroclash song
+577,Post-punk song
+578,Art rock song
+579,Math rock song
+580,Post-rock song
+581,Prog rock song
+582,Glam rock song
+583,Garage rock song
+584,Surf rock song
+585,Rockabilly song
+586,Psychobilly song
+587,Hardcore punk song
+588,Pop punk song
+589,Riot grrrl song
+590,Goth song
+591,Darkwave song
+592,Dream pop song
+593,Slowcore song
+594,Noise rock song
+595,Power pop song
+596,Britpop song
+597,Madchester song
+598,Southern rock song
+599,Heartland rock song
+600,Alt-country song
+601,Outlaw country song
+602,Country pop song
+603,Honky-tonk song
+604,Americana song
+605,Singer-songwriter song
+606,Chamber pop song
+607,Baroque pop song
+608,Indie sleaze song
+609,Bloghouse song
+610,Crunk song
+611,Snap rap song
+612,Hyphy song
+613,Drill song
+614,UK drill song
+615,Grime song
+616,G-funk song
+617,Miami bass song
+618,Phonk song
+619,Cloud rap song
+620,Conscious rap song
+621,Horrorcore song
+622,Neo-soul song
+623,Quiet storm song
+624,New jack swing song
+625,Contemporary R&B song
+626,Alternative R&B song
+627,Freestyle song
+628,Latin trap song
+629,Corridos tumbados song
+630,Norteño song
+631,Mariachi song
+632,Tejano song
+633,Ranchera song
+634,Kuduro song
+635,Baile funk song
+636,Jersey club song
+637,Baltimore club song
+638,Song that hit #1 on Billboard Hot 100
+639,Song that never charted but became beloved
+640,Song that became popular years after release
+641,Song that was a TikTok trend
+642,Song from a movie trailer
+643,Song from a commercial
+644,Song from a sports video game soundtrack
+645,Song from a Tony Hawk game soundtrack
+646,Song from a FIFA/EA FC soundtrack
+647,Song from a Grand Theft Auto radio station
+648,Song from an anime opening
+649,Song from an anime ending
+650,Song from a Disney movie
+651,Song from a non-Disney animated movie
+652,Song from a horror movie soundtrack
+653,Song from a rom-com soundtrack
+654,Song from a teen movie soundtrack
+655,Song from a prestige TV drama
+656,Song from a reality TV moment
+657,Song from a viral internet video
+658,Song from a meme
+659,Song from a protest movement
+660,Song associated with a dance craze
+661,Song associated with a specific holiday
+662,Song associated with Christmas but not explicitly Christmas
+663,Song associated with Halloween
+664,Song played at sporting events
+665,Song often used as walk-up music
+666,Song often played at weddings
+667,Song often played at karaoke
+668,Song you would hear at a dive bar
+669,Song you would hear at a club
+670,Song you would hear at a coffee shop
+671,Song you would hear in an elevator
+672,Song that feels like mall music
+673,Song that feels like a department store in December
+674,Song that feels like a college party
+675,Song that feels like a middle school dance
+676,Song that feels like a high school prom
+677,Song that feels like a graduation montage
+678,Song from the first album you ever bought
+679,Song from the first artist you remember loving
+680,Song from a playlist you made years ago
+681,Song from an album with iconic cover art
+682,Song from an album with a terrible cover
+683,Song from an album with no skips according to fans
+684,Song from a critically hated album
+685,Song from a critically beloved album
+686,Song from an album that won Album of the Year
+687,Song from an album that lost Album of the Year
+688,Song from an album released on your birthday
+689,Song released in the month you were born
+690,Song released during your high school years
+691,Song released during your college years
+692,Song released before 1950
+693,Song from the 1940s or earlier
+694,Song released exactly 10 years ago
+695,Song released exactly 20 years ago
+696,Song released exactly 30 years ago
+697,Song from an artist's sophomore album
+698,Song from an artist's third album
+699,Song from an artist's most recent album
+700,Song from an artist's most streamed album
+701,Song from an album with a title track
+702,Song that is the title track of an album
+703,Song that was a B-side
+704,Song released as a standalone single
+705,Song released after the album became popular
+706,Song that was leaked before release
+707,Song from a surprise drop
+708,Song from a concept album
+709,Song from a double album
+710,Song from an EP
+711,Song from a mixtape
+712,Song from an unplugged session
+713,Song from a Tiny Desk performance
+714,Song from a live performance video
+715,Song from a remix album
+716,Song from a charity single
+717,Song made for a movie but bigger than the movie
+718,Song that won an Oscar
+719,Song that was nominated for an Oscar
+720,Song that won Eurovision
+721,Song from a Eurovision contestant
+722,Song for cooking dinner
+723,Song for cleaning your apartment
+724,Song for walking over a bridge
+725,Song for taking the subway at night
+726,Song for a rainy commute
+727,Song for a sunny morning walk
+728,Song for a late-night Uber
+729,Song for driving with the windows down
+730,Song for staring out a train window
+731,Song for getting ready to go out
+732,Song for leaving the party early
+733,Song for the last song at a party
+734,Song for a first date
+735,Song for getting ghosted
+736,Song for texting someone you should not text
+737,Song for deleting someone's number
+738,Song for moving into a new apartment
+739,Song for leaving your hometown
+740,Song for returning to your hometown
+741,Song for a beach sunset
+742,Song for a rooftop hang
+743,Song for a backyard barbecue
+744,Song for a dinner party
+745,Song for a pregame
+746,Song for a postgame
+747,Song for a hangover morning
+748,Song for making coffee
+749,Song for staying in on a Friday
+750,Song for walking home alone
+751,Song for main character energy
+752,Song for side character energy
+753,Song for underdog energy
+754,Song for villain monologue energy
+755,Song for a training montage
+756,Song for a breakup montage
+757,Song for a reunion montage
+758,Song for a road trip montage
+759,Song for a heist scene
+760,Song for a chase scene
+761,Song for a slow dance scene
+762,Song for a bar fight scene
+763,Song for a coming-of-age movie ending
+764,Song for the opening credits of your life
+765,Song for the closing credits of your life
+766,Song for a dramatic entrance
+767,Song for a dramatic exit
+768,Song for a quiet win
+769,Song for a petty win
+770,Song for losing gracefully
+771,Song for losing badly
+772,Song for being delusional
+773,Song for feeling too confident
+774,Song for pretending you are fine
+775,Song for admitting you are not fine
+776,Song for a Sunday reset
+777,Song for Monday motivation
+778,Song for Wednesday survival
+779,Song for Friday freedom
+780,Song for Saturday chaos
+781,Song for a snow day
+782,Song for a heat wave
+783,Song for the first warm day of the year
+784,Song for the first cold day of the year
+785,Song for golden hour
+786,Song for blue hour
+787,Song for 3 AM
+788,Song for sunrise
+789,Song for sunset
+790,Song for midnight
+791,Song for a museum walk
+792,Song for a thrift store trip
+793,Song for a record store browse
+794,Song for a bookstore browse
+795,Song for a grocery store run
+796,Song for folding laundry
+797,Song for packing a suitcase
+798,Song for unpacking after a trip
+799,Song for waiting at an airport
+800,Song for landing in a new city
+801,Song for walking into a fancy hotel
+802,Song for eating pizza at 2 AM
+803,Song for a diner booth
+804,Song for a dive bar jukebox
+805,Song for a hotel lobby
+806,Song for a casino floor
+807,Song for a wedding afterparty
+808,Song for a family party
+809,Song for a cousin's playlist
+810,Song for impressing someone with your taste
+811,Song for annoying the whole group
+812,Song for clearing the aux cord
+813,Song for saving the aux cord
+814,Song for the perfect 15-minute walk
+815,Song for a 5-minute errand
+816,Song for a workout warmup
+817,Song for the last rep
+818,Song for a cooldown
+819,Song for a long shower
+820,Song for a short attention span
+821,Song for reading on a train
+822,Song for journaling
+823,Song for doomscrolling
+824,Song for deleting social media
+825,Song for feeling nostalgic about something that never happened
+826,Song for a fake relationship in your head
+827,Song for a crush you barely know
+828,Song for an ex you are over but not really
+829,Song for a friend breakup
+830,Song for making a bad decision
+831,Song for making the right decision
+832,Song for taking yourself too seriously
+833,Song for not taking anything seriously
+834,Song for a tiny apartment party
+835,Song for a massive festival crowd
+836,Song for a candlelit room
+837,Song for a neon-lit room
+838,Song for a parking lot conversation
+839,Song for a long voicemail
+840,Song for when the group chat is dead
+841,Song for when the group chat is on fire
+842,Song for someone with expensive taste
+843,Song for someone with chaotic taste
+844,Song for someone who says they listen to everything
+845,Song for someone who only listens to hits
+846,Song found by searching a random city name
+847,Song found by searching a random color
+848,Song found by searching a random emotion
+849,Song found by searching a random food
+850,Song found by searching a random month
+851,Song found by searching a random animal
+852,Song found from an artist's related artists page
+853,Song found from a playlist made by a stranger
+854,Song found from a playlist with under 100 saves
+855,Song found from a friend's public playlist
+856,Song found from a radio station algorithm
+857,Song found from a record label's page
+858,Song found from an artist's first release
+859,Song found from an artist's least popular album
+860,Song found from an album's final track
+861,Song found from a producer credit
+862,Song found from a songwriter credit
+863,Song found from a background vocalist credit
+864,Song found from a featured artist rabbit hole
+865,Song found from a cover version rabbit hole
+866,Song found from a sample chain
+867,Song found from a music subreddit
+868,Song found from a music blog
+869,Song found from an old Pitchfork review
+870,Song found from a YouTube comment
+871,Song found from a live performance clip
+872,Song found from a Tiny Desk rabbit hole
+873,Song found from a festival lineup
+874,Song found from a local venue calendar
+875,Song found from a movie end credits list
+876,Song found from Shazam or sound recognition
+877,Song you picked only because of the cover art
+878,Song you picked only because of the title
+879,Song you picked only because of the artist name
+880,Song you picked because the album cover was ugly
+881,Song you picked because the runtime was weird
+882,Song you picked without previewing it
+883,Song you picked from page 2 or deeper of search results
+884,Song you picked by scrolling to a random year
+885,Song by the least famous artist you can find
+886,Song from an artist with no Wikipedia page
+887,Song from an album with fewer than 10 ratings online
+888,Song from a local band in your city
+889,Song from a local band in a city you have visited
+890,Song from a city you want to visit
+891,Song from a country whose language you cannot identify
+892,Song from a genre you had to Google
+893,Song from a subgenre you had never heard of
+894,Song with an instrument you had to Google
+895,Song with a title you had to translate
+896,Song where you cannot pronounce the artist name
+897,Song where you cannot pronounce the title
+898,Song you would never have clicked without bingo
+899,Song that was better than expected
+900,Song that was worse than expected
+901,Song that made you want to hear the album
+902,Song that made you never want to hear the album
+903,Song you would send to one specific club member
+904,Song you would not play around your parents
+905,Song you would play around your parents to confuse them
+906,Song from an artist with exactly one album
+907,Song from an artist with no profile photo
+908,Song from an album released independently
+909,Song from a label you recognize
+910,Song from a label you have never heard of
+911,Song from a compilation album
+912,Song from a tribute album
+913,Song from a benefit album
+914,Song from a regional scene compilation
+915,Song from a DJ mix tracklist
+916,Song from a playlist with a ridiculous name
+917,Song from a playlist with a very boring name
+918,Song from a playlist made by Spotify/Apple editors
+919,Song from a playlist not made by a streaming service
+920,Song from the last page of an artist's discography
+921,Song from the middle of an album you would normally skip
+922,Song from an artist you only know from one song
+923,Song from an artist you confused with another artist
+924,Song by someone who opened for a bigger act
+925,Song by someone who featured on a song you already like
+926,Song by an artist with a monthly listener count under 10k
+927,Song by an artist with a monthly listener count between 10k and 100k
+928,Song by an artist with a monthly listener count between 1M and 5M
+929,Song with no obvious genre label
+930,Song that sounds like two genres at once
+931,Song that sounds nothing like its cover art
+932,Song whose title made you laugh
+933,Song whose title made you nervous
+934,Song whose first 5 seconds hooked you
+935,Song whose first 5 seconds almost lost you
+936,Song you would give a second chance after one listen
+937,Song you are shocked you had never heard before
+938,Opening track from an album
+939,Second track from an album
+940,Third track from an album
+941,Track 4 from an album
+942,Track 5 from an album
+943,Track 6 from an album
+944,Track 7 from an album
+945,Track 8 from an album
+946,Track 9 from an album
+947,Track 10 from an album
+948,Final track from an album
+949,Penultimate track from an album
+950,Middle track from an album
+951,Shortest song on an album
+952,Longest song on an album
+953,Least-streamed song on an album
+954,Most-streamed song on an album
+955,A non-single from a famous album
+956,A deep cut from an artist you like
+957,A deep cut from an artist you do not know
+958,A song that should have been a single
+959,A single that sounds like an album cut
+960,A skit-adjacent track
+961,An interlude that is actually good
+962,An intro track that is actually a full song
+963,An outro track that is actually a full song
+964,A song that follows the biggest hit on an album
+965,A song before the biggest hit on an album
+966,A song with the same title as the album
+967,A song that shares a title with another famous song
+968,A song that appears on multiple versions of an album
+969,A song added on a deluxe edition
+970,A song removed from a later version of an album
+971,A bonus track better than the main album tracks
+972,A remix that became more famous than the original
+973,A remix that should not exist
+974,A live version better than the studio version
+975,A studio version better than the live version
+976,An acoustic version of a non-acoustic song
+977,An orchestral version of a pop song
+978,A stripped-down version of a loud song
+979,A dance remix of a sad song
+980,A sad remix of a dance song
+981,A song that opens with the album title being said
+982,A song that ends with the album title being said
+983,A song that feels misplaced on its album
+984,A song that perfectly explains its album
+985,A song that could have closed the album
+986,A song that could have opened the album
+987,A song that changes how you hear the previous track
+988,A song that changes how you hear the next track
+989,A song from an album with 8 tracks or fewer
+990,A song from an album with 20 tracks or more
+991,A song from an album under 30 minutes
+992,A song from an album over 80 minutes
+993,A song from a visual album
+994,A song from a collaborative album
+995,A song from an artist's self-titled album
+996,A song from an album named after a place
+997,A song from an album named after a person
+998,A song from an album with an all-caps title
+999,A song from an album with a lowercase title
+1000,A song from an album with a number in the title

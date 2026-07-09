@@ -227,12 +227,12 @@ export function StudioHighlights({ clubId, cycleId }: { clubId: string; cycleId:
 
     // Listening Bingo — the live game: verify nudge beats the running score.
     if (bingo) {
-      const myCard = bingo.cards.find((c) => c.profile_id === userId);
+      const myCardIds = new Set(bingo.cards.filter((c) => c.profile_id === userId).map((c) => c.id));
       const toVerify = bingo.claims.filter(
         (c) => c.status === 'pending' && c.bingo_cards.profile_id !== userId,
       ).length;
       const bingos = bingo.claims.filter((c) => c.status === 'verified').length;
-      const myLit = myCard ? bingo.boxes.filter((b) => b.card_id === myCard.id && b.activated_at).length : 0;
+      const myLit = bingo.boxes.filter((b) => myCardIds.has(b.card_id) && b.activated_at).length;
       out.push({
         key: 'bingo',
         accent: 'coral',

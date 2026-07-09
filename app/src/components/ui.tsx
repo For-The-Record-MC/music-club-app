@@ -1,9 +1,11 @@
-import { type ReactNode, type RefObject, useRef, useState } from 'react';
+import { type ReactNode, type RefObject, useEffect, useRef, useState } from 'react';
 import {
   Image,
+  Keyboard,
   Linking,
   Modal,
   PanResponder,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -38,6 +40,21 @@ export function Screen({
 }) {
   const { palette } = useTheme();
   const insets = useSafeAreaInsets();
+  // iOS sometimes fails to remove the keyboard content inset on dismiss
+  // (swipe-down, screen transitions), leaving a keyboard-sized scrollable
+  // void below the content. Only apply the automatic inset while the keyboard
+  // is actually up so a stale inset can never linger.
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const show = Keyboard.addListener(showEvent, () => setKeyboardOpen(true));
+    const hide = Keyboard.addListener(hideEvent, () => setKeyboardOpen(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
   const inner = (
     <View style={styles.pageInner}>
       {refreshing ? (
@@ -59,7 +76,7 @@ export function Screen({
       keyboardShouldPersistTaps="handled"
       // Inset the scroll view for the software keyboard (iOS) so a text field near
       // the bottom scrolls above the keyboard instead of being hidden behind it.
-      automaticallyAdjustKeyboardInsets
+      automaticallyAdjustKeyboardInsets={keyboardOpen}
       // Let the pull-to-refresh gesture work even when content is shorter than
       // the screen — without this, iOS won't bounce (and won't trigger refresh)
       // on sparse screens like an empty feed or a quiet activity list.

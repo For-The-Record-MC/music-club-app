@@ -1,0 +1,62 @@
+name: EAS update (OTA)
+
+# Manual trigger only — Actions tab → "EAS update (OTA)" → Run workflow, or
+# `gh workflow run eas-update.yml -f message="ship the batch"`.
+#
+# Publishes the current JS/assets as an over-the-air update to installed apps.
+# NO native changes ride this pipe — those need eas-build.yml + App Store
+# review. See OTA_RUNBOOK.md for the full checklist (including the one-time
+# expo-updates setup that must land BEFORE this workflow is ever run).
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Update channel (matches the build profile that installed the app)
+        type: choice
+        options: [production, preview]
+        default: production
+      message:
+        description: Update message (shows in `eas update:list` — say what shipped)
+        type: string
+        required: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - run: npm ci
+
+      # An OTA ships to every install with no review to catch mistakes —
+      # refuse to publish anything that doesn't typecheck.
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      # EXPO_PUBLIC_* vars bake into the bundle AT PUBLISH TIME (eas.json env
+      # blocks only apply to builds), so they must be set here and must match
+      # the production build profile's values.
+      - name: Publish update
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: https://yecjvvnposykmrzemcej.supabase.co
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InllY2p2dm5wb3N5a21yemVtY2VqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyODUwMTMsImV4cCI6MjA5Njg2MTAxM30.jfyyyDUkXxDCDbYrq230kJdFsXi26ZZnPxIdoBaDSBo
+          EXPO_PUBLIC_SPOTIFY_CLIENT_ID: 647b0e8ebe2b455da5ca1069989938f4
+        run: |
+          eas update \
+            --channel "${{ inputs.channel }}" \
+            --message "${{ inputs.message }}" \
+            --non-interactive

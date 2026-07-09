@@ -33,10 +33,25 @@ from the plan below:
   Function): each box stores the song's Last.fm all-time playcount
   (`lastfm_playcount`), fetched at pick time (and lazily backfilled for
   earlier picks via `set_bingo_playcount`, own boxes only). Scoring is pure
-  client math in `utils/listeningBingo.ts` — `rarity = clamp(100 − 11·log₁₀
-  (playcount), 1, 100)`; bingo rarity = line average (free center excluded),
+  client math in `utils/listeningBingo.ts` — counts are Last.fm SCROBBLES
+  (~50x smaller than Spotify streams, ceiling ~3×10⁷), so the curve is
+  two-segment: gentle below 100k scrobbles, steep above —
+  `lg≤5: 100 − 15(lg−2); lg>5: 55 − 22(lg−5)`
+  (1k→85 · 10k→70 · 100k→55 · 1M→33 · 10M→11 · 30M+→1). The track-stats function
+  normalizes Spotify's joined multi-artist strings + decorated titles
+  ("(feat. …)", "- Acoustic") before the lookup and takes the better of
+  cleaned/raw; the profile backfill re-stamps that cohort. Bingo rarity =
+  line average (free center excluded),
   card rarity = average of lit scored boxes; unknown counts are excluded, not
   zeroed. Shown as 💎 in standings, board headers, and the box panel.
+- **Extra cards + no double-counted bingos**
+  (`20260708010000_bingo_extra_cards.sql`): bonus-line unlocks draw only from
+  lines that still have unlit boxes — a fully-lit board no longer cascades
+  pre-completed free bingos (one-time repair removed the six pending cascade
+  claims from the affected card; peer-verified ones stood). A blacked-out
+  latest card can request a fresh card via `request_bingo_card`, max 3 per
+  game (`card_number`); play continues on the newest card, earlier cards stay
+  browsable on the board list and their claims stand.
 - **Max 3 concurrent listens per card** (`20260703130000_bingo_listen_cap.sql`):
   timers run independently, so an uncapped card could be speedrun by tapping
   out on all 24 boxes and waiting one song length. The cap of 3 tolerates
