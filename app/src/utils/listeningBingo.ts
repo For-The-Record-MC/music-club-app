@@ -63,13 +63,17 @@ export function lineLitCount(line: number, boxesByPosition: Map<number, BingoBox
 }
 
 // ── Rarity ───────────────────────────────────────────────
-// HoopGrids-style obscurity scoring from Last.fm global playcounts. Counts
-// span ~10²–10⁹, so the curve is logarithmic: a billion-stream hit scores ~1,
-// a 10k-play deep cut ~56, a sub-1k obscurity 70+. Pure client math — tune
-// the curve here without a migration.
+// HoopGrids-style obscurity scoring from Last.fm global playcounts (SCROBBLES,
+// not Spotify streams — ceiling ~3×10⁷ for all-time megahits). Two segments:
+// a gentle slope below 100k scrobbles so genuine deep cuts score generously,
+// then a steep one so certified hits still fall to the floor:
+//   ≤100 → 100 · 1k → 85 · 3k → 78 · 10k → 70 · 64k → 58 · 100k → 55
+//   1M → 33 · 10M → 11 · 30M+ → 1
+// Pure client math — tune the anchors here without a migration.
 
 export function rarityScore(playcount: number): number {
-  const score = 100 - 11 * Math.log10(Math.max(playcount, 1) + 1);
+  const lg = Math.log10(Math.max(playcount, 1));
+  const score = lg <= 5 ? 100 - 15 * (lg - 2) : 55 - 22 * (lg - 5);
   return Math.max(1, Math.min(100, Math.round(score)));
 }
 

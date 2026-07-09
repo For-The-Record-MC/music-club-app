@@ -138,6 +138,7 @@ function LaunchGame({ clubId, hasOpenCycle, onCreated }: { clubId: string; hasOp
   const [customs, setCustoms] = useState<string[]>([]);
   const [customText, setCustomText] = useState('');
   const [showPool, setShowPool] = useState(false);
+  const [poolQuery, setPoolQuery] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -190,7 +191,18 @@ function LaunchGame({ clubId, hasOpenCycle, onCreated }: { clubId: string; hasOp
           </Pressable>
           {showPool ? (
             <>
-              {builtins.map((c) => {
+              <TextField
+                placeholder={`Search ${builtins.length} categories…`}
+                value={poolQuery}
+                onChangeText={setPoolQuery}
+                autoCorrect={false}
+              />
+              {(() => {
+                const q = poolQuery.trim().toLowerCase();
+                const matches = q ? builtins.filter((c) => c.label.toLowerCase().includes(q)) : builtins;
+                return (
+                  <>
+                    {matches.slice(0, 50).map((c) => {
                 const off = dropped.has(c.id);
                 return (
                   <Pressable
@@ -207,7 +219,18 @@ function LaunchGame({ clubId, hasOpenCycle, onCreated }: { clubId: string; hasOp
                     <Text style={[styles.poolLabel, { color: off ? palette.text3 : palette.text1 }, off && styles.strike]}>{c.label}</Text>
                   </Pressable>
                 );
-              })}
+                    })}
+                    {matches.length > 50 ? (
+                      <Text style={[styles.hint, { color: palette.text3, paddingVertical: 6 }]}>
+                        …and {matches.length - 50} more — search to narrow.
+                      </Text>
+                    ) : null}
+                    {q && matches.length === 0 ? (
+                      <Text style={[styles.hint, { color: palette.text3, paddingVertical: 6 }]}>No matches.</Text>
+                    ) : null}
+                  </>
+                );
+              })()}
               {customs.map((label) => (
                 <Pressable
                   key={label}
@@ -280,13 +303,17 @@ function LiveGame({
     return m;
   }, [boxes]);
 
-  const myCard = cards.find((c) => c.profile_id === userId) ?? null;
+  const myCards = cards
+    .filter((c) => c.profile_id === userId)
+    .sort((a, b) => (a.card_number ?? 1) - (b.card_number ?? 1));
+  // Play happens on the newest card; earlier (blacked-out) cards stay browsable.
+  const myCard = myCards[myCards.length - 1] ?? null;
   const myBoxes = myCard ? boxesByCard.get(myCard.id) ?? new Map<number, BingoBox>() : new Map<number, BingoBox>();
 
   // Deal my card lazily on first open (once — the RPC is idempotent anyway).
   const dealtRef = useRef(false);
   useEffect(() => {
-    if (!myCard && !closed && userId && !dealtRef.current) {
+    if (myCards.length === 0 && !closed && userId && !dealtRef.current) {
       dealtRef.current = true;
       listeningBingo.deal(game.id).then(() => onChange());
     }
@@ -299,7 +326,14 @@ function LiveGame({
   const backfillRef = useRef(false);
   useEffect(() => {
     if (backfillRef.current || !myCard) return;
-    const missing = [...myBoxes.values()].filter((b) => b.title && b.lastfm_playcount == null);
+    // Null counts, plus the cohort the old lookup got wrong: Spotify's joined
+    // multi-artist strings and decorated titles ("(feat. …)", "- Acoustic")
+    // used to miss on Last.fm and store tiny counts. Re-stamp those too.
+    const suspicious = (b: BingoBox) =>
+      b.artist.includes(',') || /[([](feat|ft|with)\.?/i.test(b.title ?? '') || /\s-\s/.test(b.title ?? '');
+    const missing = [...myBoxes.values()].filter(
+      (b) => b.title && (b.lastfm_playcount == null || suspicious(b)),
+    );
     if (missing.length === 0) return;
     backfillRef.current = true;
     (async () => {
@@ -368,6 +402,18 @@ function LiveGame({
     const ok = await confirmAsync('Scrap game', 'Delete this bingo game entirely (all cards lost)?');
     if (!ok) return;
     await listeningBingo.remove(game.id);
+    onChange();
+  };
+
+  const requestCard = async () => {
+    const ok = await confirmAsync(
+      'Deal a fresh card',
+      `Card ${myCards.length} is fully lit — deal card ${myCards.length + 1} of 3? Your finished card stays on the board.`,
+    );
+    if (!ok) return;
+    setError(null);
+    const { error: err } = await listeningBingo.requestCard(game.id);
+    if (err) setError(err.message ?? 'Could not deal a new card.');
     onChange();
   };
 
@@ -458,14 +504,16 @@ function LiveGame({
           challengeByPos={myChallengeByPos}
           onClaim={claimLine}
           onChange={onChange}
+          cardCount={myCards.length}
+          onRequestCard={requestCard}
         />
       ) : !closed ? (
         <Loading />
       ) : null}
 
-      {/* Everyone else's boards */}
+      {/* Everyone else's boards — plus my earlier (blacked-out) cards */}
       <OtherBoards
-        cards={cards.filter((c) => c.profile_id !== userId)}
+        cards={[...myCards.slice(0, -1), ...cards.filter((c) => c.profile_id !== userId)]}
         boxesByCard={boxesByCard}
         catById={catById}
         claims={claims}
@@ -492,6 +540,8 @@ function MyBoard({
   challengeByPos,
   onClaim,
   onChange,
+  cardCount,
+  onRequestCard,
 }: {
   card: BingoCardView;
   boxesByPos: Map<number, BingoBox>;
@@ -502,6 +552,8 @@ function MyBoard({
   challengeByPos: Map<number, string>;
   onClaim: (line: number) => void;
   onChange: () => void;
+  cardCount: number;
+  onRequestCard: () => void;
 }) {
   const { palette } = useTheme();
   const [selected, setSelected] = useState<number | null>(null);
@@ -517,10 +569,13 @@ function MyBoard({
   return (
     <>
       <Text style={[styles.sectionTitle, { color: palette.text3 }]}>
-        MY CARD{(() => { const r = cardRarity(boxesByPos); return r != null ? ` · 💎 RARITY ${r}` : ''; })()}
+        MY CARD{cardCount > 1 ? ` #${cardCount}` : ''}{(() => { const r = cardRarity(boxesByPos); return r != null ? ` · 💎 RARITY ${r}` : ''; })()}
       </Text>
       <Card>
         {allLit ? <BlackoutBanner /> : null}
+        {allLit && !closed && cardCount < 3 ? (
+          <Button title={`🎱 Deal me another card (${cardCount} of 3 used)`} onPress={onRequestCard} style={{ marginBottom: 10 }} />
+        ) : null}
         <View style={styles.lineChips}>
           {qualifying.map((l, i) => {
             const done = lineComplete(l, boxesByPos);
@@ -806,7 +861,7 @@ function BoxPanel({
               <Text numberOfLines={1} style={[styles.sSub, { color: palette.text3 }]}>
                 {box.artist}
                 {box.lastfm_playcount != null
-                  ? ` · ${formatPlays(box.lastfm_playcount)} · 💎 ${rarityScore(box.lastfm_playcount)}`
+                  ? ` · ${formatPlays(box.lastfm_playcount).replace(' plays', ' Last.fm plays')} · 💎 ${rarityScore(box.lastfm_playcount)}`
                   : ''}
               </Text>
             </View>
@@ -950,8 +1005,8 @@ function VerifyClaim({
               <View style={styles.songRow}>
                 {box.artwork_url ? <Image source={{ uri: box.artwork_url }} style={styles.artSm} contentFit="cover" /> : null}
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text numberOfLines={1} style={[styles.sTitle, { color: palette.text1 }]}>{box.title ?? '?'}</Text>
-                  <Text numberOfLines={1} style={[styles.sSub, { color: palette.text3 }]}>{box.artist}</Text>
+                  <Text numberOfLines={2} style={[styles.sTitle, { color: palette.text1 }]}>{box.title ?? '?'}</Text>
+                  <Text numberOfLines={2} style={[styles.sSub, { color: palette.text3 }]}>{box.artist}</Text>
                 </View>
                 <ListenLinks apple={box.apple_url} spotify={box.spotify_url} other={null} />
               </View>
@@ -1031,6 +1086,7 @@ function OtherBoards({
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={[styles.sTitle, { color: palette.text1 }]}>{memberName(m?.display_name, m?.email)}</Text>
                 <Text style={[styles.sSub, { color: palette.text3 }]}>
+                  {(c.card_number ?? 1) > 1 ? `card ${c.card_number} · ` : ''}
                   {lit === 24 ? '⬛ BLACKOUT · ' : ''}{lit}/24 lit{bingos > 0 ? ` · ${bingos} bingo${bingos === 1 ? '' : 's'}` : ''}
                   {rarity != null ? ` · 💎 ${rarity}` : ''}
                 </Text>

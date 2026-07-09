@@ -142,7 +142,8 @@ CREATE TABLE bingo_cards (
   game_id uuid NOT NULL,
   profile_id uuid NOT NULL,
   qualifying_lines smallint[] NOT NULL,
-  dealt_at timestamp with time zone NOT NULL DEFAULT now()
+  dealt_at timestamp with time zone NOT NULL DEFAULT now(),
+  card_number smallint NOT NULL DEFAULT 1
 );
 
 CREATE TABLE bingo_categories (
@@ -810,7 +811,7 @@ ALTER TABLE bingo_boxes ADD CONSTRAINT bingo_boxes_title_check CHECK (((title IS
 
 ALTER TABLE bingo_cards ADD CONSTRAINT bingo_cards_game_id_fkey FOREIGN KEY (game_id) REFERENCES bingo_games(id) ON DELETE CASCADE;
 
-ALTER TABLE bingo_cards ADD CONSTRAINT bingo_cards_game_id_profile_id_key UNIQUE (game_id, profile_id);
+ALTER TABLE bingo_cards ADD CONSTRAINT bingo_cards_game_profile_number_key UNIQUE (game_id, profile_id, card_number);
 
 ALTER TABLE bingo_cards ADD CONSTRAINT bingo_cards_pkey PRIMARY KEY (id);
 
@@ -2343,6 +2344,71 @@ AS $function$
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.bingo_deal_internal(p_game uuid, p_card_number integer)
+ RETURNS bingo_cards
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_card public.bingo_cards;
+  v_lines smallint[];
+  v_fresh int;
+begin
+  select array_agg(l::smallint order by ord) into v_lines
+  from (
+    select l, random() as ord from generate_series(0, 11) as l order by 2 limit 3
+  ) picked(l, ord);
+
+  insert into bingo_cards (game_id, profile_id, qualifying_lines, card_number)
+  values (p_game, auth.uid(), v_lines, p_card_number)
+  returning * into v_card;
+
+  -- Prefer categories this member hasn't already had in this game.
+  select count(*) into v_fresh
+  from bingo_game_categories gc
+  where gc.game_id = p_game
+    and not exists (
+      select 1 from bingo_boxes b
+      join bingo_cards k on k.id = b.card_id
+      where k.game_id = p_game and k.profile_id = auth.uid()
+        and k.id <> v_card.id and b.category_id = gc.id
+    );
+
+  insert into bingo_boxes (card_id, position, category_id)
+  select v_card.id, p.pos, c.id
+  from (
+    select pos, row_number() over (order by random()) as rn
+    from generate_series(0, 24) as pos
+    where pos <> 12
+  ) p
+  join (
+    select id, row_number() over (order by random()) as rn
+    from (
+      select gc.id from bingo_game_categories gc
+      where gc.game_id = p_game
+        and (
+          v_fresh < 24
+          or not exists (
+            select 1 from bingo_boxes b
+            join bingo_cards k on k.id = b.card_id
+            where k.game_id = p_game and k.profile_id = auth.uid()
+              and k.id <> v_card.id and b.category_id = gc.id
+          )
+        )
+      order by random() limit 24
+    ) sub
+  ) c on c.rn = p.rn;
+
+  if (select count(*) from bingo_boxes where card_id = v_card.id) < 24 then
+    raise exception 'The category pool is too small to deal a card';
+  end if;
+
+  return v_card;
+end;
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.bingo_line_positions(p_line integer)
  RETURNS integer[]
  LANGUAGE sql
@@ -2678,8 +2744,10 @@ begin
     jsonb_build_object('game_id', v_game.id, 'line_index', p_line)
   );
 
-  -- Every qualifying line now live-claimed → unlock the next line right away
-  -- (random from the ones this card wasn't dealt), up to all 12.
+  -- Every qualifying line live-claimed → unlock the next line, but ONLY from
+  -- lines that still have unlit boxes: a pre-completed line would be a free
+  -- bingo (double counting). No candidates → the card is done; blackout (and
+  -- a fresh card) is the reward.
   select count(*) into v_claimed
   from bingo_claims
   where card_id = p_card and status in ('pending', 'verified')
@@ -2689,6 +2757,14 @@ begin
     select l::smallint into v_next
     from generate_series(0, 11) as l
     where not (l::smallint = any (v_card.qualifying_lines))
+      and exists (
+        select 1 from unnest(public.bingo_line_positions(l)) as pos
+        where pos <> 12
+          and not exists (
+            select 1 from bingo_boxes b
+            where b.card_id = p_card and b.position = pos and b.activated_at is not null
+          )
+      )
     order by random()
     limit 1;
     if v_next is not null then
@@ -3494,7 +3570,6 @@ AS $function$
 declare
   v_game public.bingo_games;
   v_card public.bingo_cards;
-  v_lines smallint[];
 begin
   select * into v_game from bingo_games where id = p_game;
   if not found then
@@ -3504,7 +3579,9 @@ begin
     raise exception 'Not a club member';
   end if;
 
-  select * into v_card from bingo_cards where game_id = p_game and profile_id = auth.uid();
+  select * into v_card from bingo_cards
+  where game_id = p_game and profile_id = auth.uid()
+  order by card_number desc limit 1;
   if found then
     return v_card;
   end if;
@@ -3512,33 +3589,7 @@ begin
     raise exception 'The game is closed';
   end if;
 
-  select array_agg(l::smallint order by ord) into v_lines
-  from (
-    select l, random() as ord from generate_series(0, 11) as l order by 2 limit 3
-  ) picked(l, ord);
-
-  insert into bingo_cards (game_id, profile_id, qualifying_lines)
-  values (p_game, auth.uid(), v_lines)
-  returning * into v_card;
-
-  -- 24 random categories → the 24 non-center positions, both shuffled.
-  insert into bingo_boxes (card_id, position, category_id)
-  select v_card.id, p.pos, c.id
-  from (
-    select pos, row_number() over (order by random()) as rn
-    from generate_series(0, 24) as pos
-    where pos <> 12
-  ) p
-  join (
-    select id, row_number() over (order by random()) as rn
-    from (select id from bingo_game_categories where game_id = p_game order by random() limit 24) sub
-  ) c on c.rn = p.rn;
-
-  if (select count(*) from bingo_boxes where card_id = v_card.id) < 24 then
-    raise exception 'The category pool is too small to deal a card';
-  end if;
-
-  return v_card;
+  return public.bingo_deal_internal(p_game, 1);
 end;
 $function$
 ;
@@ -4704,6 +4755,49 @@ end;
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.request_bingo_card(p_game uuid)
+ RETURNS bingo_cards
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_game public.bingo_games;
+  v_card public.bingo_cards;
+  v_count int;
+begin
+  select * into v_game from bingo_games where id = p_game;
+  if not found then
+    raise exception 'Game not found';
+  end if;
+  if not public.is_club_member(v_game.club_id) then
+    raise exception 'Not a club member';
+  end if;
+  if v_game.status <> 'open' then
+    raise exception 'The game is closed';
+  end if;
+
+  select count(*) into v_count from bingo_cards
+  where game_id = p_game and profile_id = auth.uid();
+  if v_count = 0 then
+    raise exception 'Open the room to get your first card';
+  end if;
+  if v_count >= 3 then
+    raise exception 'Three cards is the cycle limit — see you next cycle';
+  end if;
+
+  select * into v_card from bingo_cards
+  where game_id = p_game and profile_id = auth.uid()
+  order by card_number desc limit 1;
+  if (select count(*) from bingo_boxes b where b.card_id = v_card.id and b.activated_at is not null) < 24 then
+    raise exception 'Light every box on your current card first';
+  end if;
+
+  return public.bingo_deal_internal(p_game, v_count + 1);
+end;
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.reset_aux_battle(p_cycle uuid)
  RETURNS void
  LANGUAGE plpgsql
@@ -4785,8 +4879,6 @@ begin
       jsonb_build_object('game_id', v_game.id, 'claimer_name', v_claimer, 'rank', v_rank)
     );
 
-    -- Every qualifying line verified → unlock a bonus line (random pick from
-    -- the ones this card wasn't dealt), until all 12 are in play.
     select count(*) into v_verified
     from bingo_claims
     where card_id = v_card.id and status = 'verified'
@@ -4796,6 +4888,14 @@ begin
       select l::smallint into v_next
       from generate_series(0, 11) as l
       where not (l::smallint = any (v_card.qualifying_lines))
+        and exists (
+          select 1 from unnest(public.bingo_line_positions(l)) as pos
+          where pos <> 12
+            and not exists (
+              select 1 from bingo_boxes b
+              where b.card_id = v_card.id and b.position = pos and b.activated_at is not null
+            )
+        )
       order by random()
       limit 1;
       if v_next is not null then
@@ -4822,7 +4922,6 @@ begin
     end if;
     insert into bingo_challenges (claim_id, position, challenger_id, reason)
     values (p_claim, v_pos, auth.uid(), trim(ch ->> 'reason'));
-    -- The box goes dark: swap the song (or keep it) and listen again to relight.
     update bingo_boxes
     set activated_at = null, listen_started_at = null
     where card_id = v_card.id and position = v_pos;
