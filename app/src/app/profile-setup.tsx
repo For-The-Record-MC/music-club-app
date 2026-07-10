@@ -333,7 +333,7 @@ function StreamingServiceCard() {
               <Text
                 style={[
                   styles.serviceChipText,
-                  { color: active ? palette.tealDark : palette.text2 },
+                  { color: active ? palette.text1 : palette.text2 },
                 ]}
               >
                 {o.label}
