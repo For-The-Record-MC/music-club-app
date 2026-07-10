@@ -242,6 +242,51 @@ export type Database = {
           },
         ]
       }
+      apple_match_queue: {
+        Row: {
+          artist: string
+          attempts: number
+          created_at: string
+          id: string
+          isrc: string | null
+          kind: string
+          last_attempt_at: string | null
+          resolved_at: string | null
+          source_id: string
+          source_table: string
+          spotify_url: string | null
+          title: string
+        }
+        Insert: {
+          artist?: string
+          attempts?: number
+          created_at?: string
+          id?: string
+          isrc?: string | null
+          kind?: string
+          last_attempt_at?: string | null
+          resolved_at?: string | null
+          source_id: string
+          source_table: string
+          spotify_url?: string | null
+          title: string
+        }
+        Update: {
+          artist?: string
+          attempts?: number
+          created_at?: string
+          id?: string
+          isrc?: string | null
+          kind?: string
+          last_attempt_at?: string | null
+          resolved_at?: string | null
+          source_id?: string
+          source_table?: string
+          spotify_url?: string | null
+          title?: string
+        }
+        Relationships: []
+      }
       aux_battle_songs: {
         Row: {
           apple_url: string | null
@@ -2188,11 +2233,13 @@ export type Database = {
       }
       perfect_playlist_songs: {
         Row: {
+          apple_song_id: string | null
           apple_url: string | null
           artist: string
           artwork_url: string | null
           created_at: string
           id: string
+          isrc: string | null
           norm_key: string
           playlist_id: string
           playlist_synced_at: string | null
@@ -2201,11 +2248,13 @@ export type Database = {
           title: string
         }
         Insert: {
+          apple_song_id?: string | null
           apple_url?: string | null
           artist?: string
           artwork_url?: string | null
           created_at?: string
           id?: string
+          isrc?: string | null
           norm_key: string
           playlist_id: string
           playlist_synced_at?: string | null
@@ -2214,11 +2263,13 @@ export type Database = {
           title: string
         }
         Update: {
+          apple_song_id?: string | null
           apple_url?: string | null
           artist?: string
           artwork_url?: string | null
           created_at?: string
           id?: string
+          isrc?: string | null
           norm_key?: string
           playlist_id?: string
           playlist_synced_at?: string | null
@@ -2434,6 +2485,7 @@ export type Database = {
           display_name: string | null
           email: string | null
           id: string
+          preferred_service: string
         }
         Insert: {
           avatar_album_url?: string | null
@@ -2445,6 +2497,7 @@ export type Database = {
           display_name?: string | null
           email?: string | null
           id: string
+          preferred_service?: string
         }
         Update: {
           avatar_album_url?: string | null
@@ -2456,6 +2509,7 @@ export type Database = {
           display_name?: string | null
           email?: string | null
           id?: string
+          preferred_service?: string
         }
         Relationships: []
       }
@@ -3108,11 +3162,13 @@ export type Database = {
           p_title: string
         }
         Returns: {
+          apple_song_id: string | null
           apple_url: string | null
           artist: string
           artwork_url: string | null
           created_at: string
           id: string
+          isrc: string | null
           norm_key: string
           playlist_id: string
           playlist_synced_at: string | null
@@ -3128,6 +3184,7 @@ export type Database = {
         }
       }
       album_has_ratings: { Args: { p_album: string }; Returns: boolean }
+      apple_match_sweep: { Args: never; Returns: undefined }
       aux_has_submitted: { Args: { p_battle: string }; Returns: boolean }
       bingo_box_locked: {
         Args: { p_card: string; p_position: number }

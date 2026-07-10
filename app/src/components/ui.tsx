@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SpinningRecord } from '@/components/SpinningRecord';
 import { useTheme } from '@/hooks/use-theme';
+import { useAuthStore } from '@/stores/authStore';
 import { avatarColors, fonts, radius } from '@/theme';
 
 // Shared primitives ported from the MVP's visual language (legacy/index.html):
@@ -183,6 +184,11 @@ export function Button({
 // Brand-colored "open in…" pill buttons. A post/album can carry an Apple Music
 // and/or Spotify link (the search picker resolves both); `other` is the generic
 // fallback for a manually pasted link. Renders nothing when all are absent.
+//
+// Routed by the member's streaming preference: 'both' (default) shows every
+// pill; 'spotify'/'apple' shows only the preferred service — unless its link
+// is missing, in which case the other service's pill shows instead (a working
+// link beats brand purity). onOpen fires for whichever pill is tapped.
 export function ListenLinks({
   apple,
   spotify,
@@ -198,9 +204,15 @@ export function ListenLinks({
   onOpen?: () => void;
 }) {
   const { palette } = useTheme();
-  const pills: { label: string; url: string; bg: string }[] = [];
-  if (spotify) pills.push({ label: 'Spotify', url: spotify, bg: palette.spotify });
-  if (apple) pills.push({ label: 'Apple Music', url: apple, bg: palette.apple });
+  const preference = useAuthStore((s) => s.profile?.preferred_service ?? 'both');
+  let servicePills: { label: string; url: string; bg: string }[] = [];
+  if (spotify) servicePills.push({ label: 'Spotify', url: spotify, bg: palette.spotify });
+  if (apple) servicePills.push({ label: 'Apple Music', url: apple, bg: palette.apple });
+  if (preference !== 'both' && servicePills.length > 1) {
+    const preferredLabel = preference === 'apple' ? 'Apple Music' : 'Spotify';
+    servicePills = servicePills.filter((p) => p.label === preferredLabel);
+  }
+  const pills = [...servicePills];
   if (other) pills.push({ label: 'Open link', url: other, bg: palette.text2 });
   if (!pills.length) return null;
   return (

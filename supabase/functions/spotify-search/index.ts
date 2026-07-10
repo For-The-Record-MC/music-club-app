@@ -34,6 +34,7 @@ interface SpotifySong {
   artworkUrl: string
   spotifyUrl: string
   durationMs: number | null // Listening Bingo's time gate
+  isrc: string | null // captured at pick time so apple-music can exact-match
 }
 
 interface SpotifyAlbum {
@@ -177,5 +178,6 @@ function normalize(payload: any, type: SearchType): SpotifySong[] | SpotifyAlbum
       artworkUrl: pickArtwork(t.album?.images),
       spotifyUrl: t.external_urls?.spotify ?? '',
       durationMs: typeof t.duration_ms === 'number' ? t.duration_ms : null,
+      isrc: t.external_ids?.isrc ?? null,
     }))
 }

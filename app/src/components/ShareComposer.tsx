@@ -40,6 +40,9 @@ interface SearchResult {
   spotifyUrl: string | null;
   spotifyUri: string | null;
   appleUrl: string | null;
+  // Recording code from Spotify track results — stored in post metadata so the
+  // apple-music resolver can exact-match without a second Spotify lookup.
+  isrc: string | null;
 }
 
 // The "+ Share something" button and the song/album composer behind it —
@@ -85,6 +88,7 @@ export function ShareComposer({
   const [spotifyUri, setSpotifyUri] = useState<string | null>(null);
   const [spotifyUrl, setSpotifyUrl] = useState<string | null>(null);
   const [appleUrl, setAppleUrl] = useState<string | null>(null);
+  const [isrc, setIsrc] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const searchSeq = useRef(0);
@@ -168,6 +172,7 @@ export function ShareComposer({
             spotifyUrl: a.spotifyUrl,
             spotifyUri: a.uri,
             appleUrl: null,
+            isrc: null,
           }))
         : (await searchItunesAlbums(term)).map((a) => ({
             key: String(a.collectionId),
@@ -178,6 +183,7 @@ export function ShareComposer({
             spotifyUrl: null,
             spotifyUri: null,
             appleUrl: a.appleUrl || null,
+            isrc: null,
           }));
     } else {
       const spotifyHits = await searchSpotify(term);
@@ -191,6 +197,7 @@ export function ShareComposer({
             spotifyUrl: s.spotifyUrl,
             spotifyUri: s.uri,
             appleUrl: null,
+            isrc: s.isrc ?? null,
           }))
         : (await searchItunes(term)).map((s) => ({
             key: String(s.trackId),
@@ -201,6 +208,7 @@ export function ShareComposer({
             spotifyUrl: null,
             spotifyUri: null,
             appleUrl: s.appleUrl,
+            isrc: null,
           }));
     }
     if (seq === searchSeq.current) setResults(found);
@@ -221,6 +229,7 @@ export function ShareComposer({
     setSpotifyUri(null);
     setSpotifyUrl(null);
     setAppleUrl(null);
+    setIsrc(null);
     if (k !== 'playlist' && search.trim().length >= 3) runSearch(search, k);
   };
 
@@ -233,6 +242,7 @@ export function ShareComposer({
     setSpotifyUri(s.spotifyUri);
     setSpotifyUrl(s.spotifyUrl);
     setAppleUrl(s.appleUrl);
+    setIsrc(s.isrc);
     setKind(s.kind);
     setResults([]);
     setSearch('');
@@ -266,6 +276,7 @@ export function ShareComposer({
     setSpotifyUri(null);
     setSpotifyUrl(null);
     setAppleUrl(null);
+    setIsrc(null);
     setSearch('');
     setResults([]);
     setShareTargets([]);
@@ -321,6 +332,7 @@ export function ShareComposer({
       ...(spotifyUri ? { spotify_uri: spotifyUri } : {}),
       ...(sUrl ? { spotify_url: sUrl } : {}),
       ...(aUrl ? { apple_url: aUrl } : {}),
+      ...(isrc ? { isrc } : {}),
     };
     // Fields shared by the post in this club and any "Also post to" copies.
     // Albums are queue *suggestions* (The Queue shows them, Club Radio filters
@@ -493,7 +505,7 @@ export function ShareComposer({
               // Album mode also clears title/artist — there are no manual
               // fields showing them, so they'd otherwise linger invisibly.
               if (kind === 'album') { setTitle(''); setArtist(''); }
-              setArtwork(null); setUrl(''); setSpotifyUri(null); setSpotifyUrl(null); setAppleUrl(null);
+              setArtwork(null); setUrl(''); setSpotifyUri(null); setSpotifyUrl(null); setAppleUrl(null); setIsrc(null);
             }}
             style={[styles.clearPick, { color: palette.text3 }]}
           >

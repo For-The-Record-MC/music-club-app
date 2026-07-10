@@ -282,6 +282,10 @@ export interface CycleHighlights {
   }[];
 }
 
+// Which streaming service's links a member wants to see ('both' = dual pills,
+// today's behavior). Display-only — Spotify stays the canonical data source.
+export type PreferredService = 'spotify' | 'apple' | 'both';
+
 export const profiles = {
   getById: (id: string) =>
     supabase.from('profiles').select('*').eq('id', id).single(),
@@ -293,6 +297,7 @@ export const profiles = {
       avatar_url?: string | null;
       avatar_label?: string | null;
       avatar_album_url?: string | null;
+      preferred_service?: PreferredService;
     },
   ) => supabase.from('profiles').update(patch).eq('id', id).select().single(),
 };
