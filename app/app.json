@@ -11,7 +11,8 @@
       "bundleIdentifier": "com.jordanreticker.fortherecordmc",
       "supportsTablet": false,
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleDisplayName": "FTR mc"
       },
       "entitlements": {
         "aps-environment": "production"
