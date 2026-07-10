@@ -6,7 +6,7 @@ import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-nativ
 import { MentionInput, MentionText, resolveMentions, type MentionMember } from '@/components/Mentions';
 import { PreviewArt } from '@/components/PreviewArt';
 import { SongSearchField, type PickedSong } from '@/components/SongSearchField';
-import { Avatar, Button, Card, InlineNote, Label, ListenLinks, Loading, NoClubSelected, Screen, TextField } from '@/components/ui';
+import { Avatar, Button, Card, InlineNote, Label, ListenButton, ListenLinks, Loading, NoClubSelected, Screen, TextField } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
 import { useCycle } from '@/hooks/useCycle';
 import { useListeningBingo, type BingoCardView, type BingoClaimView, type BingoGameState } from '@/hooks/useListeningBingo';
@@ -875,6 +875,11 @@ function BoxPanel({
                   : ''}
               </Text>
             </View>
+            <ListenButton
+              apple={box.apple_url}
+              spotify={box.spotify_url}
+              onOpen={editable && state !== 'lit' ? startListen : undefined}
+            />
             {state === 'lit' ? <Text style={{ color: palette.teal, fontSize: 16 }}>✓</Text> : null}
           </View>
           <ListenLinks
@@ -1029,6 +1034,7 @@ function VerifyClaim({
                   <Text numberOfLines={2} style={[styles.sSub, { color: palette.text3 }]}>{box.artist}</Text>
                 </View>
                 <ListenLinks apple={box.apple_url} spotify={box.spotify_url} other={null} />
+                <ListenButton apple={box.apple_url} spotify={box.spotify_url} />
               </View>
               {challenged ? (
                 <TextField
@@ -1142,6 +1148,7 @@ function OtherBoards({
                           <Text numberOfLines={1} style={[styles.sSub, { color: palette.text3 }]}>{peekBox.artist}</Text>
                         </View>
                         <ListenLinks apple={peekBox.apple_url} spotify={peekBox.spotify_url} other={null} />
+                        <ListenButton apple={peekBox.apple_url} spotify={peekBox.spotify_url} />
                       </View>
                     ) : (
                       <Text style={[styles.hint, { color: palette.text3 }]}>No song yet.</Text>

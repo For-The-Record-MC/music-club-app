@@ -3,7 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Avatar, Button, Card, InlineNote, Label, ListenLinks, Screen, TextField } from '@/components/ui';
+import { Avatar, Button, Card, InlineNote, Label, ListenButton, ListenLinks, Screen, TextField } from '@/components/ui';
 import { useCycle } from '@/hooks/useCycle';
 import { useRefresh } from '@/hooks/useRefresh';
 import { useSuggestions } from '@/hooks/useSuggestions';
@@ -211,6 +211,7 @@ export default function Queue() {
                     </Text>
                   </View>
                 </View>
+                <ListenButton apple={meta.apple_url} spotify={meta.spotify_url} />
                 {s.author_id === userId ? (
                   <Pressable onPress={() => remove(s.id)} hitSlop={6}>
                     <Text style={{ color: palette.text3, fontSize: 16 }}>×</Text>

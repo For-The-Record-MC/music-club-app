@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { PreviewArt } from '@/components/PreviewArt';
 import { SongSearchField, type PickedSong } from '@/components/SongSearchField';
 import { ThemePanel } from '@/components/ThemePanel';
-import { Avatar, BottomSheet, Button, Card, InlineNote, Label, ListenLinks } from '@/components/ui';
+import { Avatar, BottomSheet, Button, Card, InlineNote, Label, ListenButton, ListenLinks } from '@/components/ui';
 import { useShowdown } from '@/hooks/useShowdown';
 import { useTheme } from '@/hooks/use-theme';
 import { confirmAsync } from '@/utils/confirm';
@@ -161,6 +161,7 @@ function SongRow({ entry, palette, rank }: { entry: ShowdownEntry; palette: Pale
         ) : null}
         <ListenLinks apple={entry.apple_url} spotify={entry.spotify_url} style={{ marginTop: 6 }} />
       </View>
+      <ListenButton apple={entry.apple_url} spotify={entry.spotify_url} />
     </View>
   );
 }

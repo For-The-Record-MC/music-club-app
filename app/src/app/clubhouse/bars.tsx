@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { MentionInput, MentionText, resolveMentions, type MentionMember } from '@/components/Mentions';
 import { PreviewArt } from '@/components/PreviewArt';
-import { Avatar, Button, Card, InlineNote, Label, ListenLinks, Loading, NoClubSelected, Screen, TextField } from '@/components/ui';
+import { Avatar, Button, Card, InlineNote, Label, ListenButton, ListenLinks, Loading, NoClubSelected, Screen, TextField } from '@/components/ui';
 import { useBestBars, type BarRow } from '@/hooks/useBestBars';
 import { useClubData } from '@/hooks/useClubData';
 import { useFocusTarget, useGlow } from '@/hooks/useFocusTarget';
@@ -316,6 +316,7 @@ function BarCard({
           <Text numberOfLines={1} style={[styles.sTitle, { color: palette.text2 }]}>{bar.title}</Text>
           {bar.artist ? <Text numberOfLines={1} style={[styles.sArtist, { color: palette.text3 }]}>{bar.artist}</Text> : null}
         </View>
+        <ListenButton apple={bar.apple_url} spotify={bar.spotify_url} />
         <Pressable
           onPress={() => openLyrics(bar.artist, bar.title)}
           style={[styles.lyricsBtn, { backgroundColor: palette.amberBg, borderColor: palette.amber }]}

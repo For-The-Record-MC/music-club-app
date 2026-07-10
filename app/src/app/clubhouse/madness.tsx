@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { MentionInput, MentionText, resolveMentions, type MentionMember } from '@/components/Mentions';
 import { PreviewArt } from '@/components/PreviewArt';
-import { Avatar, Button, Card, InlineNote, Label, ListenLinks, Loading, NoClubSelected, Screen, TextField } from '@/components/ui';
+import { Avatar, Button, Card, InlineNote, Label, ListenButton, ListenLinks, Loading, NoClubSelected, Screen, TextField } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
 import { useCycle } from '@/hooks/useCycle';
 import { useRefresh } from '@/hooks/useRefresh';
@@ -951,6 +951,7 @@ function VersusCard({ a, b, onPick }: { a: BracketTrack; b: BracketTrack; onPick
       <Text numberOfLines={2} style={[styles.vsTitle, { color: palette.text1 }]}>{t.title}</Text>
       {t.album ? <Text numberOfLines={1} style={[styles.sArtist, { color: palette.text3 }]}>{t.album}</Text> : null}
       <ListenLinks apple={t.apple_url} spotify={t.spotify_url} other={null} style={{ marginTop: 6 }} />
+      <ListenButton apple={t.apple_url} spotify={t.spotify_url} style={{ marginTop: 6 }} />
       <Button title="This one" onPress={() => onPick(t.id)} style={{ marginTop: 8, alignSelf: 'stretch' }} />
     </View>
   );
@@ -984,6 +985,7 @@ function TrackRow({ track, big }: { track: BracketTrack; big?: boolean }) {
         <Text style={[styles.sArtist, { color: palette.text3 }]}>#{track.seed} seed{track.album ? ` · ${track.album}` : ''}</Text>
         <ListenLinks apple={track.apple_url} spotify={track.spotify_url} other={null} style={{ marginTop: 4 }} />
       </View>
+      <ListenButton apple={track.apple_url} spotify={track.spotify_url} />
     </View>
   );
 }

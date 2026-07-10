@@ -7,7 +7,7 @@ import { MentionInput, MentionText, resolveMentions, type MentionMember } from '
 import { PlaylistComposer } from '@/components/PlaylistComposer';
 import { PreviewArt } from '@/components/PreviewArt';
 import { ShareComposer } from '@/components/ShareComposer';
-import { Avatar, BottomSheet, Button, Card, InlineNote, Label, ListenLinks, Loading, NoClubSelected, Screen } from '@/components/ui';
+import { Avatar, BottomSheet, Button, Card, InlineNote, Label, ListenButton, ListenLinks, Loading, NoClubSelected, Screen } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
 import { useCycle } from '@/hooks/useCycle';
 import { useFeed, type FeedRow } from '@/hooks/useFeed';
@@ -433,6 +433,7 @@ function PostCard({
           <Text style={[styles.postTitle, { color: palette.text1 }]}>{post.title}</Text>
           {post.artist ? <Text style={[styles.postArtist, { color: palette.text2 }]}>{post.artist}</Text> : null}
         </View>
+        <ListenButton apple={linksOf(post).apple} spotify={linksOf(post).spotify} />
       </View>
       {post.note ? (
         <MentionText

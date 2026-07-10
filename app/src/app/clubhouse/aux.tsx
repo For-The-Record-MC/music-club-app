@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { PreviewArt } from '@/components/PreviewArt';
-import { Avatar, Button, Card, InlineNote, Label, ListenLinks, Loading, NoClubSelected, Screen, TextField } from '@/components/ui';
+import { Avatar, Button, Card, InlineNote, Label, ListenButton, ListenLinks, Loading, NoClubSelected, Screen, TextField } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
 import { useCycle } from '@/hooks/useCycle';
 import { useAuxBattle, type AuxBattleView } from '@/hooks/useAuxBattle';
@@ -330,6 +330,7 @@ function CombatantSide({
               <Text numberOfLines={1} style={[styles.songTitle, { color: palette.text1 }]}>{song.title}</Text>
               {song.artist ? <Text numberOfLines={1} style={[styles.songArtist, { color: palette.text2 }]}>{song.artist}</Text> : null}
             </View>
+            <ListenButton apple={song.apple_url} spotify={song.spotify_url} />
           </View>
           <ListenLinks apple={song.apple_url} spotify={song.spotify_url} other={null} style={{ marginTop: 8 }} />
           {isMine && cycleOpen && !locked ? (
