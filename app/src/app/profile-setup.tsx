@@ -21,6 +21,7 @@ import {
   profileTracks,
   TRACK_SLOTS,
   TRACK_SLOT_LABELS,
+  type PreferredService,
   type ProfileTrack,
   type TrackSlot,
 } from '@/utils/supabase/db';
@@ -277,10 +278,71 @@ export default function ProfileSetup() {
         {error ? <InlineNote text={error} tone="error" /> : null}
       </Card>
 
+      <StreamingServiceCard />
+
       <PasswordCard />
 
       {userId ? <FeaturedTracksCard userId={userId} /> : null}
     </Screen>
+  );
+}
+
+// Which service's "open in…" buttons show on songs and albums. Saves on tap
+// (like the featured-track slots); 'both' is the default dual-pill behavior.
+const SERVICE_OPTIONS: { value: PreferredService; label: string }[] = [
+  { value: 'spotify', label: 'Spotify' },
+  { value: 'apple', label: 'Apple Music' },
+  { value: 'both', label: 'Both' },
+];
+
+function StreamingServiceCard() {
+  const { palette } = useTheme();
+  const { userId, profile, refreshProfile } = useAuthStore();
+  const current = (profile?.preferred_service ?? 'both') as PreferredService;
+  const [saving, setSaving] = useState(false);
+
+  const choose = async (value: PreferredService) => {
+    if (!userId || value === current || saving) return;
+    setSaving(true);
+    await profiles.update(userId, { preferred_service: value });
+    await refreshProfile();
+    setSaving(false);
+  };
+
+  return (
+    <Card style={{ marginTop: 16 }}>
+      <Label>Streaming service</Label>
+      <Text style={[styles.hint, { color: palette.text2 }]}>
+        Song and album buttons open in the service you pick. If something isn’t
+        on your service, the other one’s button shows instead.
+      </Text>
+      <View style={styles.serviceRow}>
+        {SERVICE_OPTIONS.map((o) => {
+          const active = o.value === current;
+          return (
+            <Pressable
+              key={o.value}
+              onPress={() => choose(o.value)}
+              disabled={saving}
+              style={[
+                styles.serviceChip,
+                { borderColor: active ? palette.teal : palette.border },
+                active && { backgroundColor: palette.tealBg },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.serviceChipText,
+                  { color: active ? palette.tealDark : palette.text2 },
+                ]}
+              >
+                {o.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </Card>
   );
 }
 
@@ -546,6 +608,15 @@ const styles = StyleSheet.create({
   hint: { fontFamily: fonts.sans, fontSize: 12, lineHeight: 18, marginBottom: 8 },
   swatches: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
   swatch: { width: 36, height: 36, borderRadius: 18 },
+  serviceRow: { flexDirection: 'row', gap: 8 },
+  serviceChip: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderRadius: radius.md,
+    borderWidth: 1,
+  },
+  serviceChipText: { fontFamily: fonts.sansMedium, fontSize: 13 },
   slot: { marginTop: 14, gap: 8 },
   slotLabel: { fontFamily: fonts.monoMedium, fontSize: 9, letterSpacing: 1.5 },
   results: { gap: 8, marginTop: 10 },

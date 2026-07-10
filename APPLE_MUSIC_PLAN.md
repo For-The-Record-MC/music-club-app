@@ -1,6 +1,6 @@
 # Apple Music Parity & Streaming Preference Plan
 
-**Status: Phases 0a + 1 SHIPPED 2026-07-10 (see as-built notes below). Next: Phase 2 backfill, then Phase 4 preference UI. Phase 0b/3 (paid playlist tier) still deferred.**
+**Status: FREE TIER COMPLETE — Phases 0a, 1, 2, and 4 SHIPPED 2026-07-10 (see as-built notes below). Client bits await the next EAS OTA. Phase 0b/3 (paid playlist tier) deferred until the ~$11/mo is worth it.**
 
 ## Goal
 
@@ -111,6 +111,23 @@ SONG_PREVIEWS_PLAN.md depends only on the free tier.
   at pick time (client hint — resolver recovers it server-side either way).
 - Verified live: direct resolve of a real feed post (ISRC path, `verified`),
   trigger path end-to-end on an inserted row (~3s to verified match), sweep OK.
+
+## Phase 2 + 4 — as built (2026-07-10)
+
+- **Backfill**: `supabase/backfill-apple-matches.mjs` (re-runnable; needs
+  SUPABASE_SERVICE_ROLE_KEY + APPLE_MATCH_SECRET env vars) pushes every
+  existing row through the deployed resolver. First full run over 344 rows:
+  **322 ISRC/UPC-verified** (~94%), 17 missing links text-filled, 4 kept
+  existing fuzzy links, 1 queued (case/lang/veirs — slash-heavy title defeats
+  text search; hourly sweep keeps trying). Albums UPC-verified 88/102 — the
+  Spotify single-album GET works despite dev-mode (only batch endpoints 403).
+- **Preference**: `profiles.preferred_service` ('spotify'|'apple'|'both',
+  default 'both') via migration 20260710040000. Picker card in profile-setup
+  (saves on tap). Routing lives entirely inside `ListenLinks` (ui.tsx) via
+  useAuthStore — every song surface inherits it with zero call-site changes;
+  preferred pill only, cross-service fallback when the preferred link is null,
+  onOpen (bingo stamp) unaffected. Playlist-pill routing intentionally NOT
+  built — no `apple_playlist_url` exists until Phase 3 funds the bot account.
 
 ## Phase 1 — Matching infrastructure (backend)
 

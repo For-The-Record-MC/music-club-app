@@ -556,7 +556,8 @@ CREATE TABLE profiles (
   avatar_label text,
   avatar_album_url text,
   email text,
-  can_use_personal_spotify boolean NOT NULL DEFAULT false
+  can_use_personal_spotify boolean NOT NULL DEFAULT false,
+  preferred_service text NOT NULL DEFAULT 'both'::text
 );
 
 CREATE TABLE push_tokens (
@@ -1220,6 +1221,8 @@ ALTER TABLE profiles ADD CONSTRAINT profiles_display_name_check CHECK (((display
 ALTER TABLE profiles ADD CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 ALTER TABLE profiles ADD CONSTRAINT profiles_pkey PRIMARY KEY (id);
+
+ALTER TABLE profiles ADD CONSTRAINT profiles_preferred_service_check CHECK ((preferred_service = ANY (ARRAY['spotify'::text, 'apple'::text, 'both'::text])));
 
 ALTER TABLE push_tokens ADD CONSTRAINT push_tokens_pkey PRIMARY KEY (profile_id, platform);
 
