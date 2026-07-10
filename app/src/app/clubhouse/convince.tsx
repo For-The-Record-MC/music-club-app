@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { MentionInput, MentionText, resolveMentions, type MentionMember } from '@/components/Mentions';
-import { Avatar, Button, Card, InlineNote, Label, ListenLinks, Loading, NoClubSelected, Screen, TextField } from '@/components/ui';
+import { Avatar, Button, Card, InlineNote, Label, ListenButton, ListenLinks, Loading, NoClubSelected, Screen, TextField } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
 import { useConvince, type ConvinceRow } from '@/hooks/useConvince';
 import { useFocusTarget, useGlow } from '@/hooks/useFocusTarget';
@@ -472,6 +472,7 @@ function ConvinceCard({
               <Text numberOfLines={1} style={[styles.trackTitle, { color: palette.text1 }]}>{t.title}</Text>
               <ListenLinks apple={t.apple_url} spotify={t.spotify_url} other={null} style={{ marginTop: 4 }} />
             </View>
+            <ListenButton apple={t.apple_url} spotify={t.spotify_url} />
           </View>
         ))}
       </View>

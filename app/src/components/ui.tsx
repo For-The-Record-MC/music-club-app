@@ -181,14 +181,69 @@ export function Button({
   );
 }
 
-// Brand-colored "open in…" pill buttons. A post/album can carry an Apple Music
-// and/or Spotify link (the search picker resolves both); `other` is the generic
+// Round icon-only "open in my service" button for members who picked a
+// streaming preference — the inline counterpart to ListenLinks, meant to sit
+// IN the song row (next to artwork/title) instead of on its own line. Brand-
+// agnostic app-accent circle: it opens the preferred service, or the other one
+// when the preferred link is missing (a working link beats brand purity) —
+// "which app opens" is exactly what the preference already answered. Renders
+// nothing for 'both' users (they get the ListenLinks pill row) or when no
+// service link exists. Every ListenLinks call site should pair with one of
+// these in its row — ListenLinks suppresses its service pills for
+// preference-holders and defers to this.
+export function ListenButton({
+  apple,
+  spotify,
+  onOpen,
+  size = 34,
+  style,
+}: {
+  apple?: string | null;
+  spotify?: string | null;
+  // Fired just before the link-out — Listening Bingo stamps its listen timer here.
+  onOpen?: () => void;
+  size?: number;
+  style?: ViewStyle;
+}) {
+  const { palette } = useTheme();
+  const preference = useAuthStore((s) => s.profile?.preferred_service ?? 'both');
+  if (preference === 'both') return null;
+  const url = (preference === 'apple' ? (apple ?? spotify) : (spotify ?? apple)) ?? null;
+  if (!url) return null;
+  return (
+    <Pressable
+      onPress={() => {
+        onOpen?.();
+        Linking.openURL(url);
+      }}
+      hitSlop={8}
+      accessibilityLabel="Listen in your streaming service"
+      style={({ pressed }) => [
+        {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: palette.teal,
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        pressed && styles.listenPillPressed,
+        style,
+      ]}
+    >
+      <Text style={{ color: '#fff', fontSize: size * 0.38, marginLeft: 2 }}>▶</Text>
+    </Pressable>
+  );
+}
+
+// "Open in…" pill buttons. A post/album can carry an Apple Music and/or
+// Spotify link (the search picker resolves both); `other` is the generic
 // fallback for a manually pasted link. Renders nothing when all are absent.
 //
-// Routed by the member's streaming preference: 'both' (default) shows every
-// pill; 'spotify'/'apple' shows only the preferred service — unless its link
-// is missing, in which case the other service's pill shows instead (a working
-// link beats brand purity). onOpen fires for whichever pill is tapped.
+// Routed by the member's streaming preference: 'both' (default) shows the
+// brand-colored Spotify/Apple pills; a set preference suppresses the service
+// pills entirely — the inline ListenButton in the song row covers the
+// link-out. The manual-link pill shows regardless.
 export function ListenLinks({
   apple,
   spotify,
@@ -205,14 +260,11 @@ export function ListenLinks({
 }) {
   const { palette } = useTheme();
   const preference = useAuthStore((s) => s.profile?.preferred_service ?? 'both');
-  let servicePills: { label: string; url: string; bg: string }[] = [];
-  if (spotify) servicePills.push({ label: 'Spotify', url: spotify, bg: palette.spotify });
-  if (apple) servicePills.push({ label: 'Apple Music', url: apple, bg: palette.apple });
-  if (preference !== 'both' && servicePills.length > 1) {
-    const preferredLabel = preference === 'apple' ? 'Apple Music' : 'Spotify';
-    servicePills = servicePills.filter((p) => p.label === preferredLabel);
+  const pills: { label: string; url: string; bg: string }[] = [];
+  if (preference === 'both') {
+    if (spotify) pills.push({ label: 'Spotify', url: spotify, bg: palette.spotify });
+    if (apple) pills.push({ label: 'Apple Music', url: apple, bg: palette.apple });
   }
-  const pills = [...servicePills];
   if (other) pills.push({ label: 'Open link', url: other, bg: palette.text2 });
   if (!pills.length) return null;
   return (

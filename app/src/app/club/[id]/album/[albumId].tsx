@@ -3,7 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Avatar, Button, Card, InlineNote, Label, ListenLinks, Loading, Screen } from '@/components/ui';
+import { Avatar, Button, Card, InlineNote, Label, ListenButton, ListenLinks, Loading, Screen } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
 import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
@@ -152,6 +152,7 @@ export default function AlbumDetail() {
             </Text>
             <ListenLinks apple={album.apple_url} spotify={album.spotify_url} style={styles.listenRow} />
           </View>
+          <ListenButton apple={album.apple_url} spotify={album.spotify_url} />
           {summary?.avg_score != null ? (
             <View style={[styles.avgBadge, { backgroundColor: palette.tealBg }]}>
               <Text style={[styles.avgScore, { color: palette.teal }]}>{summary.avg_score}</Text>

@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useMemo, useRef, useState } from 'react';
 
-import { Avatar, Button, Card, InlineNote, Label, ListenLinks, Loading, NoClubSelected, Screen, TextField } from '@/components/ui';
+import { Avatar, Button, Card, InlineNote, Label, ListenButton, ListenLinks, Loading, NoClubSelected, Screen, TextField } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
 import { useCycle } from '@/hooks/useCycle';
 import { usePerfectPlaylist } from '@/hooks/usePerfectPlaylist';
@@ -204,6 +204,7 @@ export default function PerfectPlaylistScreen() {
                       <Text style={[styles.byName, { color: palette.text3 }]}>{memberName(m?.display_name, m?.email)}</Text>
                     </View>
                   </View>
+                  <ListenButton apple={s.apple_url} spotify={s.spotify_url} />
                   {mine && cycleOpen ? (
                     <Pressable onPress={() => removeSong(s.id)} hitSlop={6}>
                       <Text style={{ color: palette.text3, fontSize: 16 }}>×</Text>
