@@ -1,8 +1,37 @@
 # Song Previews Plan
 
-**Status: design locked, build NOT started. Client work requires a NEW BINARY
-(v1.1) — expo-audio is a native module and cannot ship via EAS OTA. Backend
-pieces ride along with APPLE_MUSIC_PLAN.md's matching pipeline.**
+**Status: BUILT 2026-07-10 on the `listening-previews` branch — ships in the
+v1.1 binary (expo-audio is native, not OTA-able). Data side (Phase A) is live
+in prod already via the apple-music pipeline + backfills.**
+
+## As built (2026-07-10)
+
+- **Phase A**: `preview_url` columns added to best_bars, perfect_playlist_songs,
+  aux_battle_songs, convince_tracks, showdown_submissions, bingo_boxes
+  (bracket_tracks already had one; feed_posts uses metadata). The apple-music
+  resolver writes it on every match (preserving an existing value when a match
+  arrives without one); `list_showdown` RPC now returns it. Backfilled via
+  supabase/backfill-apple-matches.mjs; `album-tracks` mode refreshes
+  albums.tracks jsonb with per-track previewUrl from keyless iTunes lookup, and
+  getAlbumTracks/pick flows keep it for new albums.
+  Ops note: Spotify /search rate-limits sustained backfill bursts (429s
+  silently downgrade verified→kept) — re-run big tables with CONCURRENCY=1.
+- **Phase B**: `expo-audio` (~56.0.12, config plugin in app.json).
+  `stores/previewPlayerStore.ts` — zustand singleton around one
+  createAudioPlayer: play(id, url, refetch?) / stop / {playingId, progress};
+  plays in silent mode, stops on app background, stale-URL refetch after 4s of
+  no playback via keyless iTunes re-lookup (row update skipped — deviation
+  from plan, not worth a write path for a rare case).
+  `components/PreviewArt.tsx` — drop-in replacement for a song row's artwork
+  Image: play/pause badge + bottom progress bar; renders plain artwork when
+  preview_url is null; stops playback on unmount.
+- **Surfaces**: feed posts (clubhouse/activity), Perfect Playlist, Showdown,
+  Aux Battle, Convince, Best Bars, Track Madness (versus card, track rows,
+  final-four), Bingo (box panel, verify claim, other-boards peek), album
+  tracklist rows in notes (play chip appears only when the track has a
+  preview). Profile featured tracks intentionally skipped (not in locked
+  scope; profile_tracks has no preview column).
+- Bingo listen timer untouched — previews don't stamp it (locked decision).
 
 ## Goal
 

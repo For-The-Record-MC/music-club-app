@@ -73,7 +73,8 @@ CREATE TABLE aux_battle_songs (
   artwork_url text,
   spotify_url text,
   apple_url text,
-  created_at timestamp with time zone NOT NULL DEFAULT now()
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  preview_url text
 );
 
 CREATE TABLE aux_battle_theme_ideas (
@@ -132,7 +133,8 @@ CREATE TABLE best_bars (
   spotify_url text,
   apple_url text,
   lyric text NOT NULL,
-  created_at timestamp with time zone NOT NULL DEFAULT now()
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  preview_url text
 );
 
 CREATE TABLE bingo_boxes (
@@ -149,7 +151,8 @@ CREATE TABLE bingo_boxes (
   duration_ms integer,
   listen_started_at timestamp with time zone,
   activated_at timestamp with time zone,
-  lastfm_playcount bigint
+  lastfm_playcount bigint,
+  preview_url text
 );
 
 CREATE TABLE bingo_cards (
@@ -372,7 +375,8 @@ CREATE TABLE convince_tracks (
   artwork_url text,
   spotify_url text,
   apple_url text,
-  norm_key text NOT NULL DEFAULT ''::text
+  norm_key text NOT NULL DEFAULT ''::text,
+  preview_url text
 );
 
 CREATE TABLE cycle_guests (
@@ -504,7 +508,8 @@ CREATE TABLE perfect_playlist_songs (
   playlist_synced_at timestamp with time zone,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   apple_song_id text,
-  isrc text
+  isrc text,
+  preview_url text
 );
 
 CREATE TABLE perfect_playlists (
@@ -607,7 +612,8 @@ CREATE TABLE showdown_submissions (
   spotify_url text,
   apple_url text,
   norm_key text NOT NULL,
-  created_at timestamp with time zone NOT NULL DEFAULT now()
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  preview_url text
 );
 
 CREATE TABLE showdown_theme_ideas (

@@ -47,6 +47,7 @@ interface SongRow {
   spotify_url: string | null
   apple_url: string | null
   isrc: string | null
+  preview_url?: string | null // preserved when a match arrives without one
   metadata?: Record<string, unknown> // feed_posts only, for the merge-back
 }
 
@@ -56,8 +57,8 @@ interface TableSpec {
   write: (row: SongRow, m: AppleTrackMatch) => Record<string, unknown>
 }
 
-const plainTrack = (select = 'title, artist, spotify_url, apple_url'): TableSpec => ({
-  select,
+const plainTrack = (): TableSpec => ({
+  select: 'title, artist, spotify_url, apple_url, preview_url',
   read: (r) => ({
     kind: 'track',
     title: r.title ?? '',
@@ -65,8 +66,9 @@ const plainTrack = (select = 'title, artist, spotify_url, apple_url'): TableSpec
     spotify_url: r.spotify_url ?? null,
     apple_url: r.apple_url ?? null,
     isrc: null,
+    preview_url: r.preview_url ?? null,
   }),
-  write: (_row, m) => ({ apple_url: m.apple_url }),
+  write: (row, m) => ({ apple_url: m.apple_url, preview_url: m.preview_url ?? row.preview_url ?? null }),
 })
 
 const TABLES: Record<string, TableSpec> = {
@@ -76,7 +78,7 @@ const TABLES: Record<string, TableSpec> = {
   showdown_submissions: plainTrack(),
   bingo_boxes: plainTrack(),
   perfect_playlist_songs: {
-    select: 'title, artist, spotify_url, apple_url, isrc',
+    select: 'title, artist, spotify_url, apple_url, isrc, preview_url',
     read: (r) => ({
       kind: 'track',
       title: r.title ?? '',
@@ -84,8 +86,14 @@ const TABLES: Record<string, TableSpec> = {
       spotify_url: r.spotify_url ?? null,
       apple_url: r.apple_url ?? null,
       isrc: r.isrc ?? null,
+      preview_url: r.preview_url ?? null,
     }),
-    write: (_row, m) => ({ apple_url: m.apple_url, apple_song_id: m.apple_song_id, isrc: m.isrc }),
+    write: (row, m) => ({
+      apple_url: m.apple_url,
+      apple_song_id: m.apple_song_id,
+      isrc: m.isrc,
+      preview_url: m.preview_url ?? row.preview_url ?? null,
+    }),
   },
   // Track title is on the row; the artist lives on the parent bracket.
   bracket_tracks: {
@@ -97,8 +105,9 @@ const TABLES: Record<string, TableSpec> = {
       spotify_url: r.spotify_url ?? null,
       apple_url: r.apple_url ?? null,
       isrc: null,
+      preview_url: r.preview_url ?? null,
     }),
-    write: (_row, m) => ({ apple_url: m.apple_url, preview_url: m.preview_url }),
+    write: (row, m) => ({ apple_url: m.apple_url, preview_url: m.preview_url ?? row.preview_url ?? null }),
   },
   // Song links live in metadata jsonb; kind 'album' rows are queue suggestions.
   feed_posts: {
@@ -181,9 +190,13 @@ async function recoverIsrc(
     `https://api.spotify.com/v1/search?type=track&limit=10&q=${encodeURIComponent(q)}`,
     { headers: { Authorization: `Bearer ${token}` } },
   )
-  if (!res.ok) return null
+  if (!res.ok) {
+    console.warn(`recoverIsrc: spotify search failed (${res.status}) for "${q}"`)
+    return null
+  }
   const j = await res.json()
   const hit = (j?.tracks?.items ?? []).find((t: any) => t?.id === trackId)
+  if (!hit) console.warn(`recoverIsrc: track ${trackId} not in top-10 for "${q}"`)
   return hit?.external_ids?.isrc ?? null
 }
 

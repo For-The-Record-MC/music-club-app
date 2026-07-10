@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { PreviewArt } from '@/components/PreviewArt';
 import { Avatar, Button, Card, InlineNote, Label, ListenLinks, Loading, NoClubSelected, Screen, TextField } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
 import { useCycle } from '@/hooks/useCycle';
@@ -15,7 +16,7 @@ import { confirmAsync } from '@/utils/confirm';
 import { searchSongs as searchItunes } from '@/utils/itunes';
 import { memberName } from '@/utils/memberName';
 import { searchSongs as searchSpotify } from '@/utils/spotify';
-import { auxBattle } from '@/utils/supabase/db';
+import { auxBattle, type AuxBattleSong } from '@/utils/supabase/db';
 import { fonts, radius } from '@/theme';
 
 interface SongPick {
@@ -273,7 +274,7 @@ function CombatantSide({
 }: {
   member: { display_name: string | null; email: string | null; avatar_color: number; avatar_url: string | null } | null;
   memberId: string;
-  song: { title: string; artist: string; artwork_url: string | null; spotify_url: string | null; apple_url: string | null } | null;
+  song: AuxBattleSong | null;
   votes: number;
   accent: string;
   isMine: boolean;
@@ -315,7 +316,16 @@ function CombatantSide({
       {song && !editing ? (
         <>
           <View style={styles.songRow}>
-            {song.artwork_url ? <Image source={{ uri: song.artwork_url }} style={styles.songArt} contentFit="cover" /> : null}
+            {song.artwork_url ? (
+              <PreviewArt
+                id={`aux:${song.id}`}
+                uri={song.artwork_url}
+                previewUrl={song.preview_url}
+                title={song.title}
+                artist={song.artist ?? undefined}
+                style={styles.songArt}
+              />
+            ) : null}
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text numberOfLines={1} style={[styles.songTitle, { color: palette.text1 }]}>{song.title}</Text>
               {song.artist ? <Text numberOfLines={1} style={[styles.songArtist, { color: palette.text2 }]}>{song.artist}</Text> : null}

@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { MentionInput, MentionText, resolveMentions, type MentionMember } from '@/components/Mentions';
+import { PreviewArt } from '@/components/PreviewArt';
 import { Avatar, Button, Card, InlineNote, Label, ListenLinks, Loading, NoClubSelected, Screen, TextField } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
 import { useConvince, type ConvinceRow } from '@/hooks/useConvince';
@@ -467,7 +468,16 @@ function ConvinceCard({
       <View style={styles.tracks}>
         {tracks.map((t) => (
           <View key={t.id} style={styles.trackRow}>
-            {t.artwork_url ? <Image source={{ uri: t.artwork_url }} style={styles.trackArt} contentFit="cover" /> : null}
+            {t.artwork_url ? (
+              <PreviewArt
+                id={`convince:${t.id}`}
+                uri={t.artwork_url}
+                previewUrl={t.preview_url}
+                title={t.title}
+                artist={t.artist ?? undefined}
+                style={styles.trackArt}
+              />
+            ) : null}
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text numberOfLines={1} style={[styles.trackTitle, { color: palette.text1 }]}>{t.title}</Text>
               <ListenLinks apple={t.apple_url} spotify={t.spotify_url} other={null} style={{ marginTop: 4 }} />

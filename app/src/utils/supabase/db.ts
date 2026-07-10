@@ -126,6 +126,7 @@ export interface ShowdownEntry {
   artwork_url: string | null;
   spotify_url: string | null;
   apple_url: string | null;
+  preview_url: string | null;
   created_at: string;
   is_mine: boolean;
   my_vote: 1 | -1 | null;

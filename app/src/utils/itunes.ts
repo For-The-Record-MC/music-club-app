@@ -13,6 +13,8 @@ export interface ItunesAlbum {
 export interface ItunesTrack {
   trackNumber: number;
   trackName: string;
+  // 30s Apple preview, kept in albums.tracks jsonb for the tracklist players.
+  previewUrl?: string | null;
 }
 
 export async function searchAlbums(term: string): Promise<ItunesAlbum[]> {
@@ -69,6 +71,15 @@ export async function searchSongs(term: string): Promise<ItunesSong[]> {
     }));
 }
 
+// Fresh 30s preview URL for a track whose stored one rotted (mzstatic links
+// occasionally die). Keyless fuzzy lookup — best-effort by design.
+export async function resolveApplePreview(title: string, artist: string): Promise<string | null> {
+  const term = [title, artist].filter(Boolean).join(' ').trim();
+  if (!term) return null;
+  const hit = (await searchSongs(term))[0];
+  return hit?.previewUrl || null;
+}
+
 // The Apple Music equivalent of something already picked from Spotify, so the
 // post/album opens in either service. Keyless + client-side, so it always works
 // (no connection needed). Best-effort: returns null when nothing matches.
@@ -103,6 +114,10 @@ export async function getAlbumTracks(collectionId: number): Promise<ItunesTrack[
     // Music videos (album trailers/visualizers) also come back with
     // wrapperType 'track' — kind 'song' is what separates real songs.
     .filter((r: any) => r.wrapperType === 'track' && r.kind === 'song')
-    .map((r: any) => ({ trackNumber: r.trackNumber, trackName: r.trackName }))
+    .map((r: any) => ({
+      trackNumber: r.trackNumber,
+      trackName: r.trackName,
+      previewUrl: r.previewUrl ?? null,
+    }))
     .sort((a: ItunesTrack, b: ItunesTrack) => a.trackNumber - b.trackNumber);
 }

@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle } from 'react-native';
 
+import { PreviewArt } from '@/components/PreviewArt';
 import { VibeTagPicker } from '@/components/VibeTagPicker';
 import { Avatar, Button, Card, InlineNote, Screen, Slider, TextField } from '@/components/ui';
 import { CANONICAL_VIBE_TAGS } from '@/constants';
@@ -31,6 +32,9 @@ import {
 interface Track {
   trackNumber: number;
   trackName: string;
+  // Present on albums picked after the previews feature; older albums until
+  // their tracks jsonb is refreshed.
+  previewUrl?: string | null;
 }
 
 interface Draft {
@@ -510,6 +514,17 @@ export default function SongNotesEditor() {
           return (
             <Card key={t.trackNumber} style={{ marginBottom: 10 }}>
               <View style={styles.trackHead}>
+                {t.previewUrl ? (
+                  <PreviewArt
+                    id={`album:${albumId}:${t.trackNumber}`}
+                    uri={album?.artwork_url}
+                    previewUrl={t.previewUrl}
+                    title={t.trackName}
+                    artist={album?.artist ?? undefined}
+                    style={styles.trackPreview}
+                    glyphSize={10}
+                  />
+                ) : null}
                 <Pressable style={{ flex: 1 }} onPress={() => toggleExpanded(t.trackNumber)}>
                   <Text numberOfLines={2} style={[styles.trackName, { color: palette.text1 }]}>
                     {String(t.trackNumber).padStart(2, '0')}. {t.trackName}
@@ -907,6 +922,7 @@ const styles = StyleSheet.create({
   estimateScore: { fontFamily: fonts.sansBold, fontSize: 30 },
   estimateMax: { fontFamily: fonts.monoMedium, fontSize: 12, marginBottom: 4 },
   trackHead: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  trackPreview: { width: 30, height: 30, borderRadius: radius.sm },
   trackNum: { fontFamily: fonts.monoMedium, fontSize: 11 },
   trackName: { fontFamily: fonts.sansBold, fontSize: 14 },
   lyricsRow: { flexDirection: 'row', alignItems: 'stretch', gap: 8, marginTop: 10 },

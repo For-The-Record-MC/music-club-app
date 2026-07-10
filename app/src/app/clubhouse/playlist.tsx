@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useMemo, useRef, useState } from 'react';
 
+import { PreviewArt } from '@/components/PreviewArt';
 import { Avatar, Button, Card, InlineNote, Label, ListenLinks, Loading, NoClubSelected, Screen, TextField } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
 import { useCycle } from '@/hooks/useCycle';
@@ -195,7 +196,16 @@ export default function PerfectPlaylistScreen() {
             return (
               <Card key={s.id}>
                 <View style={styles.songRow}>
-                  {s.artwork_url ? <Image source={{ uri: s.artwork_url }} style={styles.songArt} contentFit="cover" /> : null}
+                  {s.artwork_url ? (
+                    <PreviewArt
+                      id={`playlist:${s.id}`}
+                      uri={s.artwork_url}
+                      previewUrl={s.preview_url}
+                      title={s.title}
+                      artist={s.artist ?? undefined}
+                      style={styles.songArt}
+                    />
+                  ) : null}
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text numberOfLines={1} style={[styles.songTitle, { color: palette.text1 }]}>{s.title}</Text>
                     {s.artist ? <Text numberOfLines={1} style={[styles.songArtist, { color: palette.text2 }]}>{s.artist}</Text> : null}

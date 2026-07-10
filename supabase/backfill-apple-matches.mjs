@@ -36,7 +36,10 @@ const TABLES = [
   { table: 'feed_posts', filter: 'kind=in.(track,album)' },
 ]
 
-const CONCURRENCY = 3
+// Lower to 1 (CONCURRENCY=1) when re-running a big table: Spotify /search
+// rate-limits sustained bursts, which silently downgrades ISRC-verified
+// matches to 'kept' text fallbacks.
+const CONCURRENCY = Number(process.env.CONCURRENCY ?? 3)
 const PAGE = 200
 
 async function listIds(table, filter) {
@@ -76,7 +79,60 @@ async function resolveOne(table, id) {
   return 'error'
 }
 
+// `album-tracks` mode: refresh albums.tracks jsonb with per-track previewUrl
+// from the keyless iTunes lookup (albums picked before the previews feature
+// stored only trackNumber/trackName). Independent of the Apple/Spotify paths.
+async function backfillAlbumTracks() {
+  const res = await fetch(
+    `${PROJECT_URL}/rest/v1/albums?select=id,itunes_collection_id,tracks&itunes_collection_id=not.is.null`,
+    { headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` } },
+  )
+  const albums = await res.json()
+  let updated = 0
+  let missed = 0
+  for (const a of albums) {
+    const tracks = Array.isArray(a.tracks) ? a.tracks : []
+    if (!tracks.length || tracks.every((t) => t.previewUrl)) continue
+    const lookup = await fetch(
+      `https://itunes.apple.com/lookup?id=${a.itunes_collection_id}&entity=song&limit=200`,
+    )
+    if (!lookup.ok) {
+      missed++
+      continue
+    }
+    const j = await lookup.json()
+    const previews = new Map(
+      (j.results ?? [])
+        .filter((r) => r.wrapperType === 'track' && r.kind === 'song')
+        .map((r) => [r.trackNumber, r.previewUrl ?? null]),
+    )
+    if (!previews.size) {
+      missed++
+      continue
+    }
+    const merged = tracks.map((t) => ({ ...t, previewUrl: previews.get(t.trackNumber) ?? t.previewUrl ?? null }))
+    const patch = await fetch(`${PROJECT_URL}/rest/v1/albums?id=eq.${a.id}`, {
+      method: 'PATCH',
+      headers: {
+        apikey: SERVICE_KEY,
+        Authorization: `Bearer ${SERVICE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ tracks: merged }),
+    })
+    if (patch.ok) updated++
+    else missed++
+    // Keyless iTunes tolerates ~20 req/min sustained — stay well under.
+    await new Promise((r) => setTimeout(r, 400))
+  }
+  console.log(`album-tracks: ${updated} albums refreshed, ${missed} missed, ${albums.length} scanned`)
+}
+
 const only = process.argv.slice(2)
+if (only.includes('album-tracks')) {
+  await backfillAlbumTracks()
+  process.exit(0)
+}
 const grand = {}
 for (const { table, filter } of TABLES) {
   if (only.length && !only.includes(table)) continue

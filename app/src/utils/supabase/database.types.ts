@@ -295,6 +295,7 @@ export type Database = {
           battle_id: string
           created_at: string
           id: string
+          preview_url: string | null
           profile_id: string
           spotify_url: string | null
           title: string
@@ -306,6 +307,7 @@ export type Database = {
           battle_id: string
           created_at?: string
           id?: string
+          preview_url?: string | null
           profile_id: string
           spotify_url?: string | null
           title: string
@@ -317,6 +319,7 @@ export type Database = {
           battle_id?: string
           created_at?: string
           id?: string
+          preview_url?: string | null
           profile_id?: string
           spotify_url?: string | null
           title?: string
@@ -610,6 +613,7 @@ export type Database = {
           created_at: string
           id: string
           lyric: string
+          preview_url: string | null
           spotify_url: string | null
           title: string
         }
@@ -622,6 +626,7 @@ export type Database = {
           created_at?: string
           id?: string
           lyric: string
+          preview_url?: string | null
           spotify_url?: string | null
           title: string
         }
@@ -634,6 +639,7 @@ export type Database = {
           created_at?: string
           id?: string
           lyric?: string
+          preview_url?: string | null
           spotify_url?: string | null
           title?: string
         }
@@ -667,6 +673,7 @@ export type Database = {
           lastfm_playcount: number | null
           listen_started_at: string | null
           position: number
+          preview_url: string | null
           spotify_id: string | null
           spotify_url: string | null
           title: string | null
@@ -683,6 +690,7 @@ export type Database = {
           lastfm_playcount?: number | null
           listen_started_at?: string | null
           position: number
+          preview_url?: string | null
           spotify_id?: string | null
           spotify_url?: string | null
           title?: string | null
@@ -699,6 +707,7 @@ export type Database = {
           lastfm_playcount?: number | null
           listen_started_at?: string | null
           position?: number
+          preview_url?: string | null
           spotify_id?: string | null
           spotify_url?: string | null
           title?: string | null
@@ -1676,6 +1685,7 @@ export type Database = {
           norm_key: string
           position: number
           post_id: string
+          preview_url: string | null
           spotify_url: string | null
           title: string
         }
@@ -1687,6 +1697,7 @@ export type Database = {
           norm_key?: string
           position: number
           post_id: string
+          preview_url?: string | null
           spotify_url?: string | null
           title: string
         }
@@ -1698,6 +1709,7 @@ export type Database = {
           norm_key?: string
           position?: number
           post_id?: string
+          preview_url?: string | null
           spotify_url?: string | null
           title?: string
         }
@@ -2243,6 +2255,7 @@ export type Database = {
           norm_key: string
           playlist_id: string
           playlist_synced_at: string | null
+          preview_url: string | null
           profile_id: string
           spotify_url: string | null
           title: string
@@ -2258,6 +2271,7 @@ export type Database = {
           norm_key: string
           playlist_id: string
           playlist_synced_at?: string | null
+          preview_url?: string | null
           profile_id: string
           spotify_url?: string | null
           title: string
@@ -2273,6 +2287,7 @@ export type Database = {
           norm_key?: string
           playlist_id?: string
           playlist_synced_at?: string | null
+          preview_url?: string | null
           profile_id?: string
           spotify_url?: string | null
           title?: string
@@ -2670,6 +2685,7 @@ export type Database = {
           created_at: string
           id: string
           norm_key: string
+          preview_url: string | null
           profile_id: string
           showdown_id: string
           spotify_url: string | null
@@ -2682,6 +2698,7 @@ export type Database = {
           created_at?: string
           id?: string
           norm_key: string
+          preview_url?: string | null
           profile_id: string
           showdown_id: string
           spotify_url?: string | null
@@ -2694,6 +2711,7 @@ export type Database = {
           created_at?: string
           id?: string
           norm_key?: string
+          preview_url?: string | null
           profile_id?: string
           showdown_id?: string
           spotify_url?: string | null
@@ -3172,6 +3190,7 @@ export type Database = {
           norm_key: string
           playlist_id: string
           playlist_synced_at: string | null
+          preview_url: string | null
           profile_id: string
           spotify_url: string | null
           title: string
@@ -3808,6 +3827,7 @@ export type Database = {
           battle_id: string
           created_at: string
           id: string
+          preview_url: string | null
           profile_id: string
           spotify_url: string | null
           title: string
@@ -3835,6 +3855,7 @@ export type Database = {
           created_at: string
           id: string
           norm_key: string
+          preview_url: string | null
           profile_id: string
           showdown_id: string
           spotify_url: string | null
