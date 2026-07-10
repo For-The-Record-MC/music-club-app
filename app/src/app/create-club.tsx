@@ -74,6 +74,10 @@ export default function CreateClub() {
         <Button title="Launch club 🎉" onPress={create} loading={busy} style={{ marginTop: 16 }} />
         {error ? <InlineNote text={error} tone="error" /> : null}
       </Card>
+      <Text style={[styles.footnote, { color: palette.text3 }]}>
+        You&apos;ll be the club&apos;s owner. After launch: share your invite link from Home, then
+        spin the wheel to start the first cycle — it picks who chooses the first two albums.
+      </Text>
     </Screen>
   );
 }
@@ -84,6 +88,14 @@ const styles = StyleSheet.create({
   logo: { fontSize: 42, marginBottom: 12 },
   title: { fontFamily: fonts.sansBold, fontSize: 24, marginBottom: 6 },
   sub: { fontFamily: fonts.sans, fontSize: 14, lineHeight: 21, textAlign: 'center', maxWidth: 320 },
+  footnote: {
+    fontFamily: fonts.sans,
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
+    marginTop: 14,
+    paddingHorizontal: 12,
+  },
   emojiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   emojiOpt: {
     width: 44,

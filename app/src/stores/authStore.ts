@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 
+import { useCurrentClubStore } from '@/stores/currentClubStore';
 import { clearDataCaches } from '@/utils/dataCache';
 import { supabase } from '@/utils/supabase/client';
 import { profiles, type Profile } from '@/utils/supabase/db';
@@ -62,6 +63,9 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   // which is unreliable in React Native.
   signOut: async () => {
     set({ userId: null, profile: null });
+    // Drop the persisted club selection too — the next account to sign in on
+    // this device may not be a member of it.
+    useCurrentClubStore.getState().setClub(null);
     clearDataCaches();
     await supabase.auth.signOut();
   },

@@ -10,9 +10,11 @@ import { Avatar, Button, Card, InlineNote, Label, Loading, Screen } from '@/comp
 import { useActivity } from '@/hooks/useActivity';
 import { useClubData } from '@/hooks/useClubData';
 import { useCycle } from '@/hooks/useCycle';
+import { useMyClubs } from '@/hooks/useMyClubs';
 import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
+import { useClubSwitcherStore } from '@/stores/clubSwitcherStore';
 import { useCurrentClubStore } from '@/stores/currentClubStore';
 import { useOnboardingStore } from '@/stores/onboardingStore';
 import { inviteUrl } from '@/constants';
@@ -34,6 +36,7 @@ export default function HomeTab() {
   const userId = useAuthStore((s) => s.userId);
   const profile = useAuthStore((s) => s.profile);
   const clubId = useCurrentClubStore((s) => s.clubId) ?? undefined;
+  const setClub = useCurrentClubStore((s) => s.setClub);
   const { club, members, myRole, loading: clubLoading, refresh: refreshClub } = useClubData(clubId);
   const { cycle, albums, rsvps, guests, preferences, loading: cycleLoading, refresh } = useCycle(clubId);
   const { unread } = useActivity(clubId);
@@ -51,6 +54,17 @@ export default function HomeTab() {
   useEffect(() => {
     loadPast();
   }, [loadPast, cycle]);
+
+  // Self-heal a stale club selection (signed into a different account, removed
+  // from the club, or the club was deleted): if the selected club isn't among
+  // this user's memberships, deselect it so the no-club states below render
+  // instead of the "Club not found" dead end.
+  const { rows: myClubs, loading: myClubsLoading } = useMyClubs();
+  useEffect(() => {
+    if (clubId && !myClubsLoading && !myClubs.some((r) => r.club.id === clubId)) {
+      setClub(null);
+    }
+  }, [clubId, myClubsLoading, myClubs, setClub]);
 
   const refreshAll = useCallback(async () => {
     await Promise.all([refreshClub(), refresh()]);
@@ -89,29 +103,82 @@ export default function HomeTab() {
   }
 
   if (!clubId) {
+    // Two very different people land here: a brand-new user with no clubs at
+    // all (full welcome — what is this app, how do I start?) and a member who
+    // just hasn't selected a club on this device (terse picker prompt).
+    const isNewUser = !myClubsLoading && myClubs.length === 0;
     return (
       <Screen>
         <View style={styles.topbar}>
           <ClubSwitcher />
         </View>
-        <Card style={{ alignItems: 'center', paddingVertical: 28 }}>
-          <Text style={{ fontSize: 44, marginBottom: 10 }}>🎵</Text>
-          <Text style={[styles.heroTitle, { color: palette.text1 }]}>No club selected</Text>
-          <Text style={[styles.heroSub, { color: palette.text2 }]}>
-            Create your first listening club, or join one with an invite link from a friend.
-          </Text>
-          <Button
-            title="Create a club"
-            onPress={() => router.push('/create-club')}
-            style={{ marginTop: 14, alignSelf: 'stretch' }}
-          />
-          <Button
-            title="Join with an invite code"
-            variant="ghost"
-            onPress={() => router.push('/join')}
-            style={{ marginTop: 8, alignSelf: 'stretch' }}
-          />
-        </Card>
+        {myClubsLoading ? (
+          <Loading />
+        ) : isNewUser ? (
+          <>
+            <View style={[styles.welcomeHero, { backgroundColor: palette.tealBg, borderColor: palette.teal }]}>
+              <Text style={{ fontSize: 44, marginBottom: 10 }}>🍷</Text>
+              <Text style={[styles.heroTitle, { color: palette.text1 }]}>Welcome to the club</Text>
+              <Text style={[styles.heroSub, { color: palette.text2 }]}>
+                This is your listening club&apos;s clubhouse: pick albums together, spend the week
+                listening, rate them in secret, then meet up and reveal what everyone really
+                thought.
+              </Text>
+            </View>
+
+            <Label>Start a club</Label>
+            <Card>
+              <Text style={[styles.welcomeBody, { color: palette.text2 }]}>
+                You name it, friends join with your invite link, and you spin the wheel to kick
+                off the first cycle. Takes about a minute.
+              </Text>
+              <Button
+                title="Create a club"
+                onPress={() => router.push('/create-club')}
+                style={{ marginTop: 12 }}
+              />
+            </Card>
+
+            <Label>Join a club</Label>
+            <Card>
+              <Text style={[styles.welcomeBody, { color: palette.text2 }]}>
+                Got an invite from a friend? Tap their link — or enter the invite code here.
+              </Text>
+              <Button
+                title="Enter an invite code"
+                variant="ghost"
+                onPress={() => router.push('/join')}
+                style={{ marginTop: 12 }}
+              />
+            </Card>
+
+            <Button
+              title="❓ Curious how a cycle works? Take the tour"
+              variant="ghost"
+              onPress={() => router.push('/how-it-works')}
+              style={{ marginTop: 4 }}
+            />
+          </>
+        ) : (
+          <Card style={{ alignItems: 'center', paddingVertical: 28 }}>
+            <Text style={{ fontSize: 44, marginBottom: 10 }}>🎵</Text>
+            <Text style={[styles.heroTitle, { color: palette.text1 }]}>No club selected</Text>
+            <Text style={[styles.heroSub, { color: palette.text2 }]}>
+              Pick one of your clubs from the switcher up top — or start a new one.
+            </Text>
+            <Button
+              title="Choose a club"
+              onPress={() => useClubSwitcherStore.getState().setOpen(true)}
+              style={{ marginTop: 14, alignSelf: 'stretch' }}
+            />
+            <Button
+              title="Create a club"
+              variant="ghost"
+              onPress={() => router.push('/create-club')}
+              style={{ marginTop: 8, alignSelf: 'stretch' }}
+            />
+          </Card>
+        )}
       </Screen>
     );
   }
@@ -512,6 +579,15 @@ const styles = StyleSheet.create({
   avStack: { flexDirection: 'row', marginLeft: 8 },
   heroTitle: { fontFamily: fonts.sansBold, fontSize: 18, marginBottom: 6 },
   heroSub: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 19, textAlign: 'center' },
+  welcomeHero: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.xl,
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    marginBottom: 22,
+  },
+  welcomeBody: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 19 },
   albumRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
   playlistBtn: {
     flexDirection: 'row',

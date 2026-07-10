@@ -131,7 +131,7 @@ export function Label({ children }: { children: ReactNode }) {
   return <Text style={[styles.label, { color: palette.teal }]}>{children}</Text>;
 }
 
-type ButtonVariant = 'primary' | 'ghost' | 'danger';
+type ButtonVariant = 'primary' | 'accent' | 'ghost' | 'danger';
 
 export function Button({
   title,
@@ -151,6 +151,7 @@ export function Button({
   const { palette } = useTheme();
   const colors: Record<ButtonVariant, { bg: string; fg: string; border?: string }> = {
     primary: { bg: palette.teal, fg: palette.tealDark },
+    accent: { bg: palette.purpleBg, fg: palette.purple, border: palette.purple },
     ghost: { bg: 'transparent', fg: palette.text2, border: palette.border },
     danger: { bg: palette.coralBg, fg: palette.coral, border: palette.coral },
   };

@@ -6,17 +6,17 @@ import { useTheme } from '@/hooks/use-theme';
 import { fonts } from '@/theme';
 import { supabase } from '@/utils/supabase/client';
 
-// Email OTP sign-in: enter email → receive 6-digit code → verify.
-// Works identically on web (GitHub Pages) and native — no redirect URLs.
-// First sign-in is always the emailed code; members can then set a password in
-// their profile (see profile-setup) and use the password path here afterwards,
-// which sends no email at all (also handy when the OTP rate limit is hit).
-// Session pickup happens via authStore's onAuthStateChange listener.
+// Email + password auth: new members create an account with a password and are
+// signed in immediately — no verification email (requires "Confirm email" OFF
+// in Supabase auth settings). Works identically on web (GitHub Pages) and
+// native — no redirect URLs. The emailed 6-digit code remains as the recovery
+// path (forgot password) and still works for accounts created before passwords
+// existed. Session pickup happens via authStore's onAuthStateChange listener.
 export function AuthForm({ subtitle }: { subtitle?: string }) {
   const { palette } = useTheme();
   const [email, setEmail] = useState('');
   const [secret, setSecret] = useState('');
-  const [step, setStep] = useState<'email' | 'code' | 'password'>('email');
+  const [step, setStep] = useState<'email' | 'code' | 'password' | 'signup'>('email');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,6 +48,38 @@ export function AuthForm({ subtitle }: { subtitle?: string }) {
     setError(null);
     setSecret('');
     setStep('password');
+  };
+
+  const goToSignup = () => {
+    if (!validEmail()) return;
+    setError(null);
+    setSecret('');
+    setStep('signup');
+  };
+
+  const signUp = async () => {
+    if (secret.length < 8) {
+      setError('Use at least 8 characters.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    const { data, error: err } = await supabase.auth.signUp({
+      email: addr(),
+      password: secret,
+    });
+    setBusy(false);
+    if (err) {
+      setError(
+        /already registered/i.test(err.message)
+          ? 'That email already has an account — go back and sign in instead.'
+          : err.message,
+      );
+    } else if (!data.session) {
+      // Only happens if "Confirm email" is re-enabled in Supabase settings.
+      setError('Almost there — check your email to confirm your account.');
+    }
+    // On success onAuthStateChange fires and the protected routes take over.
   };
 
   const verify = async () => {
@@ -101,10 +133,12 @@ export function AuthForm({ subtitle }: { subtitle?: string }) {
             keyboardType="email-address"
             onSubmitEditing={goToPassword}
           />
-          <Button title="Log in with password" onPress={goToPassword} />
+          <Button title="Log in" onPress={goToPassword} />
+          <Button title="New here? Create an account" variant="accent" onPress={goToSignup} />
           <Button title="Email me a code instead" variant="ghost" onPress={sendCode} loading={busy} />
           <Text style={[styles.hint, { color: palette.text3 }]}>
-            New here? Use “Email me a code” for your first sign-in, then set a password in your profile.
+            Forgot your password? Use “Email me a code” to get back in, then set a new one in your
+            profile.
           </Text>
         </View>
       ) : step === 'code' ? (
@@ -123,6 +157,31 @@ export function AuthForm({ subtitle }: { subtitle?: string }) {
           />
           <Button title="Verify" onPress={verify} loading={busy} disabled={secret.trim().length !== 6} />
           <Button title="Use a different email" variant="ghost" onPress={backToEmail} />
+        </View>
+      ) : step === 'signup' ? (
+        <View style={styles.fields}>
+          <Text style={[styles.hint, { color: palette.text2 }]}>
+            Creating an account for{' '}
+            <Text style={{ fontFamily: fonts.sansMedium, color: palette.text1 }}>{addr()}</Text>.
+            Double-check the address — it’s how you’d get back in if you ever forget your password.
+          </Text>
+          <TextField
+            placeholder="Choose a password (8+ characters)"
+            value={secret}
+            onChangeText={setSecret}
+            secureTextEntry
+            autoCapitalize="none"
+            autoFocus
+            onSubmitEditing={signUp}
+          />
+          <Button
+            title="Create account"
+            variant="accent"
+            onPress={signUp}
+            loading={busy}
+            disabled={secret.length < 8}
+          />
+          <Button title="Back" variant="ghost" onPress={backToEmail} />
         </View>
       ) : (
         <View style={styles.fields}>
