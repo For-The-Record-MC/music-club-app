@@ -1427,6 +1427,7 @@ export type Database = {
           price: string | null
           rating: number | null
           review: string | null
+          tagged_ids: string[]
           ticket_url: string | null
           updated_at: string
           venue: string | null
@@ -1446,6 +1447,7 @@ export type Database = {
           price?: string | null
           rating?: number | null
           review?: string | null
+          tagged_ids?: string[]
           ticket_url?: string | null
           updated_at?: string
           venue?: string | null
@@ -1465,6 +1467,7 @@ export type Database = {
           price?: string | null
           rating?: number | null
           review?: string | null
+          tagged_ids?: string[]
           ticket_url?: string | null
           updated_at?: string
           venue?: string | null

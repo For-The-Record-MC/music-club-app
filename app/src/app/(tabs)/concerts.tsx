@@ -70,9 +70,12 @@ interface Draft {
   ticketUrl: string;
   note: string;
   imageUrl: string;
+  // Members tagged "you'd want to see this" — shown on the card, and newly
+  // added ones get a targeted notification on save.
+  taggedIds: string[];
 }
 
-const emptyDraft = (): Draft => ({ artist: '', when: null, venue: '', price: '', ticketUrl: '', note: '', imageUrl: '' });
+const emptyDraft = (): Draft => ({ artist: '', when: null, venue: '', price: '', ticketUrl: '', note: '', imageUrl: '', taggedIds: [] });
 
 // A club the current user belongs to, trimmed to what the share UI needs.
 interface ClubLite {
@@ -283,8 +286,12 @@ export default function Concerts() {
     }));
   };
 
+  // Tags already on the concert being edited — only NEW tags notify on save.
+  const prevTaggedRef = useRef<string[]>([]);
+
   const startEdit = (c: ConcertRow) => {
     setEditingId(c.id);
+    prevTaggedRef.current = c.tagged_ids ?? [];
     setDraft({
       artist: c.artist,
       when: concertWhen(c),
@@ -293,10 +300,19 @@ export default function Concerts() {
       ticketUrl: c.ticket_url ?? '',
       note: c.note ?? '',
       imageUrl: c.image_url ?? '',
+      taggedIds: c.tagged_ids ?? [],
     });
     setError(null);
     setOpen(true);
   };
+
+  const toggleTag = (profileId: string) =>
+    setDraft((d) => ({
+      ...d,
+      taggedIds: d.taggedIds.includes(profileId)
+        ? d.taggedIds.filter((x) => x !== profileId)
+        : [...d.taggedIds, profileId],
+    }));
 
   const save = async () => {
     if (!id || !userId || !draft.artist.trim()) {
@@ -317,17 +333,39 @@ export default function Concerts() {
       image_url: draft.imageUrl.trim() || null,
     };
 
+    // Tags are club-scoped member ids, so they ride the primary club's row only
+    // — `fields` (reused for cross-club copies) deliberately excludes them.
+    // Newly tagged members get a targeted "tagged you on a concert" ping.
+    const notifyTagged = (concertId: string, recipients: string[]) => {
+      const tagged = recipients.filter((pid) => pid !== userId);
+      if (!tagged.length) return;
+      void activity
+        .notifyMentions(id, tagged, {
+          context: 'concert_tag',
+          concert_id: concertId,
+          snippet: fields.artist,
+        })
+        .then(undefined, () => {});
+    };
+
     if (editingId) {
-      const { error: err } = await concertsDb.update(editingId, fields);
+      const { error: err } = await concertsDb.update(editingId, { ...fields, tagged_ids: draft.taggedIds });
       setBusy(false);
       if (err) return setError(err.message);
+      notifyTagged(editingId, draft.taggedIds.filter((pid) => !prevTaggedRef.current.includes(pid)));
     } else {
-      const { data, error: err } = await concertsDb.create({ ...fields, club_id: id, added_by: userId });
+      const { data, error: err } = await concertsDb.create({
+        ...fields,
+        tagged_ids: draft.taggedIds,
+        club_id: id,
+        added_by: userId,
+      });
       if (err || !data) {
         setBusy(false);
         return setError(err?.message ?? 'Could not add the concert.');
       }
       await activity.publish(id, 'concert_added', { artist: data.artist, concert_id: data.id });
+      notifyTagged(data.id, draft.taggedIds);
       // Fan the new concert out to any clubs picked in "Also post to".
       for (const targetId of shareTargets) {
         await postConcertCopy(targetId, data.id, fields, userId);
@@ -370,7 +408,7 @@ export default function Concerts() {
       {loading ? (
         <Loading />
       ) : view === 'calendar' ? (
-        <ConcertCalendar concerts={rows} memberInfo={memberInfo} />
+        <ConcertCalendar concerts={rows} memberInfo={memberInfo} userId={userId} onChange={refresh} />
       ) : (
         <>
       {!open ? (
@@ -391,6 +429,45 @@ export default function Concerts() {
             <TextField placeholder="Ticket price (optional)" value={draft.price} onChangeText={(v) => setDraft((d) => ({ ...d, price: v }))} />
             <TextField placeholder="Ticket link (optional)" value={draft.ticketUrl} onChangeText={(v) => setDraft((d) => ({ ...d, ticketUrl: v }))} autoCapitalize="none" />
             <TextField placeholder="Notes (optional)" value={draft.note} onChangeText={(v) => setDraft((d) => ({ ...d, note: v }))} />
+            {members.length > 1 ? (
+              <View style={styles.sharePickBlock}>
+                <Text style={[styles.sharePickLabel, { color: palette.text3 }]}>
+                  TAG MEMBERS WHO&apos;D WANT TO SEE THIS (OPTIONAL)
+                </Text>
+                <View style={styles.shareChips}>
+                  {members
+                    .filter((m) => m.profile_id !== userId)
+                    .map((m) => {
+                      const on = draft.taggedIds.includes(m.profile_id);
+                      return (
+                        <Pressable
+                          key={m.profile_id}
+                          onPress={() => toggleTag(m.profile_id)}
+                          style={[
+                            styles.shareChip,
+                            { borderColor: palette.border, backgroundColor: palette.card2 },
+                            on && { borderColor: palette.amber, backgroundColor: palette.amberBg },
+                          ]}
+                        >
+                          <Avatar
+                            name={m.profiles?.display_name ?? null}
+                            colorIndex={m.profiles?.avatar_color ?? 0}
+                            imageUrl={m.profiles?.avatar_url}
+                            size={18}
+                          />
+                          <Text
+                            numberOfLines={1}
+                            style={[styles.shareChipText, { color: on ? palette.amber : palette.text2 }]}
+                          >
+                            {memberName(m.profiles?.display_name, m.profiles?.email)}
+                          </Text>
+                          {on ? <Text style={[styles.shareChipCheck, { color: palette.amber }]}>✓</Text> : null}
+                        </Pressable>
+                      );
+                    })}
+                </View>
+              </View>
+            ) : null}
             {!editingId && otherClubs.length > 0 ? (
               <View style={styles.sharePickBlock}>
                 <Text style={[styles.sharePickLabel, { color: palette.text3 }]}>
@@ -645,6 +722,27 @@ function ConcertCard({
       </View>
 
       {concert.note ? <Text style={[styles.cNote, { color: palette.text2 }]}>{concert.note}</Text> : null}
+
+      {(concert.tagged_ids ?? []).length > 0 ? (
+        <View style={styles.taggedRow}>
+          <Text style={[styles.interestLabel, { color: palette.amber }]}>🏷 TAGGED</Text>
+          <View style={styles.interestPeople}>
+            {(concert.tagged_ids ?? []).map((pid) => {
+              const info = memberInfo.get(pid);
+              // Skip anyone no longer in the club rather than showing "Someone".
+              if (!info) return null;
+              return (
+                <View key={pid} style={styles.interestChip}>
+                  <Avatar name={info.display_name} colorIndex={info.avatar_color} imageUrl={info.avatar_url} size={18} />
+                  <Text style={[styles.interestName, { color: palette.text2 }]}>
+                    {memberName(info.display_name, info.email)}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      ) : null}
 
       {isCompleted && (concert.rating || concert.review) ? (
         <View style={[styles.reviewBox, { backgroundColor: palette.card2, borderColor: palette.border }]}>
@@ -1035,6 +1133,7 @@ const styles = StyleSheet.create({
   },
   cCount: { fontFamily: fonts.sans, fontSize: 12, marginTop: 8 },
   interestLists: { marginTop: 10, gap: 8 },
+  taggedRow: { marginTop: 10, gap: 5 },
   interestGroup: { gap: 5 },
   interestLabel: { fontFamily: fonts.monoMedium, fontSize: 10, letterSpacing: 0.5 },
   interestPeople: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },

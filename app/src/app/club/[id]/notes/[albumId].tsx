@@ -11,6 +11,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { fonts, radius } from '@/theme';
 import { confirmAsync } from '@/utils/confirm';
 import { openLyrics } from '@/utils/genius';
+import { openWhoSampled } from '@/utils/whosampled';
 import { memberName } from '@/utils/memberName';
 import {
   albumImpressions as impressionsDb,
@@ -568,6 +569,12 @@ export default function SongNotesEditor() {
                 >
                   <Text style={[styles.lyricsBtnText, { color: palette.amber }]}>Lyrics ↗</Text>
                 </Pressable>
+                <Pressable
+                  onPress={() => openWhoSampled(album?.artist, t.trackName)}
+                  style={[styles.lyricsBtn, { backgroundColor: palette.purpleBg, borderColor: palette.purple }]}
+                >
+                  <Text style={[styles.lyricsBtnText, { color: palette.purple }]}>Samples ↗</Text>
+                </Pressable>
                 {/* The empty space beside the Lyrics button also toggles the card. */}
                 <Pressable style={styles.lyricsFiller} onPress={() => toggleExpanded(t.trackNumber)} />
               </View>
@@ -902,7 +909,7 @@ const styles = StyleSheet.create({
   trackHead: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   trackNum: { fontFamily: fonts.monoMedium, fontSize: 11 },
   trackName: { fontFamily: fonts.sansBold, fontSize: 14 },
-  lyricsRow: { flexDirection: 'row', alignItems: 'stretch', marginTop: 10 },
+  lyricsRow: { flexDirection: 'row', alignItems: 'stretch', gap: 8, marginTop: 10 },
   lyricsFiller: { flex: 1, alignSelf: 'stretch' },
   lyricsBtn: {
     borderWidth: StyleSheet.hairlineWidth,

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Linking, Platform, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 
 import { ClubSwitcher } from '@/components/ClubSwitcher';
+import { ShareComposer } from '@/components/ShareComposer';
 import { StudioHighlights } from '@/components/StudioHighlights';
 import { Avatar, Button, Card, InlineNote, Label, Loading, Screen } from '@/components/ui';
 import { useActivity } from '@/hooks/useActivity';
@@ -410,7 +411,9 @@ export default function HomeTab() {
             </Card>
           )}
 
-          <StudioHighlights clubId={club.id} cycleId={cycle.id} />
+          <StudioHighlights clubId={club.id} cycleId={cycle.id}>
+            <ShareComposer clubId={club.id} includePlaylists />
+          </StudioHighlights>
 
           <Label>Meeting &amp; RSVP</Label>
           <Card>
