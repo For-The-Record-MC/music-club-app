@@ -49,6 +49,21 @@ CREATE TABLE albums (
   spotify_album_id text
 );
 
+CREATE TABLE apple_match_queue (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  source_table text NOT NULL,
+  source_id uuid NOT NULL,
+  kind text NOT NULL DEFAULT 'track'::text,
+  title text NOT NULL,
+  artist text NOT NULL DEFAULT ''::text,
+  spotify_url text,
+  isrc text,
+  attempts integer NOT NULL DEFAULT 0,
+  last_attempt_at timestamp with time zone,
+  resolved_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE aux_battle_songs (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   battle_id uuid NOT NULL,
@@ -487,7 +502,9 @@ CREATE TABLE perfect_playlist_songs (
   apple_url text,
   norm_key text NOT NULL,
   playlist_synced_at timestamp with time zone,
-  created_at timestamp with time zone NOT NULL DEFAULT now()
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  apple_song_id text,
+  isrc text
 );
 
 CREATE TABLE perfect_playlists (
@@ -719,6 +736,12 @@ ALTER TABLE albums ADD CONSTRAINT albums_set_by_fkey FOREIGN KEY (set_by) REFERE
 ALTER TABLE albums ADD CONSTRAINT albums_slot_check CHECK (((slot IS NULL) OR (slot = ANY (ARRAY[1, 2]))));
 
 ALTER TABLE albums ADD CONSTRAINT albums_title_check CHECK (((char_length(TRIM(BOTH FROM title)) >= 1) AND (char_length(TRIM(BOTH FROM title)) <= 200)));
+
+ALTER TABLE apple_match_queue ADD CONSTRAINT apple_match_queue_kind_check CHECK ((kind = ANY (ARRAY['track'::text, 'album'::text])));
+
+ALTER TABLE apple_match_queue ADD CONSTRAINT apple_match_queue_pkey PRIMARY KEY (id);
+
+ALTER TABLE apple_match_queue ADD CONSTRAINT apple_match_queue_source_table_source_id_key UNIQUE (source_table, source_id);
 
 ALTER TABLE aux_battle_songs ADD CONSTRAINT aux_battle_songs_battle_id_fkey FOREIGN KEY (battle_id) REFERENCES aux_battles(id) ON DELETE CASCADE;
 
@@ -1359,6 +1382,8 @@ CREATE UNIQUE INDEX albums_archive_spotify_uniq ON public.albums USING btree (cy
 
 CREATE INDEX albums_cycle_idx ON public.albums USING btree (cycle_id);
 
+CREATE INDEX apple_match_queue_pending_idx ON public.apple_match_queue USING btree (last_attempt_at) WHERE (resolved_at IS NULL);
+
 CREATE INDEX aux_battle_songs_battle_idx ON public.aux_battle_songs USING btree (battle_id);
 
 CREATE INDEX aux_battle_theme_ideas_club_idx ON public.aux_battle_theme_ideas USING btree (club_id);
@@ -1547,6 +1572,8 @@ CREATE POLICY albums_write ON albums AS PERMISSIVE FOR ALL TO authenticated
   WITH CHECK (((set_by = auth.uid()) AND (NOT album_has_ratings(id)) AND (EXISTS ( SELECT 1
    FROM cycles c
   WHERE ((c.id = albums.cycle_id) AND (c.status = 'open'::text) AND ((c.picker_id = auth.uid()) OR (club_role(c.club_id) = ANY (ARRAY['owner'::text, 'admin'::text]))))))));
+
+ALTER TABLE apple_match_queue ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE aux_battle_songs ENABLE ROW LEVEL SECURITY;
 
@@ -2315,6 +2342,30 @@ CREATE OR REPLACE FUNCTION public.album_has_ratings(p_album uuid)
  SET search_path TO 'public'
 AS $function$
   select exists (select 1 from ratings where album_id = p_album);
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.apple_match_sweep()
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_url text;
+  v_secret text;
+begin
+  select decrypted_secret into v_url from vault.decrypted_secrets where name = 'apple_music_url';
+  select decrypted_secret into v_secret from vault.decrypted_secrets where name = 'apple_music_secret';
+  if v_url is null or v_secret is null then
+    return;
+  end if;
+  perform net.http_post(
+    url := v_url,
+    headers := jsonb_build_object('Content-Type', 'application/json', 'x-apple-secret', v_secret),
+    body := jsonb_build_object('action', 'sweep')
+  );
+end;
 $function$
 ;
 
@@ -4756,6 +4807,36 @@ end;
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.request_apple_match()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_url text;
+  v_secret text;
+begin
+  begin
+    select decrypted_secret into v_url from vault.decrypted_secrets where name = 'apple_music_url';
+    select decrypted_secret into v_secret from vault.decrypted_secrets where name = 'apple_music_secret';
+    if v_url is null or v_secret is null then
+      return new;
+    end if;
+
+    perform net.http_post(
+      url := v_url,
+      headers := jsonb_build_object('Content-Type', 'application/json', 'x-apple-secret', v_secret),
+      body := jsonb_build_object('source_table', tg_table_name, 'source_id', new.id)
+    );
+  exception when others then
+    null;
+  end;
+  return new;
+end;
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.request_bingo_card(p_game uuid)
  RETURNS bingo_cards
  LANGUAGE plpgsql
@@ -5896,4 +5977,24 @@ CREATE TRIGGER activity_events_push AFTER INSERT ON public.activity_events FOR E
 
 CREATE TRIGGER album_impressions_lock_initial BEFORE UPDATE ON public.album_impressions FOR EACH ROW EXECUTE FUNCTION lock_initial_score();
 
+CREATE TRIGGER albums_apple_match AFTER INSERT ON public.albums FOR EACH ROW EXECUTE FUNCTION request_apple_match();
+
+CREATE TRIGGER albums_apple_match_repick AFTER UPDATE ON public.albums FOR EACH ROW WHEN ((new.title IS DISTINCT FROM old.title)) EXECUTE FUNCTION request_apple_match();
+
+CREATE TRIGGER aux_battle_songs_apple_match AFTER INSERT ON public.aux_battle_songs FOR EACH ROW EXECUTE FUNCTION request_apple_match();
+
+CREATE TRIGGER best_bars_apple_match AFTER INSERT ON public.best_bars FOR EACH ROW EXECUTE FUNCTION request_apple_match();
+
+CREATE TRIGGER bingo_boxes_apple_match AFTER UPDATE ON public.bingo_boxes FOR EACH ROW WHEN (((new.title IS NOT NULL) AND (new.title IS DISTINCT FROM old.title))) EXECUTE FUNCTION request_apple_match();
+
+CREATE TRIGGER bracket_tracks_apple_match AFTER INSERT ON public.bracket_tracks FOR EACH ROW EXECUTE FUNCTION request_apple_match();
+
+CREATE TRIGGER convince_tracks_apple_match AFTER INSERT ON public.convince_tracks FOR EACH ROW EXECUTE FUNCTION request_apple_match();
+
+CREATE TRIGGER feed_posts_apple_match AFTER INSERT ON public.feed_posts FOR EACH ROW WHEN ((new.kind = ANY (ARRAY['track'::text, 'album'::text]))) EXECUTE FUNCTION request_apple_match();
+
 CREATE TRIGGER feed_posts_song_limit BEFORE INSERT ON public.feed_posts FOR EACH ROW EXECUTE FUNCTION enforce_song_limit();
+
+CREATE TRIGGER perfect_playlist_songs_apple_match AFTER INSERT ON public.perfect_playlist_songs FOR EACH ROW EXECUTE FUNCTION request_apple_match();
+
+CREATE TRIGGER showdown_submissions_apple_match AFTER INSERT ON public.showdown_submissions FOR EACH ROW EXECUTE FUNCTION request_apple_match();

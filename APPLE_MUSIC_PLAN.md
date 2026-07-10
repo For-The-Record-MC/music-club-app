@@ -1,6 +1,6 @@
 # Apple Music Parity & Streaming Preference Plan
 
-**Status: design locked, build NOT started. Nothing here ships until v1 App Store approval — no backend deploys, no migrations, no commits.**
+**Status: Phases 0a + 1 SHIPPED 2026-07-10 (see as-built notes below). Next: Phase 2 backfill, then Phase 4 preference UI. Phase 0b/3 (paid playlist tier) still deferred.**
 
 ## Goal
 
@@ -82,6 +82,35 @@ SONG_PREVIEWS_PLAN.md depends only on the free tier.
    - Doesn't → sync still creates/fills playlists; once per cycle someone opens
      the Music app as the bot, shares the playlist, and pastes the URL into an
      admin field (add that small input to club settings in Phase 4).
+
+## Phase 0a + 1 — as built (2026-07-10)
+
+- MusicKit key created; `APPLE_TEAM_ID` / `APPLE_MUSIC_KEY_ID` /
+  `APPLE_MUSIC_PRIVATE_KEY` set as function secrets; verified with a live ISRC
+  lookup. The .p8 sits (gitignored) in `supabase/seed/`.
+- `_shared/apple.ts`: dev-token mint (WebCrypto ES256, module-cached) + catalog
+  lookups (`trackByIsrc`, `searchTrack`, `albumByUpc`, `searchAlbum`).
+- **Firing is DB-side, not client-side** (improvement over the plan): AFTER
+  INSERT triggers (`request_apple_match`) on all 9 song tables POST
+  (source_table, source_id) to the `apple-music` function via pg_net — vault
+  secrets `apple_music_url`/`apple_music_secret`, fail-open, same pattern as
+  send-push. Old clients get resolution with zero OTA. bingo_boxes and albums
+  fire on UPDATE too (fill-by-update / slot re-pick).
+- `apple-music` (verify_jwt=false, guarded by `x-apple-secret` =
+  `APPLE_MATCH_SECRET`): per-row resolve + `{action:'sweep'}`. ISRC recovery
+  needs no /tracks endpoint (dev-mode-safe): Spotify **/search** returns full
+  track objects incl. `external_ids.isrc`, so it searches title+artist and
+  demands the row's exact spotify_url track id among the hits.
+- Write policy: ISRC-verified → overwrite; text-search fallback → fill only if
+  apple_url is null (Phase 2 re-verifies existing fuzzy links); total miss →
+  `apple_match_queue`, swept hourly (pg_cron `apple-match-sweep`, 30-attempt cap).
+- `perfect_playlist_songs` gained `apple_song_id`/`isrc` columns; feed_posts
+  carries apple_song_id/isrc/preview_url in metadata (preview_url already
+  feeding SONG_PREVIEWS_PLAN.md); bracket_tracks gets preview_url refreshed.
+- spotify-search now returns `isrc`; ShareComposer stores it in post metadata
+  at pick time (client hint — resolver recovers it server-side either way).
+- Verified live: direct resolve of a real feed post (ISRC path, `verified`),
+  trigger path end-to-end on an inserted row (~3s to verified match), sweep OK.
 
 ## Phase 1 — Matching infrastructure (backend)
 

@@ -19,6 +19,8 @@ export interface SpotifySong {
   // Track length — Listening Bingo's listen gate. Nullable: an older deployed
   // spotify-search omits it (callers fall back to a fixed-time gate).
   durationMs?: number | null;
+  // Recording code for exact Apple Music matching. Nullable for the same reason.
+  isrc?: string | null;
 }
 
 export interface SpotifyAlbum {
