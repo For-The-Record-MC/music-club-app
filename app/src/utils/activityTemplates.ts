@@ -199,6 +199,13 @@ export function renderActivity(event: ActivityEvent, actorName: string | null): 
         target: HOME,
       };
     case 'comment_mention': {
+      // Concert tags ride the mention pipeline but read as a tag, not a comment.
+      if (p.context === 'concert_tag')
+        return {
+          icon: '🎤',
+          text: `${who} tagged you on a concert${p.snippet ? `: ${p.snippet}` : ''}`,
+          target: { pathname: '/concerts', params: p.concert_id ? { focus: String(p.concert_id) } : undefined },
+        };
       const where =
         p.context === 'concert'
           ? 'a concert comment'

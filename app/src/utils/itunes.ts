@@ -100,7 +100,9 @@ export async function getAlbumTracks(collectionId: number): Promise<ItunesTrack[
   if (!res.ok) return [];
   const json = await res.json();
   return (json.results ?? [])
-    .filter((r: any) => r.wrapperType === 'track')
+    // Music videos (album trailers/visualizers) also come back with
+    // wrapperType 'track' — kind 'song' is what separates real songs.
+    .filter((r: any) => r.wrapperType === 'track' && r.kind === 'song')
     .map((r: any) => ({ trackNumber: r.trackNumber, trackName: r.trackName }))
     .sort((a: ItunesTrack, b: ItunesTrack) => a.trackNumber - b.trackNumber);
 }

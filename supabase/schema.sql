@@ -317,7 +317,8 @@ CREATE TABLE concerts (
   completed_at timestamp with time zone,
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   origin_concert_id uuid,
-  image_url text
+  image_url text,
+  tagged_ids uuid[] NOT NULL DEFAULT '{}'::uuid[]
 );
 
 CREATE TABLE convince_comments (

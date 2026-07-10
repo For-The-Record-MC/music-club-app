@@ -150,6 +150,14 @@ export function pushTemplate(
     case 'concert_added':
       return { category, title: t('🎤 New concert'), body: `${who} added a concert: ${p.artist ?? ''}.`, target: { pathname: '/concerts', params: p.concert_id ? { focus: String(p.concert_id) } : undefined } };
     case 'comment_mention': {
+      // Concert tags ride the mention pipeline but read as a tag, not a comment.
+      if (p.context === 'concert_tag')
+        return {
+          category,
+          title: t('🎤 Tagged on a concert'),
+          body: `${who} tagged you on a concert: ${p.snippet ?? ''}`,
+          target: { pathname: '/concerts', params: p.concert_id ? { focus: String(p.concert_id) } : undefined },
+        };
       const where =
         p.context === 'concert' ? 'a concert comment'
         : p.context === 'meeting' ? 'the meeting board'

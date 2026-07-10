@@ -57,7 +57,18 @@ function featuredMeta(post: FeedRow): string {
   return n > 0 ? `MOST LOVED · ${n} reaction${n === 1 ? '' : 's'}` : 'RECENTLY SHARED';
 }
 
-export function StudioHighlights({ clubId, cycleId }: { clubId: string; cycleId: string }) {
+// `children` renders below the carousel (after the pager dots) — Home slots
+// the quick-share composer there. When present, the section stays visible even
+// with no highlight cards so the share button never disappears.
+export function StudioHighlights({
+  clubId,
+  cycleId,
+  children,
+}: {
+  clubId: string;
+  cycleId: string;
+  children?: ReactNode;
+}) {
   const router = useRouter();
   const { palette } = useTheme();
   const userId = useAuthStore((s) => s.userId);
@@ -255,7 +266,7 @@ export function StudioHighlights({ clubId, cycleId }: { clubId: string; cycleId:
     return out;
   }, [cycle, posts, showdown, battles, playlist, bars, takes, madness, bingo, userId, palette, router]);
 
-  if (highlights.length === 0) return null;
+  if (highlights.length === 0 && !children) return null;
 
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     if (width > 0) setActive(Math.round(e.nativeEvent.contentOffset.x / width));
@@ -303,6 +314,7 @@ export function StudioHighlights({ clubId, cycleId }: { clubId: string; cycleId:
           ))}
         </View>
       ) : null}
+      {children ? <View style={{ marginTop: 12 }}>{children}</View> : null}
     </View>
   );
 }
