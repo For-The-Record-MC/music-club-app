@@ -242,6 +242,38 @@ export type Database = {
           },
         ]
       }
+      app_opens: {
+        Row: {
+          day: string
+          first_open_at: string
+          last_open_at: string
+          opens: number
+          profile_id: string
+        }
+        Insert: {
+          day: string
+          first_open_at?: string
+          last_open_at?: string
+          opens?: number
+          profile_id: string
+        }
+        Update: {
+          day?: string
+          first_open_at?: string
+          last_open_at?: string
+          opens?: number
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_opens_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       apple_match_queue: {
         Row: {
           artist: string
@@ -3547,6 +3579,7 @@ export type Database = {
         }
       }
       list_showdown: { Args: { p_cycle: string }; Returns: Json }
+      log_app_open: { Args: never; Returns: undefined }
       mark_activity_read: { Args: { p_club: string }; Returns: undefined }
       mark_bingo_listened: { Args: { p_box: string }; Returns: undefined }
       member_studio_stats: {

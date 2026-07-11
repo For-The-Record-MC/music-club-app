@@ -17,6 +17,7 @@ import { useEffect } from 'react';
 import { Platform } from 'react-native';
 
 import { useTheme } from '@/hooks/use-theme';
+import { useAppOpenHeartbeat } from '@/hooks/useAppOpenHeartbeat';
 import { useAuthStore } from '@/stores/authStore';
 import { useCurrentClubStore } from '@/stores/currentClubStore';
 import { useOnboardingStore } from '@/stores/onboardingStore';
@@ -55,6 +56,9 @@ export default function RootLayout() {
   useEffect(() => {
     if (userId) registerPushToken(userId);
   }, [userId]);
+
+  // Adoption heartbeat — logs an app open on sign-in and each foreground return.
+  useAppOpenHeartbeat(userId);
 
   // Deep-link a notification tap to the same place the activity bell would.
   // Native only — web has no Expo notifications to respond to.

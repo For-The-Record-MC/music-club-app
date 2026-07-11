@@ -49,6 +49,14 @@ CREATE TABLE albums (
   spotify_album_id text
 );
 
+CREATE TABLE app_opens (
+  profile_id uuid NOT NULL,
+  day date NOT NULL,
+  first_open_at timestamp with time zone NOT NULL DEFAULT now(),
+  last_open_at timestamp with time zone NOT NULL DEFAULT now(),
+  opens integer NOT NULL DEFAULT 1
+);
+
 CREATE TABLE apple_match_queue (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   source_table text NOT NULL,
@@ -743,6 +751,10 @@ ALTER TABLE albums ADD CONSTRAINT albums_set_by_fkey FOREIGN KEY (set_by) REFERE
 ALTER TABLE albums ADD CONSTRAINT albums_slot_check CHECK (((slot IS NULL) OR (slot = ANY (ARRAY[1, 2]))));
 
 ALTER TABLE albums ADD CONSTRAINT albums_title_check CHECK (((char_length(TRIM(BOTH FROM title)) >= 1) AND (char_length(TRIM(BOTH FROM title)) <= 200)));
+
+ALTER TABLE app_opens ADD CONSTRAINT app_opens_pkey PRIMARY KEY (profile_id, day);
+
+ALTER TABLE app_opens ADD CONSTRAINT app_opens_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
 
 ALTER TABLE apple_match_queue ADD CONSTRAINT apple_match_queue_kind_check CHECK ((kind = ANY (ARRAY['track'::text, 'album'::text])));
 
@@ -1581,6 +1593,11 @@ CREATE POLICY albums_write ON albums AS PERMISSIVE FOR ALL TO authenticated
   WITH CHECK (((set_by = auth.uid()) AND (NOT album_has_ratings(id)) AND (EXISTS ( SELECT 1
    FROM cycles c
   WHERE ((c.id = albums.cycle_id) AND (c.status = 'open'::text) AND ((c.picker_id = auth.uid()) OR (club_role(c.club_id) = ANY (ARRAY['owner'::text, 'admin'::text]))))))));
+
+ALTER TABLE app_opens ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY app_opens_select ON app_opens AS PERMISSIVE FOR SELECT TO authenticated
+  USING ((profile_id = auth.uid()));
 
 ALTER TABLE apple_match_queue ENABLE ROW LEVEL SECURITY;
 
@@ -4415,6 +4432,24 @@ begin
       using errcode = 'check_violation';
   end if;
   return new;
+end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.log_app_open()
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if auth.uid() is null then
+    return;
+  end if;
+  insert into app_opens (profile_id, day)
+  values (auth.uid(), current_date)
+  on conflict (profile_id, day) do update
+    set last_open_at = now(), opens = app_opens.opens + 1;
 end;
 $function$
 ;
