@@ -3555,6 +3555,13 @@ export type Database = {
       }
       my_announcement_quota: { Args: { p_club: string }; Returns: Json }
       my_song_quota: { Args: { p_club: string }; Returns: Json }
+      my_unread_counts: {
+        Args: never
+        Returns: {
+          club_id: string
+          unread: number
+        }[]
+      }
       notify_comment_mentions: {
         Args: { p_club: string; p_payload?: Json; p_recipients: string[] }
         Returns: undefined

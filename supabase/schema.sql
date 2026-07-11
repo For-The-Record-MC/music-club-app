@@ -4628,6 +4628,25 @@ end;
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.my_unread_counts()
+ RETURNS TABLE(club_id uuid, unread integer)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select e.club_id, count(*)::integer as unread
+  from activity_events e
+  join club_members m
+    on m.club_id = e.club_id and m.profile_id = auth.uid()
+  left join activity_reads r
+    on r.club_id = e.club_id and r.profile_id = auth.uid()
+  where (e.recipient_id is null or e.recipient_id = auth.uid())
+    and e.actor_id is distinct from auth.uid()
+    and e.created_at > coalesce(r.last_read_at, 'epoch'::timestamptz)
+  group by e.club_id;
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.notify_comment_mentions(p_club uuid, p_recipients uuid[], p_payload jsonb DEFAULT '{}'::jsonb)
  RETURNS void
  LANGUAGE plpgsql
