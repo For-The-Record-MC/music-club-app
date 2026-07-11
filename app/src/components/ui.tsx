@@ -41,16 +41,20 @@ export function Screen({
 }) {
   const { palette } = useTheme();
   const insets = useSafeAreaInsets();
-  // iOS sometimes fails to remove the keyboard content inset on dismiss
-  // (swipe-down, screen transitions), leaving a keyboard-sized scrollable
-  // void below the content. Only apply the automatic inset while the keyboard
-  // is actually up so a stale inset can never linger.
-  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  // Keyboard clearance, done BY HAND. automaticallyAdjustKeyboardInsets lets
+  // UIKit mutate the scroll view's contentInset, and it sometimes fails to
+  // remove it on dismiss (swipe-down, screen transitions) — leaving a
+  // keyboard-sized scrollable void below the content. Even gated behind a
+  // keyboard-open flag the stale inset survived on long-lived screens (Home).
+  // Instead we pad the content by the keyboard's reported height ourselves:
+  // plain state in, plain state out — nothing UIKit can forget to undo.
+  const [keyboardPad, setKeyboardPad] = useState(0);
   useEffect(() => {
-    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-    const show = Keyboard.addListener(showEvent, () => setKeyboardOpen(true));
-    const hide = Keyboard.addListener(hideEvent, () => setKeyboardOpen(false));
+    if (Platform.OS !== 'ios') return; // Android's adjustResize handles it.
+    const show = Keyboard.addListener('keyboardWillShow', (e) =>
+      setKeyboardPad(e.endCoordinates?.height ?? 0),
+    );
+    const hide = Keyboard.addListener('keyboardWillHide', () => setKeyboardPad(0));
     return () => {
       show.remove();
       hide.remove();
@@ -70,14 +74,14 @@ export function Screen({
     <ScrollView
       ref={scrollRef}
       style={{ flex: 1, backgroundColor: palette.bg }}
-      contentContainerStyle={[styles.pageContent, { paddingTop: insets.top + 20 }]}
+      contentContainerStyle={[
+        styles.pageContent,
+        { paddingTop: insets.top + 20, paddingBottom: 60 + keyboardPad },
+      ]}
       // Without this, a tap on an inline search result (profile tracks, album
       // cover, concert search) is swallowed to dismiss the keyboard instead of
       // registering — the row feels "unclickable" until you tap twice.
       keyboardShouldPersistTaps="handled"
-      // Inset the scroll view for the software keyboard (iOS) so a text field near
-      // the bottom scrolls above the keyboard instead of being hidden behind it.
-      automaticallyAdjustKeyboardInsets={keyboardOpen}
       // Let the pull-to-refresh gesture work even when content is shorter than
       // the screen — without this, iOS won't bounce (and won't trigger refresh)
       // on sparse screens like an empty feed or a quiet activity list.
