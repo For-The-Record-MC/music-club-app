@@ -74,6 +74,23 @@ export default function CreateClub() {
         <Button title="Launch club 🎉" onPress={create} loading={busy} style={{ marginTop: 16 }} />
         {error ? <InlineNote text={error} tone="error" /> : null}
       </Card>
+      {/* Auto-playlists are the least-discovered perk — say it up front so new
+          clubs know they get one without connecting anything. */}
+      <Card style={{ marginTop: 12, borderColor: palette.teal }}>
+        <View style={styles.perkRow}>
+          <Text style={{ fontSize: 22 }}>🎧</Text>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={[styles.perkTitle, { color: palette.text1 }]}>
+              Every cycle gets a Spotify playlist — automatically
+            </Text>
+            <Text style={[styles.perkText, { color: palette.text2 }]}>
+              Songs your club shares to Club Radio land on a shared playlist as they&apos;re
+              posted. Nothing to set up — or connect your own Spotify later in Club
+              Settings → Streaming to own the playlists yourself.
+            </Text>
+          </View>
+        </View>
+      </Card>
       <Text style={[styles.footnote, { color: palette.text3 }]}>
         You&apos;ll be the club&apos;s owner. After launch: share your invite link from Home, then
         spin the wheel to start the first cycle — it picks who chooses the first two albums.
@@ -96,6 +113,9 @@ const styles = StyleSheet.create({
     marginTop: 14,
     paddingHorizontal: 12,
   },
+  perkRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  perkTitle: { fontFamily: fonts.sansBold, fontSize: 14, marginBottom: 4 },
+  perkText: { fontFamily: fonts.sans, fontSize: 12, lineHeight: 18 },
   emojiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   emojiOpt: {
     width: 44,

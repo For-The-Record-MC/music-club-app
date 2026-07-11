@@ -857,11 +857,18 @@ function BoxPanel({
           <View style={styles.songRow}>
             {box.artwork_url ? <Image source={{ uri: box.artwork_url }} style={styles.art} contentFit="cover" /> : null}
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text numberOfLines={1} style={[styles.sTitle, { color: palette.text1 }]}>{box.title}</Text>
+              {/* Rarity rides the title row (never truncated); the artist line
+                  used to carry it, where a long artist name pushed it out of view. */}
+              <View style={styles.titleRow}>
+                <Text numberOfLines={1} style={[styles.sTitle, { color: palette.text1, flexShrink: 1 }]}>{box.title}</Text>
+                {box.lastfm_playcount != null ? (
+                  <Text style={[styles.rarityTag, { color: palette.purple }]}>💎 {rarityScore(box.lastfm_playcount)}</Text>
+                ) : null}
+              </View>
               <Text numberOfLines={1} style={[styles.sSub, { color: palette.text3 }]}>
                 {box.artist}
                 {box.lastfm_playcount != null
-                  ? ` · ${formatPlays(box.lastfm_playcount).replace(' plays', ' Last.fm plays')} · 💎 ${rarityScore(box.lastfm_playcount)}`
+                  ? ` · ${formatPlays(box.lastfm_playcount).replace(' plays', ' Last.fm plays')}`
                   : ''}
               </Text>
             </View>
@@ -1115,7 +1122,12 @@ function OtherBoards({
                       <View style={styles.songRow}>
                         {peekBox.artwork_url ? <Image source={{ uri: peekBox.artwork_url }} style={styles.art} contentFit="cover" /> : null}
                         <View style={{ flex: 1, minWidth: 0 }}>
-                          <Text numberOfLines={1} style={[styles.sTitle, { color: palette.text1 }]}>{peekBox.title}</Text>
+                          <View style={styles.titleRow}>
+                            <Text numberOfLines={1} style={[styles.sTitle, { color: palette.text1, flexShrink: 1 }]}>{peekBox.title}</Text>
+                            {peekBox.lastfm_playcount != null ? (
+                              <Text style={[styles.rarityTag, { color: palette.purple }]}>💎 {rarityScore(peekBox.lastfm_playcount)}</Text>
+                            ) : null}
+                          </View>
                           <Text numberOfLines={1} style={[styles.sSub, { color: palette.text3 }]}>{peekBox.artist}</Text>
                         </View>
                         <ListenLinks apple={peekBox.apple_url} spotify={peekBox.spotify_url} other={null} />
@@ -1209,6 +1221,8 @@ const styles = StyleSheet.create({
   archiveRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   archiveEmoji: { fontSize: 22 },
   sTitle: { fontFamily: fonts.sansBold, fontSize: 13 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  rarityTag: { fontFamily: fonts.sansMedium, fontSize: 12 },
   sSub: { fontFamily: fonts.sans, fontSize: 11, marginTop: 1 },
   headRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   headEmoji: { fontSize: 26 },
