@@ -130,7 +130,11 @@ Deno.serve(async (req) => {
     }
     if (!res.ok) {
       const snippet = (await res.text().catch(() => '')).slice(0, 300)
-      return json({ ok: false, message: `Spotify search failed (${res.status}): ${snippet}` }, 502)
+      // On 429, Retry-After says how long the app token is benched — surface it
+      // so an operator can tell a blip from an hours-long penalty.
+      const retryAfter = res.status === 429 ? res.headers.get('Retry-After') : null
+      const suffix = retryAfter ? ` (retry after ${retryAfter}s)` : ''
+      return json({ ok: false, message: `Spotify search failed (${res.status})${suffix}: ${snippet}` }, 502)
     }
     return json({ results: normalize(await res.json(), type) })
   } catch (e) {
