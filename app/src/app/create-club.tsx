@@ -85,8 +85,7 @@ export default function CreateClub() {
             </Text>
             <Text style={[styles.perkText, { color: palette.text2 }]}>
               Songs your club shares to Club Radio land on a shared playlist as they&apos;re
-              posted. Nothing to set up — or connect your own Spotify later in Club
-              Settings → Streaming to own the playlists yourself.
+              posted — nothing to set up, it just works.
             </Text>
           </View>
         </View>
