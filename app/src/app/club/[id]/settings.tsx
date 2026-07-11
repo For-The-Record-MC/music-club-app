@@ -395,7 +395,7 @@ export default function ClubSettings() {
         <>
           <Label>{'\n'}Streaming</Label>
           <Button
-            title="🎧 Connect Spotify & playlists"
+            title="🎧 Cycle playlists"
             variant="ghost"
             onPress={() => router.push(`/club/${club.id}/streaming`)}
           />

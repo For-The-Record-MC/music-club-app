@@ -92,7 +92,7 @@ const FEATURES: { emoji: string; title: string; body: string; accent: Accent }[]
   {
     emoji: '🎶',
     title: 'Playlists',
-    body: 'Each cycle gets a highlights playlist, and the club builds an ever-growing all-time favorites list. Connect Spotify to listen in one tap.',
+    body: 'Each cycle gets its own Spotify playlist automatically — plus a highlights playlist and an ever-growing all-time favorites list. Nothing to connect; listen in one tap.',
     accent: 'teal',
   },
   {
