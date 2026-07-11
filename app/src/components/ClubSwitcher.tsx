@@ -1,4 +1,5 @@
 import { useRouter, type Href } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Badge, BottomSheet, Label } from '@/components/ui';
@@ -10,7 +11,7 @@ import { useCurrentClubStore } from '@/stores/currentClubStore';
 import { useThemeStore, type ThemeMode } from '@/stores/themeStore';
 import { avatarColors, fonts, radius } from '@/theme';
 import { confirmAsync } from '@/utils/confirm';
-import { account } from '@/utils/supabase/db';
+import { account, activity } from '@/utils/supabase/db';
 
 const THEME_ICON: Record<ThemeMode, string> = { system: '🌗', dark: '🌙', light: '☀️' };
 const THEME_LABEL: Record<ThemeMode, string> = { system: 'System', dark: 'Dark', light: 'Light' };
@@ -32,6 +33,18 @@ export function ClubSwitcher() {
   const cycleMode = useThemeStore((s) => s.cycleMode);
 
   const current = rows.find((r) => r.club.id === clubId);
+
+  // Unread bell counts per club, refreshed each time the sheet opens — so a
+  // club with waiting activity shows a badge next to its name in the list.
+  const [unread, setUnread] = useState<Record<string, number>>({});
+  useEffect(() => {
+    if (!open) return;
+    activity.unreadCounts().then(({ data }) => {
+      const map: Record<string, number> = {};
+      for (const r of (data ?? []) as { club_id: string; unread: number }[]) map[r.club_id] = r.unread;
+      setUnread(map);
+    });
+  }, [open]);
 
   const go = (path: Href) => {
     setOpen(false);
@@ -95,9 +108,20 @@ export function ClubSwitcher() {
                   <Text style={{ fontSize: 22 }}>{club.emoji}</Text>
                 </View>
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text numberOfLines={1} style={[styles.clubName, { color: palette.text1 }]}>
-                    {club.name}
-                  </Text>
+                  <View style={styles.nameRow}>
+                    <Text numberOfLines={1} style={[styles.clubName, { color: palette.text1, flexShrink: 1 }]}>
+                      {club.name}
+                    </Text>
+                    {/* Waiting activity in a club you're not looking at — the
+                        same count its bell would show. */}
+                    {!isCurrent && (unread[club.id] ?? 0) > 0 ? (
+                      <View style={[styles.unreadPill, { backgroundColor: palette.coral }]}>
+                        <Text style={styles.unreadText}>
+                          {unread[club.id]! > 99 ? '99+' : unread[club.id]}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
                   <Text style={[styles.clubMeta, { color: isCurrent ? palette.teal : palette.text3 }]}>
                     {isCurrent ? '● Current club' : 'Tap to switch'}
                   </Text>
@@ -189,6 +213,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   clubName: { fontFamily: fonts.sansBold, fontSize: 15, marginBottom: 2 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  unreadPill: {
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unreadText: { color: '#fff', fontFamily: fonts.sansBold, fontSize: 10 },
   clubMeta: { fontFamily: fonts.mono, fontSize: 10 },
   gear: { paddingHorizontal: 4, paddingVertical: 2 },
   divider: { borderTopWidth: StyleSheet.hairlineWidth, marginVertical: 8 },

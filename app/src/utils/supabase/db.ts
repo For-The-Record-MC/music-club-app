@@ -1540,6 +1540,8 @@ export const activity = {
       .eq('club_id', clubId)
       .order('created_at', { ascending: false })
       .limit(100),
+  // Unread bell counts for ALL my clubs at once — the club switcher's badges.
+  unreadCounts: () => supabase.rpc('my_unread_counts'),
   lastRead: (clubId: string, profileId: string) =>
     supabase
       .from('activity_reads')
