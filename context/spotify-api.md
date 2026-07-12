@@ -31,6 +31,39 @@ and never rely on batch endpoints or stream/play counts (Spotify exposes no
 play counts at all — only the 0-100 `popularity` score, which IS present on
 search-result track objects).
 
+## ‼ Extended 429 penalty — search bursts bench the WHOLE app for hours
+
+Seen twice: the bingo/previews backfill, and again 2026-07-12 after theme-mode
+seeding tests (~150 searches within the hour) — Spotify returned `429` with
+`Retry-After ≈ 64,000s` (~18h) on EVERY call from the app until the window
+passed. There is no reset lever; you wait it out.
+
+- **Never run bulk search loops against prod credentials** (backfills, seeding
+  tests). Batch them across days or accept degraded metadata.
+- **Structural guardrails** (20260712110000 migration + `_shared/spotifyGuard.ts`,
+  verified live): a single `spotify_api_state` row holds (a) a shared **hourly
+  call budget** (cap 200 in `spotify_acquire`) that `spotify-search` (1/call)
+  and `bracket-seed` (bulk acquire for cache-unknown titles) must reserve from
+  before touching Spotify, and (b) a **persisted bench**: the first 429
+  anywhere writes `benched_until` from Retry-After, and every worker of every
+  function short-circuits against it (verified: one 429 → all subsequent calls
+  denied from the DB). Guard failures fail OPEN; in-memory breakers remain the
+  backstop.
+- **`spotify_track_cache`**: resolved `(artist|title)` → track metadata, plus
+  confirmed misses. bracket-seed resolves cache-first, so repeat seedings (any
+  club, same tag/artist) cost ~zero searches. Transient errors are never cached.
+- Bracket resolution runs at concurrency 3 with a capped input tail; keep any
+  new bulk resolution at least that gentle.
+- During a bench/budget denial, feed search falls back to iTunes results (no
+  spotify_url/uri on those posts, so playlist sync skips them) and bracket
+  creation returns a clean "cooling down" error; tag PROBES stay live (Last.fm
+  only).
+- **Key rotation does NOT clear a bench** — the penalty rides the client id
+  (the app), not the secret. A brand-new app gets fresh quota, but swapping
+  prod apps invalidates every refresh token (app-scoped: SPOTIFY_APP_REFRESH_TOKEN
+  and each club's connect token) and must be coordinated with the bundled
+  EXPO_PUBLIC_SPOTIFY_CLIENT_ID + redirect URIs + an OTA.
+
 ## Where each service is used
 
 - **spotify-search** (Edge Function): track/album/artist search proxy,

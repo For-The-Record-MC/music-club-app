@@ -688,6 +688,24 @@ CREATE TABLE song_notes (
   vibe_tags text[] NOT NULL DEFAULT '{}'::text[]
 );
 
+CREATE TABLE spotify_api_state (
+  id boolean NOT NULL DEFAULT true,
+  benched_until timestamp with time zone,
+  window_start timestamp with time zone NOT NULL DEFAULT now(),
+  window_calls integer NOT NULL DEFAULT 0
+);
+
+CREATE TABLE spotify_track_cache (
+  key text NOT NULL,
+  miss boolean NOT NULL DEFAULT false,
+  spotify_id text NOT NULL DEFAULT ''::text,
+  title text NOT NULL DEFAULT ''::text,
+  album text NOT NULL DEFAULT ''::text,
+  artwork_url text,
+  spotify_url text,
+  resolved_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE streaming_connections (
   club_id uuid NOT NULL,
   provider text NOT NULL DEFAULT 'spotify'::text,
@@ -1380,6 +1398,12 @@ ALTER TABLE song_notes ADD CONSTRAINT song_notes_rating_check CHECK (((rating IS
 ALTER TABLE song_notes ADD CONSTRAINT song_notes_reminds_me_of_check CHECK (((reminds_me_of IS NULL) OR (char_length(reminds_me_of) <= 1000)));
 
 ALTER TABLE song_notes ADD CONSTRAINT song_notes_thumb_check CHECK (((thumb IS NULL) OR (thumb = ANY (ARRAY['up'::text, 'down'::text]))));
+
+ALTER TABLE spotify_api_state ADD CONSTRAINT spotify_api_state_pkey PRIMARY KEY (id);
+
+ALTER TABLE spotify_api_state ADD CONSTRAINT spotify_api_state_singleton CHECK (id);
+
+ALTER TABLE spotify_track_cache ADD CONSTRAINT spotify_track_cache_pkey PRIMARY KEY (key);
 
 ALTER TABLE streaming_connections ADD CONSTRAINT streaming_connections_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
 
@@ -2264,6 +2288,10 @@ CREATE POLICY song_notes_update ON song_notes AS PERMISSIVE FOR UPDATE TO authen
    FROM (albums a
      JOIN cycles c ON ((c.id = a.cycle_id)))
   WHERE ((a.id = song_notes.album_id) AND is_club_member(c.club_id))))));
+
+ALTER TABLE spotify_api_state ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE spotify_track_cache ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE streaming_connections ENABLE ROW LEVEL SECURITY;
 
@@ -5649,12 +5677,96 @@ end;
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION public.spotify_acquire(p_calls integer)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_state public.spotify_api_state;
+  v_cap constant int := 200;
+begin
+  select * into v_state from spotify_api_state where id for update;
+  if v_state.benched_until is not null and v_state.benched_until > now() then
+    return jsonb_build_object('ok', false, 'reason', 'benched', 'until', v_state.benched_until);
+  end if;
+  if v_state.window_start < now() - interval '1 hour' then
+    update spotify_api_state set window_start = now(), window_calls = 0 where id;
+    v_state.window_calls := 0;
+    v_state.window_start := now();
+  end if;
+  if v_state.window_calls + p_calls > v_cap then
+    return jsonb_build_object(
+      'ok', false, 'reason', 'budget',
+      'until', v_state.window_start + interval '1 hour'
+    );
+  end if;
+  update spotify_api_state set window_calls = window_calls + p_calls where id;
+  return jsonb_build_object('ok', true, 'remaining', v_cap - v_state.window_calls - p_calls);
+end;
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.spotify_album_id_from_url(p_url text)
  RETURNS text
  LANGUAGE sql
  IMMUTABLE
 AS $function$
   select (regexp_match(p_url, 'album/([A-Za-z0-9]+)'))[1];
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.spotify_bench(p_seconds integer)
+ RETURNS void
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  update spotify_api_state
+  set benched_until = greatest(
+    coalesce(benched_until, now()),
+    now() + make_interval(secs => least(greatest(p_seconds, 0), 86400))
+  )
+  where id;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.spotify_cache_get(p_keys text[])
+ RETURNS SETOF spotify_track_cache
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select * from spotify_track_cache where key = any(p_keys);
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.spotify_cache_put(p_rows jsonb)
+ RETURNS void
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  insert into spotify_track_cache (key, miss, spotify_id, title, album, artwork_url, spotify_url)
+  select
+    r ->> 'key',
+    coalesce((r ->> 'miss')::boolean, false),
+    coalesce(r ->> 'spotify_id', ''),
+    coalesce(r ->> 'title', ''),
+    coalesce(r ->> 'album', ''),
+    nullif(r ->> 'artwork_url', ''),
+    nullif(r ->> 'spotify_url', '')
+  from jsonb_array_elements(p_rows) as r
+  where coalesce(r ->> 'key', '') <> ''
+  on conflict (key) do update set
+    miss = excluded.miss,
+    spotify_id = excluded.spotify_id,
+    title = excluded.title,
+    album = excluded.album,
+    artwork_url = excluded.artwork_url,
+    spotify_url = excluded.spotify_url,
+    resolved_at = now();
 $function$
 ;
 

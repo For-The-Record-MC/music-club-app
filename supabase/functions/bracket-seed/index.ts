@@ -29,6 +29,14 @@
 // { ok:false, message } with a 4xx/5xx for misconfig/upstream errors.
 
 import { tagTopTracks, trackPlaycount } from '../_shared/lastfm.ts'
+import {
+  acquireSpotifyBudget,
+  benchSpotifyGlobally,
+  cacheGetTracks,
+  cachePutTracks,
+  guardFromEnv,
+  type CachedTrack,
+} from '../_shared/spotifyGuard.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -81,10 +89,27 @@ async function getAppToken(clientId: string, clientSecret: string): Promise<stri
   return cachedToken.value
 }
 
+// 429 circuit breaker (same rationale as spotify-search): a benched dev-mode
+// app can be locked out for hours, and resolveAll's per-title error swallowing
+// would otherwise keep firing ~100 futile searches per creation attempt.
+let benchedUntil = 0
+
+function spotifyBenched(): boolean {
+  return Date.now() < benchedUntil
+}
+
 async function spotifyGet(path: string, token: string): Promise<any> {
+  if (spotifyBenched()) throw new Error('Spotify is rate-limited — benched')
   const res = await fetch(`https://api.spotify.com/v1${path}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
+  if (res.status === 429) {
+    const ra = Number(res.headers.get('Retry-After') ?? 60)
+    const secs = Math.min(Number.isFinite(ra) ? ra : 60, 86400)
+    benchedUntil = Date.now() + secs * 1000
+    // Persist so every worker of every function backs off, not just this one.
+    benchSpotifyGlobally(guardFromEnv(), secs)
+  }
   if (!res.ok) {
     const snippet = (await res.text().catch(() => '')).slice(0, 300)
     throw new Error(`Spotify request failed (${res.status}) ${path}: ${snippet}`)
@@ -232,45 +257,180 @@ async function resolveTrack(
   return pool.reduce((a: ResolvedTrack, b: ResolvedTrack) => betterRelease(a, b))
 }
 
-// Resolve titles with a small concurrency pool, preserving rank order, until
-// `target` have resolved (misses are skipped, later titles fill the gaps).
-async function resolveAll(
-  titles: { title: string; playcount: number }[],
-  target: number,
+// ── Cache-first, budget-checked resolution (both modes) ──
+//
+// After the 2026-07-12 outage (a ~150-search burst benched the whole dev-mode
+// app for ~18h), resolution goes through three gates:
+//   1. spotify_track_cache — resolutions never change, and tag fields repeat
+//      across clubs, so repeat seedings cost ~zero searches.
+//   2. spotify_acquire — a shared hourly budget; only cache-unknown titles
+//      cost budget, and a denied acquire fails the seeding cleanly instead of
+//      bursting past Spotify's penalty threshold.
+//   3. concurrency 3 (was 6) — half the burst rate; the creation screen's
+//      building state absorbs the slower seeding.
+
+interface ResolveItem {
+  title: string
+  artist: string // the search artist (bracket artist in artist mode)
+  playcount?: number // artist mode: known from Last.fm merge
+}
+
+const cacheKey = (t: ResolveItem) => `${normArtist(t.artist)}|${normTitle(t.title)}`
+
+// Resolve cache-unknown items via /search. Returns ATTEMPTED outcomes only:
+// hit → candidate, confirmed no-match → null (cached as a miss so it's never
+// searched again), transient error / dupe / unattempted → absent.
+async function resolveMisses(
+  items: ResolveItem[],
+  needed: number,
   artistId: string,
-  artistName: string,
   token: string,
-): Promise<BracketCandidate[]> {
-  const out: (BracketCandidate | null)[] = new Array(titles.length).fill(null)
-  const seen = new Set<string>() // resolved spotify ids + norms — two Last.fm titles can hit one track
+  alreadySeenIds: Set<string>,
+  withArtist: boolean,
+): Promise<Map<string, BracketCandidate | null>> {
+  const outcomes = new Map<string, BracketCandidate | null>()
+  const seenIds = new Set<string>(alreadySeenIds)
+  const seenNorms = new Set<string>()
   let next = 0
   let resolved = 0
   const worker = async () => {
-    while (next < titles.length && resolved < target + 6) {
+    while (next < items.length && resolved < needed + 6) {
       const i = next++
-      const t = titles[i]
+      const t = items[i]
       try {
-        const hit = await resolveTrack(t.title, artistId, artistName, token)
-        if (hit && !seen.has(hit.id) && !seen.has(hit.norm)) {
-          seen.add(hit.id)
-          seen.add(hit.norm)
-          resolved++
-          out[i] = {
-            title: hit.title,
-            album: hit.album,
-            artworkUrl: hit.artworkUrl,
-            spotifyUrl: hit.spotifyUrl,
-            spotifyId: hit.id,
-            playcount: t.playcount,
-          }
+        const hit = await resolveTrack(t.title, artistId, t.artist, token)
+        if (!hit) {
+          outcomes.set(cacheKey(t), null)
+          continue
         }
+        const normKey = `${normArtist(t.artist)}|${hit.norm}`
+        if (seenIds.has(hit.id) || seenNorms.has(normKey)) continue // dupe of another entry — not a miss
+        seenIds.add(hit.id)
+        seenNorms.add(normKey)
+        resolved++
+        outcomes.set(cacheKey(t), {
+          title: hit.title,
+          album: hit.album,
+          artworkUrl: hit.artworkUrl,
+          spotifyUrl: hit.spotifyUrl,
+          spotifyId: hit.id,
+          playcount: t.playcount ?? 0,
+          ...(withArtist ? { artist: t.artist } : {}),
+        })
       } catch {
-        // One bad search shouldn't sink the seeding — skip the candidate.
+        // Transient error — skip, and do NOT cache-poison it as a miss.
       }
     }
   }
-  await Promise.all(Array.from({ length: 6 }, worker))
-  return out.filter((c): c is BracketCandidate => c !== null).slice(0, target)
+  await Promise.all(Array.from({ length: 3 }, worker))
+  return outcomes
+}
+
+function toCacheRows(outcomes: Map<string, BracketCandidate | null>): CachedTrack[] {
+  return [...outcomes].map(([key, c]) =>
+    c
+      ? {
+          key,
+          miss: false,
+          spotify_id: c.spotifyId,
+          title: c.title,
+          album: c.album,
+          artwork_url: c.artworkUrl || null,
+          spotify_url: c.spotifyUrl || null,
+        }
+      : { key, miss: true, spotify_id: '', title: '', album: '', artwork_url: null, spotify_url: null },
+  )
+}
+
+// Build the seeded field for ranked items: cache first, then budget-metered
+// live resolution of the unknowns, merged back in rank order. denied=true
+// means the budget/bench blocked live resolution (the field may still be
+// complete from cache alone).
+async function resolveField(opts: {
+  items: ResolveItem[]
+  target: number
+  artistId: string
+  withArtist: boolean
+  getToken: () => Promise<string>
+}): Promise<{ results: BracketCandidate[]; denied: boolean }> {
+  const { target, artistId, withArtist, getToken } = opts
+  const guard = guardFromEnv()
+  const items = opts.items.slice(0, target + 40) // don't chase a miss-heavy tail forever
+  const cached = await cacheGetTracks(guard, items.map(cacheKey))
+  const cachedHitCount = [...cached.values()].filter((c) => !c.miss).length
+  const unknown = items.filter((t) => !cached.has(cacheKey(t)))
+
+  let denied = false
+  let resolvedNew = new Map<string, BracketCandidate | null>()
+  if (unknown.length > 0 && cachedHitCount < target) {
+    if (spotifyBenched()) {
+      denied = true
+    } else {
+      const verdict = await acquireSpotifyBudget(guard, unknown.length)
+      if (!verdict.ok) {
+        denied = true
+      } else {
+        const token = await getToken()
+        const hitIds = new Set(
+          [...cached.values()].filter((c) => !c.miss && c.spotify_id).map((c) => c.spotify_id),
+        )
+        resolvedNew = await resolveMisses(
+          unknown,
+          Math.max(0, target - cachedHitCount),
+          artistId,
+          token,
+          hitIds,
+          withArtist,
+        )
+        cachePutTracks(guard, toCacheRows(resolvedNew))
+      }
+    }
+  }
+
+  // Merge in rank order, dedupe by Spotify id across cache + fresh.
+  const out: BracketCandidate[] = []
+  const seenIds = new Set<string>()
+  for (const t of items) {
+    if (out.length >= target) break
+    const key = cacheKey(t)
+    const c = cached.get(key)
+    if (c) {
+      if (!c.miss && c.spotify_id && !seenIds.has(c.spotify_id)) {
+        seenIds.add(c.spotify_id)
+        out.push({
+          title: c.title,
+          album: c.album,
+          artworkUrl: c.artwork_url ?? '',
+          spotifyUrl: c.spotify_url ?? '',
+          spotifyId: c.spotify_id,
+          playcount: t.playcount ?? 0,
+          ...(withArtist ? { artist: t.artist } : {}),
+        })
+      }
+      continue
+    }
+    const fresh = resolvedNew.get(key)
+    if (fresh && !seenIds.has(fresh.spotifyId)) {
+      seenIds.add(fresh.spotifyId)
+      out.push(fresh)
+    }
+  }
+  return { results: out, denied }
+}
+
+// Display playcounts for theme candidates (Last.fm, unaffected by any Spotify
+// bench). Small pool; a failed lookup just leaves 0.
+async function attachPlaycounts(cands: BracketCandidate[], lastfmKey: string): Promise<void> {
+  let next = 0
+  const worker = async () => {
+    while (next < cands.length) {
+      const c = cands[next++]
+      if (!c.artist) continue
+      const plays = await trackPlaycount(lastfmKey, c.title, c.artist).catch(() => null)
+      c.playcount = plays?.playcount ?? 0
+    }
+  }
+  await Promise.all(Array.from({ length: 4 }, worker))
 }
 
 // No-Last.fm fallback: page artist:"name" searches (10 per page — dev mode
@@ -343,50 +503,6 @@ async function tagCandidateTitles(
   return out
 }
 
-// Resolve tag entries to Spotify tracks (concurrency pool, rank order kept,
-// misses skipped) and attach a display playcount per resolved track. Mirrors
-// resolveAll but with a per-item artist instead of one bracket-wide artist.
-async function resolveAllTag(
-  items: { title: string; artist: string }[],
-  target: number,
-  token: string,
-  lastfmKey: string,
-): Promise<BracketCandidate[]> {
-  const out: (BracketCandidate | null)[] = new Array(items.length).fill(null)
-  const seen = new Set<string>() // spotify ids + artist|title norms
-  let next = 0
-  let resolved = 0
-  const worker = async () => {
-    while (next < items.length && resolved < target + 6) {
-      const i = next++
-      const t = items[i]
-      try {
-        const hit = await resolveTrack(t.title, '', t.artist, token)
-        if (!hit) continue
-        const key = `${normArtist(t.artist)}|${hit.norm}`
-        if (seen.has(hit.id) || seen.has(key)) continue
-        seen.add(hit.id)
-        seen.add(key)
-        resolved++
-        const plays = await trackPlaycount(lastfmKey, t.title, t.artist).catch(() => null)
-        out[i] = {
-          title: hit.title,
-          album: hit.album,
-          artworkUrl: hit.artworkUrl,
-          spotifyUrl: hit.spotifyUrl,
-          spotifyId: hit.id,
-          playcount: plays?.playcount ?? 0,
-          artist: t.artist,
-        }
-      } catch {
-        // One bad search shouldn't sink the seeding — skip the candidate.
-      }
-    }
-  }
-  await Promise.all(Array.from({ length: 6 }, worker))
-  return out.filter((c): c is BracketCandidate => c !== null).slice(0, target)
-}
-
 Deno.serve(async (req) => {
   try {
     if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -422,6 +538,7 @@ Deno.serve(async (req) => {
       if (probe) {
         // Cheap viability check for the debounced input: how deep is the
         // field, and who headlines it (first distinct artists in rank order).
+        // No Spotify calls, so a bench doesn't block probing.
         const artists: string[] = []
         for (const t of titles) {
           if (!artists.includes(t.artist)) artists.push(t.artist)
@@ -429,16 +546,26 @@ Deno.serve(async (req) => {
         }
         return json({ count: titles.length, artists })
       }
-      const token = await getAppToken(clientId, clientSecret)
-      const results = await resolveAllTag(titles, MAX_CANDIDATES, token, lastfmKey)
-      return json({ results, source: 'lastfm-tag' })
+      const field = await resolveField({
+        items: titles,
+        target: MAX_CANDIDATES,
+        artistId: '',
+        withArtist: true,
+        getToken: () => getAppToken(clientId, clientSecret),
+      })
+      // A bench/budget denial only matters if the cache alone couldn't fill a
+      // playable field.
+      if (field.denied && field.results.length < 16) {
+        return json({ ok: false, message: 'Spotify is cooling down from a rate limit — try again later.' }, 503)
+      }
+      await attachPlaycounts(field.results, lastfmKey)
+      return json({ results: field.results, source: 'lastfm-tag' })
     }
 
     if (!artistId || !artistName) {
       return json({ ok: false, message: 'artistId and artistName are required' }, 400)
     }
 
-    const token = await getAppToken(clientId, clientSecret)
     const ranked = lastfmKey ? await lastfmTopTracks(lastfmKey, artistName) : []
 
     // Merge Last.fm's list on the normalized key (playcounts of variants sum —
@@ -458,14 +585,31 @@ Deno.serve(async (req) => {
     // Resolve the ranked titles to Spotify tracks (links + artwork). Titles
     // that don't resolve are skipped and lower-ranked ones fill in.
     if (titles.length >= 16) {
-      const fromLastfm = await resolveAll(titles, MAX_CANDIDATES, artistId, artistName, token)
-      if (fromLastfm.length >= 16) {
-        return json({ results: fromLastfm, source: 'lastfm' })
+      const field = await resolveField({
+        items: titles.map((t) => ({ title: t.title, artist: artistName, playcount: t.playcount })),
+        target: MAX_CANDIDATES,
+        artistId,
+        withArtist: false,
+        getToken: () => getAppToken(clientId, clientSecret),
+      })
+      if (field.results.length >= 16) {
+        return json({ results: field.results, source: 'lastfm' })
+      }
+      if (field.denied) {
+        return json({ ok: false, message: 'Spotify is cooling down from a rate limit — try again later.' }, 503)
       }
     }
 
     // Thin Last.fm data (or no key): rank this artist's searchable tracks by
-    // Spotify popularity so a bracket can still be built.
+    // Spotify popularity so a bracket can still be built. ~10 paged searches.
+    if (spotifyBenched()) {
+      return json({ ok: false, message: 'Spotify is cooling down from a rate limit — try again later.' }, 503)
+    }
+    const fbBudget = await acquireSpotifyBudget(guardFromEnv(), 10)
+    if (!fbBudget.ok) {
+      return json({ ok: false, message: 'Spotify is cooling down from a rate limit — try again later.' }, 503)
+    }
+    const token = await getAppToken(clientId, clientSecret)
     const fallback = await popularityRanked(artistId, artistName, token)
     return json({ results: fallback, source: 'spotify' })
   } catch (e) {

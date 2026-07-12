@@ -61,6 +61,24 @@ type SearchType = 'track' | 'album' | 'artist'
 // reused across requests, so this avoids re-minting a token every search.
 let cachedToken: { value: string; expiresAt: number } | null = null
 
+// 429 circuit breaker. Spotify benches the whole dev-mode app when a burst
+// trips its extended limit (Retry-After can be many HOURS — seen 2026-07-12
+// after a bracket-seeding burst), and continuing to hit the API risks
+// extending the bench. Two layers: this in-memory flag (fast path, per warm
+// worker) and the shared spotify_api_state row via _shared/spotifyGuard.ts —
+// the DB-backed bench + hourly budget that every worker of every function
+// consults, so one 429 anywhere backs everything off at once.
+import { acquireSpotifyBudget, benchSpotifyGlobally, guardFromEnv } from '../_shared/spotifyGuard.ts'
+
+let benchedUntil = 0
+
+function benchFrom(res: Response): void {
+  const ra = Number(res.headers.get('Retry-After') ?? 60)
+  const secs = Math.min(Number.isFinite(ra) ? ra : 60, 86400)
+  benchedUntil = Date.now() + secs * 1000
+  benchSpotifyGlobally(guardFromEnv(), secs)
+}
+
 async function getAppToken(clientId: string, clientSecret: string): Promise<string> {
   if (cachedToken && Date.now() < cachedToken.expiresAt) return cachedToken.value
   const res = await fetch('https://accounts.spotify.com/api/token', {
@@ -116,6 +134,23 @@ Deno.serve(async (req) => {
     }
     if (term.length < 1) return json({ results: [] })
 
+    if (Date.now() < benchedUntil) {
+      const secs = Math.ceil((benchedUntil - Date.now()) / 1000)
+      return json({ ok: false, message: `Spotify search failed (429) (retry after ${secs}s): benched` }, 502)
+    }
+
+    // Shared budget/bench (fails open if the guard itself is down).
+    const verdict = await acquireSpotifyBudget(guardFromEnv(), 1)
+    if (!verdict.ok) {
+      if (verdict.reason === 'benched' && verdict.until) {
+        benchedUntil = new Date(verdict.until).getTime() // remember locally too
+      }
+      return json(
+        { ok: false, message: `Spotify search failed (429): ${verdict.reason ?? 'limited'} until ${verdict.until ?? 'soon'}` },
+        502,
+      )
+    }
+
     const token = await getAppToken(clientId, clientSecret)
     const limit = type === 'track' ? 10 : 8
     const url = `https://api.spotify.com/v1/search?type=${type}&limit=${limit}&q=${encodeURIComponent(term)}`
@@ -133,6 +168,7 @@ Deno.serve(async (req) => {
       // On 429, Retry-After says how long the app token is benched — surface it
       // so an operator can tell a blip from an hours-long penalty.
       const retryAfter = res.status === 429 ? res.headers.get('Retry-After') : null
+      if (res.status === 429) benchFrom(res)
       const suffix = retryAfter ? ` (retry after ${retryAfter}s)` : ''
       return json({ ok: false, message: `Spotify search failed (${res.status})${suffix}: ${snippet}` }, 502)
     }
