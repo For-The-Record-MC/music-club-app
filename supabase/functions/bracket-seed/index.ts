@@ -1,12 +1,21 @@
 // bracket-seed — Edge Function that builds the Track Madness candidate list.
 //
-// Given an artist (Spotify id + name), returns their most-played songs ranked
-// for bracket seeding. Spotify's own top-tracks endpoint caps at 10 and exposes
-// no play counts, so ranking comes from Last.fm's artist.getTopTracks (real
-// all-time scrobble counts, secret LASTFM_API_KEY); each ranked title is then
-// matched against the artist's Spotify catalog for links + artwork. When
-// Last.fm has thin data for an artist, ranking falls back to Spotify's
-// popularity score across the catalog.
+// Two modes, split on the request body:
+//
+// • Artist ({ artistId, artistName }): the artist's most-played songs. Spotify's
+//   own top-tracks endpoint caps at 10 and exposes no play counts, so ranking
+//   comes from Last.fm's artist.getTopTracks (real all-time scrobble counts,
+//   secret LASTFM_API_KEY); each ranked title is then matched against the
+//   artist's Spotify catalog for links + artwork. When Last.fm has thin data,
+//   ranking falls back to Spotify's popularity score across the catalog.
+//
+// • Theme ({ tag, probe? }): a Last.fm tag's top tracks (genre/decade/mood) in
+//   tag-relevance rank order — the locked seeding rule; re-ranking by global
+//   playcount would let famous crossover hits bury the genre-defining cuts, so
+//   playcounts are fetched per track (track.getInfo) for DISPLAY only. Max two
+//   tracks per artist so a narrow tag doesn't collapse into an artist bracket.
+//   { probe: true } skips Spotify resolution and returns just { count, artists }
+//   — the creation screen's debounced is-this-tag-any-good check.
 //
 // Returns more candidates than the largest bracket (64 + alternates) so the
 // creation screen can enable/disable sizes and offer remove+promote swaps.
@@ -16,8 +25,10 @@
 //
 // verify_jwt is on (see config.toml) so only authenticated members can call it.
 //
-// Returns 200 { results, source } on success; { ok:false, message } with a
-// 4xx/5xx for misconfig/upstream errors.
+// Returns 200 { results, source } on success ({ count, artists } for probes);
+// { ok:false, message } with a 4xx/5xx for misconfig/upstream errors.
+
+import { tagTopTracks, trackPlaycount } from '../_shared/lastfm.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -32,7 +43,9 @@ const json = (body: unknown, status = 200) =>
   })
 
 // One seeded candidate, ordered best-first. playcount is Last.fm scrobbles
-// (0 when ranking fell back to Spotify popularity).
+// (0 when ranking fell back to Spotify popularity, or the tag track is unknown
+// to track.getInfo). artist is set in theme mode only — artist brackets carry
+// it on the bracket itself.
 interface BracketCandidate {
   title: string
   album: string
@@ -40,6 +53,7 @@ interface BracketCandidate {
   spotifyUrl: string
   spotifyId: string
   playcount: number
+  artist?: string
 }
 
 const MAX_CANDIDATES = 74 // 64-bracket + ~10 alternates for remove+promote
@@ -295,6 +309,84 @@ async function popularityRanked(
     }))
 }
 
+// ── Theme (tag) mode ──
+
+const PER_ARTIST_CAP = 2 // a narrow tag shouldn't collapse into an artist bracket
+
+function normArtist(raw: string): string {
+  return raw.toLowerCase().replace(/[’'"!?.,:;*]/g, '').replace(/&/g, 'and').replace(/\s+/g, ' ').trim()
+}
+
+// The tag's ranked field after dedupe, live-cut filtering, and the per-artist
+// cap. Rank order (tag relevance) is the seeding order — locked design.
+async function tagCandidateTitles(
+  lastfmKey: string,
+  tag: string,
+): Promise<{ title: string; artist: string }[]> {
+  const ranked = await tagTopTracks(lastfmKey, tag)
+  const out: { title: string; artist: string }[] = []
+  const seen = new Set<string>()
+  const perArtist = new Map<string, number>()
+  for (const t of ranked) {
+    if (isLive(t.title)) continue
+    const titleKey = normTitle(t.title)
+    const artistKey = normArtist(t.artist)
+    if (!titleKey || !artistKey) continue
+    const key = `${artistKey}|${titleKey}`
+    if (seen.has(key)) continue
+    const used = perArtist.get(artistKey) ?? 0
+    if (used >= PER_ARTIST_CAP) continue
+    seen.add(key)
+    perArtist.set(artistKey, used + 1)
+    out.push({ title: t.title, artist: t.artist })
+  }
+  return out
+}
+
+// Resolve tag entries to Spotify tracks (concurrency pool, rank order kept,
+// misses skipped) and attach a display playcount per resolved track. Mirrors
+// resolveAll but with a per-item artist instead of one bracket-wide artist.
+async function resolveAllTag(
+  items: { title: string; artist: string }[],
+  target: number,
+  token: string,
+  lastfmKey: string,
+): Promise<BracketCandidate[]> {
+  const out: (BracketCandidate | null)[] = new Array(items.length).fill(null)
+  const seen = new Set<string>() // spotify ids + artist|title norms
+  let next = 0
+  let resolved = 0
+  const worker = async () => {
+    while (next < items.length && resolved < target + 6) {
+      const i = next++
+      const t = items[i]
+      try {
+        const hit = await resolveTrack(t.title, '', t.artist, token)
+        if (!hit) continue
+        const key = `${normArtist(t.artist)}|${hit.norm}`
+        if (seen.has(hit.id) || seen.has(key)) continue
+        seen.add(hit.id)
+        seen.add(key)
+        resolved++
+        const plays = await trackPlaycount(lastfmKey, t.title, t.artist).catch(() => null)
+        out[i] = {
+          title: hit.title,
+          album: hit.album,
+          artworkUrl: hit.artworkUrl,
+          spotifyUrl: hit.spotifyUrl,
+          spotifyId: hit.id,
+          playcount: plays?.playcount ?? 0,
+          artist: t.artist,
+        }
+      } catch {
+        // One bad search shouldn't sink the seeding — skip the candidate.
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: 6 }, worker))
+  return out.filter((c): c is BracketCandidate => c !== null).slice(0, target)
+}
+
 Deno.serve(async (req) => {
   try {
     if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -309,13 +401,39 @@ Deno.serve(async (req) => {
 
     let artistId = ''
     let artistName = ''
+    let tag = ''
+    let probe = false
     try {
       const body = await req.json()
       artistId = String(body?.artistId ?? '').trim()
       artistName = String(body?.artistName ?? '').trim()
+      tag = String(body?.tag ?? '').trim()
+      probe = body?.probe === true
     } catch {
       return json({ ok: false, message: 'Invalid request body' }, 400)
     }
+
+    // Theme mode: the tag IS the ranking source — no Spotify-popularity
+    // fallback (a tag Last.fm doesn't know has no honest field to build).
+    if (tag) {
+      if (tag.length > 100) return json({ ok: false, message: 'Theme is too long' }, 400)
+      if (!lastfmKey) return json({ ok: false, message: 'bracket-seed is missing LASTFM_API_KEY' }, 500)
+      const titles = await tagCandidateTitles(lastfmKey, tag)
+      if (probe) {
+        // Cheap viability check for the debounced input: how deep is the
+        // field, and who headlines it (first distinct artists in rank order).
+        const artists: string[] = []
+        for (const t of titles) {
+          if (!artists.includes(t.artist)) artists.push(t.artist)
+          if (artists.length >= 4) break
+        }
+        return json({ count: titles.length, artists })
+      }
+      const token = await getAppToken(clientId, clientSecret)
+      const results = await resolveAllTag(titles, MAX_CANDIDATES, token, lastfmKey)
+      return json({ results, source: 'lastfm-tag' })
+    }
+
     if (!artistId || !artistName) {
       return json({ ok: false, message: 'artistId and artistName are required' }, 400)
     }

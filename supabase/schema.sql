@@ -258,7 +258,8 @@ CREATE TABLE bracket_tracks (
   spotify_url text,
   apple_url text,
   preview_url text,
-  playcount bigint NOT NULL DEFAULT 0
+  playcount bigint NOT NULL DEFAULT 0,
+  artist text NOT NULL DEFAULT ''::text
 );
 
 CREATE TABLE brackets (
@@ -273,7 +274,9 @@ CREATE TABLE brackets (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   closed_at timestamp with time zone,
   scope text NOT NULL DEFAULT 'club'::text,
-  owner_id uuid
+  owner_id uuid,
+  kind text NOT NULL DEFAULT 'artist'::text,
+  theme_art text[]
 );
 
 CREATE TABLE club_favorite_tracks (
@@ -942,6 +945,8 @@ ALTER TABLE bracket_picks ADD CONSTRAINT bracket_picks_slot_check CHECK ((slot >
 
 ALTER TABLE bracket_picks ADD CONSTRAINT bracket_picks_winner_track_id_fkey FOREIGN KEY (winner_track_id) REFERENCES bracket_tracks(id) ON DELETE CASCADE;
 
+ALTER TABLE bracket_tracks ADD CONSTRAINT bracket_tracks_artist_check CHECK ((char_length(artist) <= 300));
+
 ALTER TABLE bracket_tracks ADD CONSTRAINT bracket_tracks_bracket_id_fkey FOREIGN KEY (bracket_id) REFERENCES brackets(id) ON DELETE CASCADE;
 
 ALTER TABLE bracket_tracks ADD CONSTRAINT bracket_tracks_bracket_id_position_key UNIQUE (bracket_id, "position");
@@ -961,6 +966,8 @@ ALTER TABLE brackets ADD CONSTRAINT brackets_artist_name_check CHECK (((char_len
 ALTER TABLE brackets ADD CONSTRAINT brackets_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
 
 ALTER TABLE brackets ADD CONSTRAINT brackets_created_by_fkey FOREIGN KEY (created_by) REFERENCES profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE brackets ADD CONSTRAINT brackets_kind_check CHECK ((kind = ANY (ARRAY['artist'::text, 'theme'::text])));
 
 ALTER TABLE brackets ADD CONSTRAINT brackets_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES profiles(id) ON DELETE CASCADE;
 
@@ -3250,7 +3257,7 @@ end;
 $function$
 ;
 
-CREATE OR REPLACE FUNCTION public.create_bracket(p_club uuid, p_artist_name text, p_artist_spotify_id text, p_artist_image_url text, p_size integer, p_tracks jsonb, p_scope text DEFAULT 'club'::text)
+CREATE OR REPLACE FUNCTION public.create_bracket(p_club uuid, p_artist_name text, p_artist_spotify_id text, p_artist_image_url text, p_size integer, p_tracks jsonb, p_scope text DEFAULT 'club'::text, p_kind text DEFAULT 'artist'::text)
  RETURNS brackets
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -3260,11 +3267,15 @@ declare
   v_bracket public.brackets;
   v_order int[];
   v_pos int[];
+  v_theme_art text[];
   i int;
   t jsonb;
 begin
   if p_scope not in ('club', 'personal') then
     raise exception 'Invalid scope';
+  end if;
+  if p_kind not in ('artist', 'theme') then
+    raise exception 'Invalid bracket kind';
   end if;
   if p_scope = 'club' then
     if not public.can_run_bracket(p_club) then
@@ -3286,10 +3297,23 @@ begin
     raise exception 'Expected exactly % tracks', p_size;
   end if;
 
-  insert into brackets (club_id, artist_name, artist_spotify_id, artist_image_url, size, created_by, scope, owner_id)
+  -- Theme shelf art: the top four seeds' artwork, frozen at creation.
+  if p_kind = 'theme' then
+    select array_agg(art order by ord) into v_theme_art
+    from (
+      select t2 ->> 'artwork_url' as art, ord
+      from jsonb_array_elements(p_tracks) with ordinality as e(t2, ord)
+      where coalesce(t2 ->> 'artwork_url', '') <> ''
+      order by ord
+      limit 4
+    ) top4;
+  end if;
+
+  insert into brackets (club_id, artist_name, artist_spotify_id, artist_image_url, size, created_by, scope, owner_id, kind, theme_art)
   values (
     p_club, trim(p_artist_name), coalesce(p_artist_spotify_id, ''), p_artist_image_url, p_size, auth.uid(),
-    p_scope, case when p_scope = 'personal' then auth.uid() end
+    p_scope, case when p_scope = 'personal' then auth.uid() end,
+    p_kind, v_theme_art
   )
   returning * into v_bracket;
 
@@ -3305,17 +3329,18 @@ begin
       raise exception 'Track % is missing a title', i;
     end if;
     insert into bracket_tracks
-      (bracket_id, seed, position, title, album, artwork_url, spotify_url, apple_url, preview_url, playcount)
+      (bracket_id, seed, position, title, album, artist, artwork_url, spotify_url, apple_url, preview_url, playcount)
     values (
       v_bracket.id, i, v_pos[i],
-      trim(t ->> 'title'), coalesce(t ->> 'album', ''),
+      trim(t ->> 'title'), coalesce(t ->> 'album', ''), coalesce(trim(t ->> 'artist'), ''),
       nullif(t ->> 'artwork_url', ''), nullif(t ->> 'spotify_url', ''),
       nullif(t ->> 'apple_url', ''), nullif(t ->> 'preview_url', ''),
       coalesce((t ->> 'playcount')::bigint, 0)
     );
   end loop;
 
-  -- Solo runs are silent; only club brackets announce.
+  -- Solo runs are silent; only club brackets announce. artist_name carries the
+  -- theme text for theme brackets — the copy reads the same either way.
   if p_scope = 'club' then
     perform public.publish_activity_event(
       p_club, 'bracket_started',
@@ -4563,7 +4588,7 @@ AS $function$
         'bracket_id', br.id, 'artist_name', br.artist_name, 'size', br.size,
         'closed_at', br.closed_at, 'champ_title', t.title,
         'champ_artwork_url', t.artwork_url, 'champ_seed', t.seed,
-        'scope', br.scope
+        'scope', br.scope, 'kind', br.kind, 'theme_art', br.theme_art
       ) order by e.completed_at desc)
       from bracket_entries e
       join brackets br on br.id = e.bracket_id

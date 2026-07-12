@@ -25,10 +25,12 @@ import {
   computeStats,
   deriveImportPicks,
   fetchSeedCandidates,
+  fetchTagCandidates,
   matchupFeeders,
   nextMatchups,
   pickKey,
   picksComplete,
+  probeTag,
   roundName,
   toPickMap,
   type PickMap,
@@ -105,14 +107,15 @@ export default function TrackMadnessScreen() {
       }
     })();
   }, [focus, member, loadBracket]);
-  // A finished solo run of the same artist as the live club bracket — offered
-  // as a one-tap "import my rankings" starting point.
+  // A finished solo run of the same subject (artist, or theme tag) as the live
+  // club bracket — offered as a one-tap "import my rankings" starting point.
   const importCandidate = useMemo(() => {
     if (!live) return null;
     return (
       personal.find(
         (p) =>
           p.status === 'closed' &&
+          p.kind === live.bracket.kind &&
           ((p.artist_spotify_id && p.artist_spotify_id === live.bracket.artist_spotify_id) ||
             p.artist_name.toLowerCase() === live.bracket.artist_name.toLowerCase()),
       ) ?? null
@@ -153,7 +156,7 @@ export default function TrackMadnessScreen() {
           <Text style={[styles.back, { color: palette.text2 }]}>←</Text>
         </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.eyebrow, { color: palette.text3 }]}>ONE ARTIST. EVERY HIT. ONE CHAMPION.</Text>
+          <Text style={[styles.eyebrow, { color: palette.text3 }]}>SEED THE FIELD. CROWN A CHAMPION.</Text>
           <Text style={[styles.title, { color: palette.text1 }]}>🏆 Track Madness</Text>
         </View>
       </View>
@@ -211,7 +214,7 @@ export default function TrackMadnessScreen() {
           {personal.map((b) => (
             <Pressable key={b.id} onPress={() => openSolo(b)}>
               <Card style={styles.archiveRow}>
-                {b.artist_image_url ? <Image source={{ uri: b.artist_image_url }} style={styles.artistArt} contentFit="cover" /> : null}
+                <BracketArt bracket={b} size={40} />
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text numberOfLines={1} style={[styles.sTitle, { color: palette.text1 }]}>{b.artist_name}</Text>
                   <Text style={[styles.sArtist, { color: palette.text3 }]}>
@@ -241,7 +244,7 @@ export default function TrackMadnessScreen() {
               {archive.map((b) => (
                 <Pressable key={b.id} onPress={() => openArchived(b)}>
                   <Card style={styles.archiveRow}>
-                    {b.artist_image_url ? <Image source={{ uri: b.artist_image_url }} style={styles.artistArt} contentFit="cover" /> : null}
+                    <BracketArt bracket={b} size={40} />
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text numberOfLines={1} style={[styles.sTitle, { color: palette.text1 }]}>{b.artist_name}</Text>
                       <Text style={[styles.sArtist, { color: palette.text3 }]}>
@@ -261,20 +264,39 @@ export default function TrackMadnessScreen() {
 }
 
 // ─────────────────────────────────────────────────────────
-// Creation flow: artist search → seeded review list → publish.
+// Creation flow: pick a subject (artist, or a Last.fm-tag theme) → seeded
+// review list → publish.
 // ─────────────────────────────────────────────────────────
 
 function CreateBracket({ clubId, onCreated, scope = 'club' }: { clubId: string; onCreated: () => void; scope?: 'club' | 'personal' }) {
   const { palette } = useTheme();
+  const [mode, setMode] = useState<'artist' | 'theme'>('artist');
   const [artist, setArtist] = useState<SpotifyArtist | null>(null);
+  const [theme, setTheme] = useState<string | null>(null);
   const [candidates, setCandidates] = useState<SeedCandidate[] | null>(null);
-  const [source, setSource] = useState<'lastfm' | 'spotify'>('lastfm');
+  const [source, setSource] = useState<'lastfm' | 'spotify' | 'lastfm-tag'>('lastfm');
   const [size, setSize] = useState<number>(32);
   const [seeding, setSeeding] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [publishStep, setPublishStep] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [swapSeed, setSwapSeed] = useState<number | null>(null); // 1-based seed being replaced
+  // 1-based seed being replaced, or 'add' when appending to a thin theme field.
+  const [swapSeed, setSwapSeed] = useState<number | 'add' | null>(null);
+
+  const applySeedResult = (res: { results: SeedCandidate[]; source: typeof source } | null): boolean => {
+    if (!res || res.results.length < 16) {
+      setError(
+        res
+          ? `Only ${res.results.length} distinct songs found — not enough for a bracket.`
+          : 'Could not build the field. Try again.',
+      );
+      return false;
+    }
+    setCandidates(res.results);
+    setSource(res.source);
+    setSize(res.results.length >= 32 ? 32 : 16);
+    return true;
+  };
 
   const seed = async (a: SpotifyArtist) => {
     setArtist(a);
@@ -282,18 +304,24 @@ function CreateBracket({ clubId, onCreated, scope = 'club' }: { clubId: string; 
     setError(null);
     const res = await fetchSeedCandidates(a.id, a.name);
     setSeeding(false);
-    if (!res || res.results.length < 16) {
-      setError(
-        res
-          ? `Only ${res.results.length} distinct songs found — not enough for a bracket.`
-          : 'Could not build the field. Try again.',
-      );
-      setArtist(null);
-      return;
-    }
-    setCandidates(res.results);
-    setSource(res.source);
-    setSize(res.results.length >= 32 ? 32 : 16);
+    if (!applySeedResult(res)) setArtist(null);
+  };
+
+  const seedTheme = async (tag: string) => {
+    setSeeding(true);
+    setError(null);
+    const res = await fetchTagCandidates(tag);
+    setSeeding(false);
+    if (applySeedResult(res)) setTheme(tag);
+  };
+
+  const switchMode = (m: 'artist' | 'theme') => {
+    setMode(m);
+    setArtist(null);
+    setTheme(null);
+    setCandidates(null);
+    setError(null);
+    setSwapSeed(null);
   };
 
   const removeAt = (seedNum: number) => {
@@ -303,26 +331,28 @@ function CreateBracket({ clubId, onCreated, scope = 'club' }: { clubId: string; 
 
   const swapIn = (c: SeedCandidate) => {
     if (!candidates || swapSeed == null) return;
-    const next = [...candidates];
-    next[swapSeed - 1] = c;
+    const next = swapSeed === 'add' ? [...candidates, c] : candidates.map((x, i) => (i === swapSeed - 1 ? c : x));
     setCandidates(next);
     setSwapSeed(null);
   };
 
+  const subjectName = mode === 'theme' ? theme : artist?.name;
+
   const publish = async () => {
-    if (!artist || !candidates) return;
+    if (!subjectName || !candidates) return;
     setPublishing(true);
     setError(null);
     const field = candidates.slice(0, size);
     // Best-effort Apple link + preview per track (keyless iTunes Search, small
     // batches so we don't trip its per-IP burst throttle). Missing → nulls.
+    // Theme tracks search by their own artist; artist brackets by the subject.
     const apple: { appleUrl: string | null; previewUrl: string | null }[] = [];
     for (let i = 0; i < field.length; i += 4) {
       setPublishStep(`Linking Apple Music ${Math.min(i + 4, field.length)}/${field.length}…`);
       const batch = await Promise.all(
         field.slice(i, i + 4).map(async (c) => {
           try {
-            const hit = (await searchItunes(`${c.title} ${artist.name}`))[0];
+            const hit = (await searchItunes(`${c.title} ${c.artist ?? subjectName}`))[0];
             return { appleUrl: hit?.appleUrl || null, previewUrl: hit?.previewUrl || null };
           } catch {
             return { appleUrl: null, previewUrl: null };
@@ -334,13 +364,14 @@ function CreateBracket({ clubId, onCreated, scope = 'club' }: { clubId: string; 
     setPublishStep('Publishing…');
     const { error: err } = await trackMadness.create(
       clubId,
-      artist.name,
-      artist.id,
-      artist.imageUrl || null,
+      subjectName,
+      mode === 'theme' ? '' : artist?.id ?? '',
+      mode === 'theme' ? null : artist?.imageUrl || null,
       size,
       field.map((c, i) => ({
         title: c.title,
         album: c.album,
+        artist: c.artist ?? '',
         artwork_url: c.artworkUrl || null,
         spotify_url: c.spotifyUrl || null,
         apple_url: apple[i]?.appleUrl ?? null,
@@ -348,6 +379,7 @@ function CreateBracket({ clubId, onCreated, scope = 'club' }: { clubId: string; 
         playcount: c.playcount,
       })),
       scope,
+      mode,
     );
     setPublishing(false);
     setPublishStep('');
@@ -358,17 +390,44 @@ function CreateBracket({ clubId, onCreated, scope = 'club' }: { clubId: string; 
     onCreated();
   };
 
-  if (!artist || !candidates) {
+  if (!subjectName || !candidates) {
     return (
       <Card>
         <Label>{scope === 'personal' ? 'Start a solo bracket' : 'Start a bracket'}</Label>
+        <View style={styles.sizeRow}>
+          {(['artist', 'theme'] as const).map((m) => {
+            const active = mode === m;
+            return (
+              <Pressable
+                key={m}
+                onPress={() => switchMode(m)}
+                style={[
+                  styles.sizeBtn,
+                  { borderColor: active ? palette.amber : palette.border, backgroundColor: active ? palette.amberBg : 'transparent' },
+                ]}
+              >
+                <Text style={[styles.sizeText, { color: active ? palette.amber : palette.text2 }]}>
+                  {m === 'artist' ? '🎤 Artist' : '🎛️ Theme'}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
         <Text style={[styles.hint, { color: palette.text3 }]}>
-          {scope === 'personal'
-            ? 'Your own private tournament — pick any artist, crown a champion on your own time. If the club ever runs this artist, you can import your rankings.'
-            : 'Pick an artist — their most-played songs get seeded into a tournament and every member fills out their own bracket.'}
+          {mode === 'theme'
+            ? 'Name a genre, decade, or mood — its defining songs (max two per artist) get seeded into a tournament. Swap in anything the field missed.'
+            : scope === 'personal'
+              ? 'Your own private tournament — pick any artist, crown a champion on your own time. If the club ever runs this artist, you can import your rankings.'
+              : 'Pick an artist — their most-played songs get seeded into a tournament and every member fills out their own bracket.'}
         </Text>
-        <ArtistSearch onPick={seed} disabled={seeding} />
-        {seeding ? <InlineNote text="Building the field — ranking their catalog…" /> : null}
+        {mode === 'artist' ? (
+          <ArtistSearch onPick={seed} disabled={seeding} />
+        ) : (
+          <ThemeSearch onBuild={seedTheme} disabled={seeding} />
+        )}
+        {seeding ? (
+          <InlineNote text={mode === 'theme' ? 'Building the field — ranking the theme…' : 'Building the field — ranking their catalog…'} />
+        ) : null}
         {error ? <InlineNote text={error} tone="error" /> : null}
       </Card>
     );
@@ -378,15 +437,24 @@ function CreateBracket({ clubId, onCreated, scope = 'club' }: { clubId: string; 
   return (
     <Card>
       <View style={styles.reviewHead}>
-        {artist.imageUrl ? <Image source={{ uri: artist.imageUrl }} style={styles.artistArt} contentFit="cover" /> : null}
+        {mode === 'theme' ? (
+          <CollageArt urls={candidates.slice(0, 4).map((c) => c.artworkUrl)} size={40} />
+        ) : artist?.imageUrl ? (
+          <Image source={{ uri: artist.imageUrl }} style={styles.artistArt} contentFit="cover" />
+        ) : null}
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Label>{artist.name}</Label>
+          <Label>{subjectName}</Label>
           <Text style={[styles.hint, { color: palette.text3 }]}>
-            Seeded by {source === 'lastfm' ? 'all-time plays (Last.fm)' : 'Spotify popularity'} — review the field, swap
-            anything that doesn't belong, then publish.
+            Seeded by{' '}
+            {source === 'lastfm-tag'
+              ? 'tag relevance (Last.fm), max two songs per artist'
+              : source === 'lastfm'
+                ? 'all-time plays (Last.fm)'
+                : 'Spotify popularity'}{' '}
+            — review the field, swap anything that doesn't belong, then publish.
           </Text>
         </View>
-        <Pressable onPress={() => { setArtist(null); setCandidates(null); setError(null); }} hitSlop={8}>
+        <Pressable onPress={() => { setArtist(null); setTheme(null); setCandidates(null); setError(null); }} hitSlop={8}>
           <Text style={{ color: palette.text3, fontSize: 18 }}>×</Text>
         </Pressable>
       </View>
@@ -420,7 +488,9 @@ function CreateBracket({ clubId, onCreated, scope = 'club' }: { clubId: string; 
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text numberOfLines={1} style={[styles.sTitle, { color: palette.text1 }]}>{c.title}</Text>
             <Text numberOfLines={1} style={[styles.sArtist, { color: palette.text3 }]}>
-              {formatPlays(c.playcount) || c.album}
+              {c.artist
+                ? [c.artist, formatPlays(c.playcount)].filter(Boolean).join(' · ')
+                : formatPlays(c.playcount) || c.album}
             </Text>
           </View>
           <Pressable onPress={() => setSwapSeed(swapSeed === i + 1 ? null : i + 1)} hitSlop={6}>
@@ -431,10 +501,20 @@ function CreateBracket({ clubId, onCreated, scope = 'club' }: { clubId: string; 
           </Pressable>
         </View>
       ))}
+      {/* Thin theme fields grow by hand: append below the last seed until the
+          next size unlocks. Artist fields never need this (alternates cover it). */}
+      {mode === 'theme' && candidates.length < 64 && swapSeed == null ? (
+        <Button
+          title={`＋ Add a song (${candidates.length} in the field)`}
+          variant="ghost"
+          onPress={() => setSwapSeed('add')}
+          style={{ marginTop: 8 }}
+        />
+      ) : null}
       {swapSeed != null ? (
         <TrackSwapSearch
-          artistName={artist.name}
-          exclude={new Set(sized.map((c) => c.spotifyId))}
+          artistName={mode === 'theme' ? undefined : artist?.name}
+          exclude={new Set(candidates.map((c) => c.spotifyId))}
           onPick={swapIn}
           onCancel={() => setSwapSeed(null)}
           seedNum={swapSeed}
@@ -487,8 +567,68 @@ function ArtistSearch({ onPick, disabled }: { onPick: (a: SpotifyArtist) => void
   );
 }
 
-// Same-artist-only replacement search (the locked rule: swaps keep the premise
-// honest). Filters Spotify track results to this artist.
+// Theme input: free text + a debounced Last.fm probe, since there is no tag
+// autocomplete API. The probe is 2 cheap calls (no Spotify resolution); the
+// full field builds only on the button tap.
+function ThemeSearch({ onBuild, disabled }: { onBuild: (tag: string) => void; disabled?: boolean }) {
+  const { palette } = useTheme();
+  const [query, setQuery] = useState('');
+  const [hit, setHit] = useState<{ count: number; artists: string[] } | null>(null);
+  const [checking, setChecking] = useState(false);
+  const seq = useRef(0);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const run = (term: string) => {
+    setQuery(term);
+    setHit(null);
+    if (timer.current) clearTimeout(timer.current);
+    const trimmed = term.trim();
+    if (trimmed.length < 2) {
+      setChecking(false);
+      return;
+    }
+    setChecking(true);
+    const s = ++seq.current;
+    timer.current = setTimeout(async () => {
+      const res = await probeTag(trimmed);
+      if (s !== seq.current) return;
+      setChecking(false);
+      setHit(res);
+    }, 600);
+  };
+
+  const good = !!hit && hit.count >= 16;
+  return (
+    <View style={{ marginTop: 8 }}>
+      <TextField
+        placeholder="Try “shoegaze”, “90s hip hop”, “yacht rock”…"
+        value={query}
+        onChangeText={run}
+        autoCorrect={false}
+        editable={!disabled}
+      />
+      {checking ? (
+        <Text style={[styles.hint, { color: palette.text3, marginTop: 6 }]}>Checking the theme…</Text>
+      ) : hit ? (
+        <Text style={[styles.hint, { color: good ? palette.text2 : palette.text3, marginTop: 6 }]}>
+          {good
+            ? `${hit.count} rankable songs${hit.artists.length ? ` — ${hit.artists.join(', ')}…` : ''}`
+            : `Only ${hit.count} rankable song${hit.count === 1 ? '' : 's'} — try a broader theme, or build up from 16 with manual adds.`}
+        </Text>
+      ) : null}
+      <Button
+        title="🎛️ Build the field"
+        onPress={() => onBuild(query.trim())}
+        disabled={disabled || !good}
+        style={{ marginTop: 10 }}
+      />
+    </View>
+  );
+}
+
+// Replacement search. Same-artist-only for artist brackets (the locked rule:
+// swaps keep the premise honest); any song from anywhere for theme brackets
+// (the manual-curation valve — pass no artistName).
 function TrackSwapSearch({
   artistName,
   exclude,
@@ -496,9 +636,9 @@ function TrackSwapSearch({
   onPick,
   onCancel,
 }: {
-  artistName: string;
+  artistName: string | undefined; // undefined → unrestricted (theme swaps/adds)
   exclude: Set<string>;
-  seedNum: number;
+  seedNum: number | 'add';
   onPick: (c: SeedCandidate) => void;
   onCancel: () => void;
 }) {
@@ -514,10 +654,10 @@ function TrackSwapSearch({
       setResults([]);
       return;
     }
-    const tracks = await searchSpotify(`${term} ${artistName}`);
-    const artistLc = artistName.toLowerCase();
+    const tracks = await searchSpotify(artistName ? `${term} ${artistName}` : term);
+    const artistLc = artistName?.toLowerCase();
     const mapped = tracks
-      .filter((t) => t.artistName.toLowerCase().includes(artistLc) && !exclude.has(t.id))
+      .filter((t) => (!artistLc || t.artistName.toLowerCase().includes(artistLc)) && !exclude.has(t.id))
       .map((t) => ({
         title: t.trackName,
         album: t.collectionName,
@@ -525,6 +665,8 @@ function TrackSwapSearch({
         spotifyUrl: t.spotifyUrl,
         spotifyId: t.id,
         playcount: 0,
+        // Theme candidates carry their artist; artist brackets know theirs.
+        ...(artistName ? {} : { artist: t.artistName }),
       }));
     if (s === seq.current) setResults(mapped);
   };
@@ -532,23 +674,59 @@ function TrackSwapSearch({
   return (
     <View style={[styles.swapBox, { borderColor: palette.amber, backgroundColor: palette.amberBg }]}>
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        <Text style={[styles.hint, { color: palette.text2, flex: 1 }]}>Replace the {seedNum}-seed ({artistName} only)</Text>
+        <Text style={[styles.hint, { color: palette.text2, flex: 1 }]}>
+          {seedNum === 'add' ? 'Add a song to the field' : `Replace the ${seedNum}-seed${artistName ? ` (${artistName} only)` : ''}`}
+        </Text>
         <Pressable onPress={onCancel} hitSlop={8}>
           <Text style={{ color: palette.text3, fontSize: 16 }}>×</Text>
         </Pressable>
       </View>
-      <TextField placeholder="Search their songs…" value={query} onChangeText={run} autoCorrect={false} />
+      <TextField placeholder={artistName ? 'Search their songs…' : 'Search any song…'} value={query} onChangeText={run} autoCorrect={false} />
       {results.map((c) => (
         <Pressable key={c.spotifyId} onPress={() => onPick(c)} style={({ pressed }) => [styles.resultRow, pressed && { backgroundColor: palette.card2 }]}>
           {c.artworkUrl ? <Image source={{ uri: c.artworkUrl }} style={styles.art} contentFit="cover" /> : null}
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text numberOfLines={1} style={[styles.sTitle, { color: palette.text1 }]}>{c.title}</Text>
-            <Text numberOfLines={1} style={[styles.sArtist, { color: palette.text3 }]}>{c.album}</Text>
+            <Text numberOfLines={1} style={[styles.sArtist, { color: palette.text3 }]}>
+              {[c.artist, c.album].filter(Boolean).join(' · ')}
+            </Text>
           </View>
         </Pressable>
       ))}
     </View>
   );
+}
+
+// 2×2 collage of the top seeds' artwork — the theme bracket's stand-in for an
+// artist photo. Fewer than 4 images falls back to the first alone.
+function CollageArt({ urls, size }: { urls: (string | null)[]; size: number }) {
+  const imgs = urls.filter((u): u is string => !!u).slice(0, 4);
+  if (imgs.length === 0) return null;
+  if (imgs.length < 4) {
+    return <Image source={{ uri: imgs[0] }} style={{ width: size, height: size, borderRadius: size / 4 }} contentFit="cover" />;
+  }
+  const half = size / 2;
+  return (
+    <View style={{ width: size, height: size, borderRadius: size / 4, overflow: 'hidden', flexDirection: 'row', flexWrap: 'wrap' }}>
+      {imgs.map((u, i) => (
+        <Image key={i} source={{ uri: u }} style={{ width: half, height: half }} contentFit="cover" />
+      ))}
+    </View>
+  );
+}
+
+// The right art for any bracket row/header: artist photo, or the theme collage
+// (stored on the bracket at creation; live views can fall back to the loaded
+// tracks for pre-collage rows).
+function BracketArt({ bracket, size, tracks }: { bracket: Bracket; size: number; tracks?: BracketTrack[] }) {
+  if (bracket.kind === 'theme') {
+    const urls = bracket.theme_art?.length
+      ? bracket.theme_art
+      : (tracks ?? []).slice(0, 6).map((t) => t.artwork_url);
+    return <CollageArt urls={urls} size={size} />;
+  }
+  if (!bracket.artist_image_url) return null;
+  return <Image source={{ uri: bracket.artist_image_url }} style={{ width: size, height: size, borderRadius: size / 2 }} contentFit="cover" />;
 }
 
 // ─────────────────────────────────────────────────────────
@@ -697,13 +875,13 @@ function LiveBracket({
       {/* Header card: artist + progress + admin valves */}
       <Card>
         <View style={styles.reviewHead}>
-          {bracket.artist_image_url ? <Image source={{ uri: bracket.artist_image_url }} style={styles.artistArtLg} contentFit="cover" /> : null}
+          <BracketArt bracket={bracket} size={52} tracks={tracks} />
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={[styles.artistName, { color: palette.text1 }]}>{bracket.artist_name}</Text>
             <Text style={[styles.hint, { color: palette.text3 }]}>
               {solo
-                ? `${size}-song solo bracket · ${closed ? 'crowned' : 'just you'}`
-                : `${size}-song bracket · ${closed ? 'closed' : `${doneCount} of ${progress.total} finished`}`}
+                ? `${size}-song solo ${bracket.kind === 'theme' ? 'theme ' : ''}bracket · ${closed ? 'crowned' : 'just you'}`
+                : `${size}-song ${bracket.kind === 'theme' ? 'theme ' : ''}bracket · ${closed ? 'closed' : `${doneCount} of ${progress.total} finished`}`}
             </Text>
           </View>
         </View>
@@ -904,7 +1082,7 @@ function MemberBreakdown({
     <>
       <Card>
         <View style={styles.reviewHead}>
-          {bracket.artist_image_url ? <Image source={{ uri: bracket.artist_image_url }} style={styles.artistArtLg} contentFit="cover" /> : null}
+          <BracketArt bracket={bracket} size={52} tracks={tracks} />
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={[styles.artistName, { color: palette.text1 }]}>{bracket.artist_name}</Text>
             <Text style={[styles.hint, { color: palette.text3 }]}>{who} bracket · {bracket.size} songs</Text>
@@ -944,6 +1122,7 @@ function VersusCard({ a, b, onPick }: { a: BracketTrack; b: BracketTrack; onPick
       {t.artwork_url ? <Image source={{ uri: t.artwork_url }} style={styles.vsArt} contentFit="cover" /> : null}
       <Text style={[styles.seedBadge, { color: palette.amber }]}>#{t.seed}</Text>
       <Text numberOfLines={2} style={[styles.vsTitle, { color: palette.text1 }]}>{t.title}</Text>
+      {t.artist ? <Text numberOfLines={1} style={[styles.sArtist, { color: palette.text2 }]}>{t.artist}</Text> : null}
       {t.album ? <Text numberOfLines={1} style={[styles.sArtist, { color: palette.text3 }]}>{t.album}</Text> : null}
       <ListenLinks apple={t.apple_url} spotify={t.spotify_url} other={null} style={{ marginTop: 6 }} />
       <ListenButton apple={t.apple_url} spotify={t.spotify_url} style={{ marginTop: 6 }} />
@@ -970,7 +1149,9 @@ function TrackRow({ track, big }: { track: BracketTrack; big?: boolean }) {
         <Text numberOfLines={2} style={[big ? styles.champTitle : styles.sTitle, { color: palette.text1 }]}>
           {track.title}
         </Text>
-        <Text style={[styles.sArtist, { color: palette.text3 }]}>#{track.seed} seed{track.album ? ` · ${track.album}` : ''}</Text>
+        <Text numberOfLines={1} style={[styles.sArtist, { color: palette.text3 }]}>
+          #{track.seed} seed{track.artist ? ` · ${track.artist}` : ''}{track.album ? ` · ${track.album}` : ''}
+        </Text>
         <ListenLinks apple={track.apple_url} spotify={track.spotify_url} other={null} style={{ marginTop: 4 }} />
       </View>
       <ListenButton apple={track.apple_url} spotify={track.spotify_url} />
