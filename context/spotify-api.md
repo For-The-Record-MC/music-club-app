@@ -92,3 +92,18 @@ passed. There is no reset lever; you wait it out.
 
 `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `SPOTIFY_APP_REFRESH_TOKEN`,
 `LASTFM_API_KEY`, `TICKETMASTER_API_KEY`.
+
+## Two Spotify apps (since 2026-07-12)
+
+- **Prod**: the app on the vinny vino account (client id `18aedca4…`). Its id
+  also lives in `app/eas.json`, `app/.env.local`
+  (`EXPO_PUBLIC_SPOTIFY_CLIENT_ID`), and the GitHub Actions secret of the same
+  name — all four places must match or the Connect flow 400s.
+- **Dev/testing**: the ORIGINAL app (client id `647b0e8e…`, credentials in its
+  own Spotify dashboard). ALL bulk testing, backfills, and pipeline
+  experiments use this one — never prod. It ate the 2026-07-12 bench.
+- Registered redirect URIs (both apps):
+  `https://for-the-record-mc.github.io/music-club-app/spotify-callback` and
+  `fortherecordmc://spotify-callback`.
+- Refresh tokens are app-scoped: swapping apps kills `SPOTIFY_APP_REFRESH_TOKEN`
+  and every per-club connect token — each must be re-minted under the new app.
