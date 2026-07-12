@@ -14,10 +14,16 @@ The hard-constraint summary lives in [../AGENTS.md](../AGENTS.md); this file is 
    ```bash
    ./supabase/refresh-schema-snapshot.sh
    ```
-4. Regenerate TypeScript types into the app (once Phase 1 lands):
+4. Regenerate TypeScript types into the app:
    ```bash
-   supabase gen types typescript --linked --workdir "$(pwd)" > app/src/utils/supabase/types.ts
+   supabase gen types typescript --linked --workdir "$(pwd)" > /tmp/dbtypes.ts \
+     && cp /tmp/dbtypes.ts app/src/utils/supabase/database.types.ts
    ```
+   Two hard-won caveats (2026-07-12): run this WITHOUT sourcing `app/.env.local`
+   — its `SUPABASE_ACCESS_TOKEN` is stale and overrides the CLI's working login,
+   yielding `{"message":"Unauthorized"}` (db push is fine either way; it uses the
+   password). And always generate into a temp file first: a direct `>` redirect
+   truncates `database.types.ts` to 0 bytes when the command fails.
 5. Update [database-schema.md](database-schema.md) prose if invariants changed.
 
 Never run DML/DDL against the live database outside this workflow. The CLI is for exactly two things: reading (`supabase db query` / `migration list`) and pushing migrations.

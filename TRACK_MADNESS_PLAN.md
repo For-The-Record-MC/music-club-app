@@ -126,3 +126,35 @@ happens via `create_bracket` after admin review.
 - Ghost members: manual close; unfinished excluded from consensus.
 - Popularity/scrobble quirks (remix outranking classic): admin swap is the safety valve.
 - Spotify `preview_url` is dead for new apps — previews, if ever added, come from iTunes.
+
+## Theme mode (as built 2026-07-12)
+
+Track Madness's second bracket kind: a **theme** — any Last.fm tag (genre,
+decade, mood) — instead of one artist. Creation flow gets Artist/Theme tabs;
+everything downstream (picks, consensus, spoiler guard, solo scope, stats,
+import) is track-id-based and unchanged.
+
+- **Sourcing**: `tag.getTopTracks` (2 pages), seeded in **tag-relevance rank
+  order** — deliberately NOT re-ranked by global playcount, which would let
+  crossover hits bury genre-defining cuts. Playcounts are fetched per track
+  (`track.getInfo`, shared helper `_shared/lastfm.ts`, extracted from
+  track-stats) for display only.
+- **Two-per-artist cap** at seeding so a narrow tag doesn't collapse into an
+  artist bracket in disguise; next eligible track promotes up.
+- **Theme input**: free text + debounced probe (`{tag, probe:true}` → cheap
+  `{count, artists}`, no Spotify resolution). "Build the field" runs the full
+  pipeline. No tag autocomplete API exists.
+- **Manual valve**: review-screen swaps are unrestricted in theme mode (any
+  song, any artist), plus an append "＋ Add a song" for thin fields — Last.fm
+  tag noise (e.g. Miley Cyrus in "yacht rock") is expected and handled here.
+- **Schema**: `brackets.kind` ('artist'|'theme'), `brackets.theme_art`
+  (top-4-seed artwork array frozen at create for shelf collages),
+  `bracket_tracks.artist` (empty on artist brackets). `create_bracket` gained
+  `p_kind` (default 'artist' — old OTA clients unaffected).
+- **API load**: Spotify /search volume matches artist mode (concurrency 6,
+  once per creation); Apple links unchanged (client-side, batches of 4);
+  the new load is Last.fm (~150 calls per seeding), same pattern as Bingo's
+  track-stats and behind verify_jwt.
+- **Playlist import was investigated and is dead**: Spotify dev-mode apps
+  cannot read playlist contents at all (see context/spotify-api.md). An Apple
+  Music playlist import via our developer token remains a viable v1.5 door.

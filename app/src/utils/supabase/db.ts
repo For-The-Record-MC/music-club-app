@@ -1259,6 +1259,8 @@ export const trackMadness = {
       .eq('bracket_id', bracketId),
   // Spoiler-safe progress counts for the tile/status line.
   progress: (bracketId: string) => supabase.rpc('bracket_progress', { p_bracket: bracketId }),
+  // artistName doubles as the subject name: the tag text for kind='theme'
+  // (with artistSpotifyId '' and no image — theme cards render a collage).
   create: (
     clubId: string,
     artistName: string,
@@ -1267,6 +1269,7 @@ export const trackMadness = {
     size: number,
     tracks: Json,
     scope: 'club' | 'personal' = 'club',
+    kind: 'artist' | 'theme' = 'artist',
   ) =>
     supabase.rpc('create_bracket', {
       p_club: clubId,
@@ -1276,6 +1279,7 @@ export const trackMadness = {
       p_size: size,
       p_tracks: tracks,
       p_scope: scope,
+      p_kind: kind,
     }),
   // Bulk pick import (the "use my solo rankings" flow) — requires a clean slate.
   importPicks: (bracketId: string, picks: { round: number; slot: number; winner: string }[]) =>

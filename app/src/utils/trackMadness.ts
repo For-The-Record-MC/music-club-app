@@ -274,10 +274,12 @@ export function computeStats(
   return { championTally, finalFourTally, mostControversial, biggestUpset };
 }
 
-// ── bracket-seed Edge Function wrapper ──
+// ── bracket-seed Edge Function wrappers ──
 
 // One ranked candidate from the seeding function, best-first. playcount is
-// Last.fm scrobbles (0 when ranking fell back to Spotify popularity).
+// Last.fm scrobbles (0 when ranking fell back to Spotify popularity or the
+// track is unknown to Last.fm). artist is set on theme candidates only —
+// artist brackets carry it on the bracket itself.
 export interface SeedCandidate {
   title: string;
   album: string;
@@ -285,11 +287,22 @@ export interface SeedCandidate {
   spotifyUrl: string;
   spotifyId: string;
   playcount: number;
+  artist?: string;
 }
 
 export interface SeedResult {
   results: SeedCandidate[];
-  source: 'lastfm' | 'spotify';
+  source: 'lastfm' | 'spotify' | 'lastfm-tag';
+}
+
+function toSeedResult(
+  data: (SeedResult & { ok?: false; message?: string }) | null,
+  error: unknown,
+): SeedResult | null {
+  if (error || !data || data.ok === false || !Array.isArray(data.results)) return null;
+  const source =
+    data.source === 'spotify' ? 'spotify' : data.source === 'lastfm-tag' ? 'lastfm-tag' : 'lastfm';
+  return { results: data.results, source };
 }
 
 // Fetch the ranked candidate list for an artist (up to 64 + alternates).
@@ -302,8 +315,31 @@ export async function fetchSeedCandidates(
     'bracket-seed',
     { body: { artistId, artistName } },
   );
-  if (error || !data || data.ok === false || !Array.isArray(data.results)) return null;
-  return { results: data.results, source: data.source === 'spotify' ? 'spotify' : 'lastfm' };
+  return toSeedResult(data, error);
+}
+
+// Fetch the ranked candidate list for a theme (Last.fm tag), tag-relevance
+// order, max two tracks per artist.
+export async function fetchTagCandidates(tag: string): Promise<SeedResult | null> {
+  const { data, error } = await supabase.functions.invoke<SeedResult & { ok?: false; message?: string }>(
+    'bracket-seed',
+    { body: { tag } },
+  );
+  return toSeedResult(data, error);
+}
+
+// Cheap is-this-tag-any-good check for the debounced theme input: field depth
+// plus the headline artists, no Spotify resolution. Null on failure (the input
+// just stays quiet).
+export async function probeTag(
+  tag: string,
+): Promise<{ count: number; artists: string[] } | null> {
+  const { data, error } = await supabase.functions.invoke<{ count?: number; artists?: string[]; ok?: false }>(
+    'bracket-seed',
+    { body: { tag, probe: true } },
+  );
+  if (error || !data || data.ok === false || typeof data.count !== 'number') return null;
+  return { count: data.count, artists: data.artists ?? [] };
 }
 
 

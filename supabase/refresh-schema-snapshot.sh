@@ -18,20 +18,30 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 1
 fi
 
-TOKEN="$(grep '^SUPABASE_ACCESS_TOKEN=' app/.env.local | cut -d'=' -f2)"
-if [ -z "$TOKEN" ]; then
-  echo "error: SUPABASE_ACCESS_TOKEN not found in app/.env.local" >&2
-  exit 1
-fi
-
-SUPABASE_ACCESS_TOKEN="$TOKEN" \
+# Prefer the CLI's own login (supabase login); fall back to the env token.
+# The token in app/.env.local has gone stale before (2026-07-12) and, when
+# exported, OVERRIDES a working CLI login — so it is a fallback, not a default.
+run_query() {
   supabase db query --linked --workdir "$ROOT" \
     --file supabase/schema-snapshot.gen.sql -o json 2>/dev/null \
-  | jq -r '.rows[0].schema_sql' > supabase/schema.sql
+    | jq -r '.rows[0].schema_sql'
+}
 
-LINES="$(wc -l < supabase/schema.sql | tr -d ' ')"
+TMP="$(mktemp)"
+if ! run_query > "$TMP" || [ "$(wc -l < "$TMP" | tr -d ' ')" -lt 50 ]; then
+  TOKEN="$(grep '^SUPABASE_ACCESS_TOKEN=' app/.env.local | cut -d'=' -f2 || true)"
+  if [ -n "$TOKEN" ]; then
+    SUPABASE_ACCESS_TOKEN="$TOKEN" run_query > "$TMP" || true
+  fi
+fi
+
+# Write to schema.sql only once the result looks sane — a failed query must
+# never truncate the committed snapshot.
+LINES="$(wc -l < "$TMP" | tr -d ' ')"
 if [ "$LINES" -lt 50 ]; then
-  echo "error: generated schema.sql looks empty ($LINES lines) — check the query/connection" >&2
+  rm -f "$TMP"
+  echo "error: generated schema.sql looks empty ($LINES lines) — check auth (supabase login) and the connection" >&2
   exit 1
 fi
+mv "$TMP" supabase/schema.sql
 echo "wrote supabase/schema.sql ($LINES lines)"

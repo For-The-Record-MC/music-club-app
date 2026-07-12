@@ -1166,6 +1166,7 @@ export type Database = {
         Row: {
           album: string
           apple_url: string | null
+          artist: string
           artwork_url: string | null
           bracket_id: string
           id: string
@@ -1179,6 +1180,7 @@ export type Database = {
         Insert: {
           album?: string
           apple_url?: string | null
+          artist?: string
           artwork_url?: string | null
           bracket_id: string
           id?: string
@@ -1192,6 +1194,7 @@ export type Database = {
         Update: {
           album?: string
           apple_url?: string | null
+          artist?: string
           artwork_url?: string | null
           bracket_id?: string
           id?: string
@@ -1222,10 +1225,12 @@ export type Database = {
           created_at: string
           created_by: string
           id: string
+          kind: string
           owner_id: string | null
           scope: string
           size: number
           status: string
+          theme_art: string[] | null
         }
         Insert: {
           artist_image_url?: string | null
@@ -1236,10 +1241,12 @@ export type Database = {
           created_at?: string
           created_by: string
           id?: string
+          kind?: string
           owner_id?: string | null
           scope?: string
           size: number
           status?: string
+          theme_art?: string[] | null
         }
         Update: {
           artist_image_url?: string | null
@@ -1250,10 +1257,12 @@ export type Database = {
           created_at?: string
           created_by?: string
           id?: string
+          kind?: string
           owner_id?: string | null
           scope?: string
           size?: number
           status?: string
+          theme_art?: string[] | null
         }
         Relationships: [
           {
@@ -3346,10 +3355,12 @@ export type Database = {
           created_at: string
           created_by: string
           id: string
+          kind: string
           owner_id: string | null
           scope: string
           size: number
           status: string
+          theme_art: string[] | null
         }
         SetofOptions: {
           from: "*"
@@ -3416,6 +3427,7 @@ export type Database = {
           p_artist_name: string
           p_artist_spotify_id: string
           p_club: string
+          p_kind?: string
           p_scope?: string
           p_size: number
           p_tracks: Json
@@ -3429,10 +3441,12 @@ export type Database = {
           created_at: string
           created_by: string
           id: string
+          kind: string
           owner_id: string | null
           scope: string
           size: number
           status: string
+          theme_art: string[] | null
         }
         SetofOptions: {
           from: "*"
