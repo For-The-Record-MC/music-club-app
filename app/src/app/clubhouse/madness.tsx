@@ -7,6 +7,7 @@ import { MentionInput, MentionText, resolveMentions, type MentionMember } from '
 import { Avatar, Button, Card, InlineNote, Label, ListenButton, ListenLinks, Loading, NoClubSelected, Screen, TextField } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
 import { useCycle } from '@/hooks/useCycle';
+import { useDebouncedSearch } from '@/hooks/useDebouncedSearch';
 import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
 import { useTrackMadness, type BracketState } from '@/hooks/useTrackMadness';
@@ -536,17 +537,19 @@ function ArtistSearch({ onPick, disabled }: { onPick: (a: SpotifyArtist) => void
   const { palette } = useTheme();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SpotifyArtist[]>([]);
-  const seq = useRef(0);
+  const search = useDebouncedSearch();
 
-  const run = async (term: string) => {
+  const run = (term: string) => {
     setQuery(term);
-    const s = ++seq.current;
     if (term.trim().length < 2) {
+      search.cancel();
       setResults([]);
       return;
     }
-    const artists = await searchArtists(term);
-    if (s === seq.current) setResults(artists);
+    search.schedule(async (isCurrent) => {
+      const artists = await searchArtists(term);
+      if (isCurrent()) setResults(artists);
+    });
   };
 
   return (
@@ -575,26 +578,24 @@ function ThemeSearch({ onBuild, disabled }: { onBuild: (tag: string) => void; di
   const [query, setQuery] = useState('');
   const [hit, setHit] = useState<{ count: number; artists: string[] } | null>(null);
   const [checking, setChecking] = useState(false);
-  const seq = useRef(0);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const probe = useDebouncedSearch(600);
 
   const run = (term: string) => {
     setQuery(term);
     setHit(null);
-    if (timer.current) clearTimeout(timer.current);
     const trimmed = term.trim();
     if (trimmed.length < 2) {
+      probe.cancel();
       setChecking(false);
       return;
     }
     setChecking(true);
-    const s = ++seq.current;
-    timer.current = setTimeout(async () => {
+    probe.schedule(async (isCurrent) => {
       const res = await probeTag(trimmed);
-      if (s !== seq.current) return;
+      if (!isCurrent()) return;
       setChecking(false);
       setHit(res);
-    }, 600);
+    });
   };
 
   const good = !!hit && hit.count >= 16;
@@ -645,30 +646,32 @@ function TrackSwapSearch({
   const { palette } = useTheme();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SeedCandidate[]>([]);
-  const seq = useRef(0);
+  const search = useDebouncedSearch();
 
-  const run = async (term: string) => {
+  const run = (term: string) => {
     setQuery(term);
-    const s = ++seq.current;
     if (term.trim().length < 2) {
+      search.cancel();
       setResults([]);
       return;
     }
-    const tracks = await searchSpotify(artistName ? `${term} ${artistName}` : term);
-    const artistLc = artistName?.toLowerCase();
-    const mapped = tracks
-      .filter((t) => (!artistLc || t.artistName.toLowerCase().includes(artistLc)) && !exclude.has(t.id))
-      .map((t) => ({
-        title: t.trackName,
-        album: t.collectionName,
-        artworkUrl: t.artworkUrl,
-        spotifyUrl: t.spotifyUrl,
-        spotifyId: t.id,
-        playcount: 0,
-        // Theme candidates carry their artist; artist brackets know theirs.
-        ...(artistName ? {} : { artist: t.artistName }),
-      }));
-    if (s === seq.current) setResults(mapped);
+    search.schedule(async (isCurrent) => {
+      const tracks = await searchSpotify(artistName ? `${term} ${artistName}` : term);
+      const artistLc = artistName?.toLowerCase();
+      const mapped = tracks
+        .filter((t) => (!artistLc || t.artistName.toLowerCase().includes(artistLc)) && !exclude.has(t.id))
+        .map((t) => ({
+          title: t.trackName,
+          album: t.collectionName,
+          artworkUrl: t.artworkUrl,
+          spotifyUrl: t.spotifyUrl,
+          spotifyId: t.id,
+          playcount: 0,
+          // Theme candidates carry their artist; artist brackets know theirs.
+          ...(artistName ? {} : { artist: t.artistName }),
+        }));
+      if (isCurrent()) setResults(mapped);
+    });
   };
 
   return (

@@ -3,10 +3,11 @@ import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { TextField } from '@/components/ui';
+import { useDebouncedSearch } from '@/hooks/useDebouncedSearch';
 import { useTheme } from '@/hooks/use-theme';
 import { fonts, radius } from '@/theme';
 import { resolveAppleTrack, searchSongs as searchItunes } from '@/utils/itunes';
-import { resolveSpotifyTrack, searchSongs as searchSpotify } from '@/utils/spotify';
+import { searchSongs as searchSpotify } from '@/utils/spotify';
 
 // A song picked from the catalog, with both services' links resolved so it
 // opens (and syncs to playlists) everywhere. Mirrors the feed composer's shape.
@@ -35,10 +36,16 @@ interface Result {
   durationMs: number | null;
 }
 
-// Self-contained song type-ahead: Spotify-first search falling back to iTunes,
-// with the other service's link resolved on pick. Calls onPick with the fully
-// resolved song. Used by the Jukebox Showdown submission sheet (the feed has its
-// own inline composer with extra album/quota concerns).
+// Self-contained song type-ahead: Spotify-first search (best catalog/ranking)
+// falling back to iTunes when Spotify is empty — which includes a budget/bench
+// denial from spotify-search (it returns [], so a capped hour silently becomes
+// the iTunes experience instead of a dead search box). Debounced since
+// 2026-07-12: per-keystroke calls drained the shared Spotify budget
+// (context/spotify-api.md). The missing service's side resolves on pick — for
+// iTunes-sourced picks that's ONE Spotify search restoring url/uri/id/duration
+// (Bingo's listen gate + dedup). Calls onPick with the song, then again as
+// extras resolve. Used by Jukebox Showdown and Listening Bingo (the feed has
+// its own inline composer with extra album/quota concerns).
 export function SongSearchField({
   placeholder = 'Search a song… (e.g. Dreams Fleetwood Mac)',
   onPick,
@@ -49,45 +56,48 @@ export function SongSearchField({
   const { palette } = useTheme();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Result[]>([]);
-  const searchSeq = useRef(0);
+  const search = useDebouncedSearch();
   const pickSeq = useRef(0);
 
-  const runSearch = async (term: string) => {
+  const runSearch = (term: string) => {
     setQuery(term);
-    const seq = ++searchSeq.current;
     if (term.trim().length < 3) {
+      search.cancel();
       setResults([]);
       return;
     }
-    const spotifyHits = await searchSpotify(term);
-    const found: Result[] = spotifyHits.length
-      ? spotifyHits.map((s) => ({
-          key: s.id,
-          trackName: s.trackName,
-          artistName: s.artistName,
-          artworkUrl: s.artworkUrl,
-          spotifyUrl: s.spotifyUrl,
-          spotifyUri: s.uri,
-          appleUrl: null,
-          spotifyId: s.id,
-          durationMs: s.durationMs ?? null,
-        }))
-      : (await searchItunes(term)).map((s) => ({
-          key: String(s.trackId),
-          trackName: s.trackName,
-          artistName: s.artistName,
-          artworkUrl: s.artworkUrl,
-          spotifyUrl: null,
-          spotifyUri: null,
-          appleUrl: s.appleUrl,
-          spotifyId: null,
-          durationMs: null,
-        }));
-    if (seq === searchSeq.current) setResults(found);
+    search.schedule(async (isCurrent) => {
+      const spotifyHits = await searchSpotify(term);
+      const found: Result[] = spotifyHits.length
+        ? spotifyHits.map((s) => ({
+            key: s.id,
+            trackName: s.trackName,
+            artistName: s.artistName,
+            artworkUrl: s.artworkUrl,
+            spotifyUrl: s.spotifyUrl,
+            spotifyUri: s.uri,
+            appleUrl: null,
+            spotifyId: s.id,
+            durationMs: s.durationMs ?? null,
+          }))
+        : (await searchItunes(term)).map((s) => ({
+            key: String(s.trackId),
+            trackName: s.trackName,
+            artistName: s.artistName,
+            artworkUrl: s.artworkUrl,
+            spotifyUrl: null,
+            spotifyUri: null,
+            appleUrl: s.appleUrl,
+            spotifyId: null,
+            durationMs: null,
+          }));
+      if (isCurrent()) setResults(found);
+    });
   };
 
   const pick = async (r: Result) => {
     const seq = ++pickSeq.current;
+    search.cancel();
     setResults([]);
     setQuery('');
     const song: PickedSong = {
@@ -101,13 +111,24 @@ export function SongSearchField({
       durationMs: r.durationMs,
     };
     onPick(song);
-    // Resolve the missing service's link (best-effort, guarded against a newer pick).
+    // Resolve the missing service's side (best-effort, guarded against a newer
+    // pick). iTunes picks take one full Spotify hit — not just links, since
+    // Bingo needs durationMs (listen gate) and spotifyId (dedup) too.
     if (r.spotifyUrl && !r.appleUrl) {
       const apple = await resolveAppleTrack(r.trackName, r.artistName);
       if (apple && seq === pickSeq.current) onPick({ ...song, appleUrl: apple });
     } else if (r.appleUrl && !r.spotifyUrl) {
-      const match = await resolveSpotifyTrack(r.trackName, r.artistName);
-      if (match && seq === pickSeq.current) onPick({ ...song, spotifyUri: match.uri, spotifyUrl: match.url });
+      const term = `${r.trackName} ${r.artistName}`.trim();
+      const match = (await searchSpotify(term))[0];
+      if (match && seq === pickSeq.current) {
+        onPick({
+          ...song,
+          spotifyUrl: match.spotifyUrl,
+          spotifyUri: match.uri,
+          spotifyId: match.id,
+          durationMs: match.durationMs ?? null,
+        });
+      }
     }
   };
 

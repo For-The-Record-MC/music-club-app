@@ -6,6 +6,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MentionInput, MentionText, resolveMentions, type MentionMember } from '@/components/Mentions';
 import { Avatar, Button, Card, InlineNote, Label, ListenButton, ListenLinks, Loading, NoClubSelected, Screen, TextField } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
+import { useDebouncedSearch } from '@/hooks/useDebouncedSearch';
 import { useConvince, type ConvinceRow } from '@/hooks/useConvince';
 import { useFocusTarget, useGlow } from '@/hooks/useFocusTarget';
 import { useRefresh } from '@/hooks/useRefresh';
@@ -54,22 +55,24 @@ export default function ConvinceMeScreen() {
   const [artist, setArtist] = useState<PickedArtist | null>(null);
   const [artistQuery, setArtistQuery] = useState('');
   const [artistResults, setArtistResults] = useState<SpotifyArtist[]>([]);
-  const artistSeq = useRef(0);
+  const artistSearch = useDebouncedSearch();
   const [tracks, setTracks] = useState<(ConvinceTrackInput | null)[]>([null, null, null]);
   const [blurb, setBlurb] = useState('');
   const [targets, setTargets] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const runArtistSearch = async (term: string) => {
+  const runArtistSearch = (term: string) => {
     setArtistQuery(term);
-    const seq = ++artistSeq.current;
     if (term.trim().length < 2) {
+      artistSearch.cancel();
       setArtistResults([]);
       return;
     }
-    const found = await searchArtists(term);
-    if (seq === artistSeq.current) setArtistResults(found);
+    artistSearch.schedule(async (isCurrent) => {
+      const found = await searchArtists(term);
+      if (isCurrent()) setArtistResults(found);
+    });
   };
 
   const pickArtist = (a: SpotifyArtist) => {
@@ -285,34 +288,36 @@ function TrackSlot({
   const { palette } = useTheme();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ConvinceTrackInput[]>([]);
-  const seq = useRef(0);
+  const search = useDebouncedSearch();
 
-  const run = async (term: string) => {
+  const run = (term: string) => {
     setQuery(term);
-    const s = ++seq.current;
     if (term.trim().length < 3) {
+      search.cancel();
       setResults([]);
       return;
     }
-    const spotify = await searchSpotify(term);
-    const mapped: ConvinceTrackInput[] = spotify.length
-      ? spotify.map((t) => ({
-          title: t.trackName,
-          artist: t.artistName,
-          artwork_url: t.artworkUrl || null,
-          spotify_url: t.spotifyUrl || null,
-          apple_url: null,
-          norm_key: normKey(t.trackName, t.artistName),
-        }))
-      : (await searchItunes(term)).map((t) => ({
-          title: t.trackName,
-          artist: t.artistName,
-          artwork_url: t.artworkUrl || null,
-          spotify_url: null,
-          apple_url: t.appleUrl || null,
-          norm_key: normKey(t.trackName, t.artistName),
-        }));
-    if (s === seq.current) setResults(mapped);
+    search.schedule(async (isCurrent) => {
+      const spotify = await searchSpotify(term);
+      const mapped: ConvinceTrackInput[] = spotify.length
+        ? spotify.map((t) => ({
+            title: t.trackName,
+            artist: t.artistName,
+            artwork_url: t.artworkUrl || null,
+            spotify_url: t.spotifyUrl || null,
+            apple_url: null,
+            norm_key: normKey(t.trackName, t.artistName),
+          }))
+        : (await searchItunes(term)).map((t) => ({
+            title: t.trackName,
+            artist: t.artistName,
+            artwork_url: t.artworkUrl || null,
+            spotify_url: null,
+            apple_url: t.appleUrl || null,
+            norm_key: normKey(t.trackName, t.artistName),
+          }));
+      if (isCurrent()) setResults(mapped);
+    });
   };
 
   if (value) {

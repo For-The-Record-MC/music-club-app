@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar, Button, Card, InlineNote, Label, Screen, TextField } from '@/components/ui';
+import { useDebouncedSearch } from '@/hooks/useDebouncedSearch';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
 import { avatarColors, fonts, radius } from '@/theme';
@@ -117,20 +118,22 @@ export default function ProfileSetup() {
     else router.replace('/');
   };
 
-  // Album cover search (iTunes — keyless, always works) for the profile picture.
+  // Album cover search (Spotify-first, iTunes fallback) for the profile picture.
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<AlbumHit[]>([]);
-  const searchSeq = useRef(0);
+  const coverSearch = useDebouncedSearch();
 
-  const runSearch = async (term: string) => {
+  const runSearch = (term: string) => {
     setQuery(term);
-    const seq = ++searchSeq.current;
     if (term.trim().length < 3) {
+      coverSearch.cancel();
       setResults([]);
       return;
     }
-    const found = await searchAlbums(term);
-    if (seq === searchSeq.current) setResults(found);
+    coverSearch.schedule(async (isCurrent) => {
+      const found = await searchAlbums(term);
+      if (isCurrent()) setResults(found);
+    });
   };
 
   const pickCover = (album: AlbumHit) => {
@@ -401,7 +404,7 @@ function SlotEditor({
   const [caption, setCaption] = useState(track?.caption ?? '');
   const [savingNote, setSavingNote] = useState(false);
   const [noteSaved, setNoteSaved] = useState(false);
-  const searchSeq = useRef(0);
+  const songSearch = useDebouncedSearch();
 
   useEffect(() => {
     setCaption(track?.caption ?? '');
@@ -410,15 +413,17 @@ function SlotEditor({
   // The note is "dirty" (needs saving) when it differs from what's stored.
   const noteDirty = (caption.trim() || '') !== (track?.caption ?? '');
 
-  const runSearch = async (term: string) => {
+  const runSearch = (term: string) => {
     setQuery(term);
-    const seq = ++searchSeq.current;
     if (term.trim().length < 3) {
+      songSearch.cancel();
       setResults([]);
       return;
     }
-    const found = await searchSongs(term);
-    if (seq === searchSeq.current) setResults(found);
+    songSearch.schedule(async (isCurrent) => {
+      const found = await searchSongs(term);
+      if (isCurrent()) setResults(found);
+    });
   };
 
   const pick = async (hit: SongHit) => {

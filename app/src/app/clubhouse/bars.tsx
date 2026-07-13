@@ -7,6 +7,7 @@ import { MentionInput, MentionText, resolveMentions, type MentionMember } from '
 import { Avatar, Button, Card, InlineNote, Label, ListenButton, ListenLinks, Loading, NoClubSelected, Screen, TextField } from '@/components/ui';
 import { useBestBars, type BarRow } from '@/hooks/useBestBars';
 import { useClubData } from '@/hooks/useClubData';
+import { useDebouncedSearch } from '@/hooks/useDebouncedSearch';
 import { useFocusTarget, useGlow } from '@/hooks/useFocusTarget';
 import { useRefresh } from '@/hooks/useRefresh';
 import { useTheme } from '@/hooks/use-theme';
@@ -178,20 +179,22 @@ function SongSearch({ onPick }: { onPick: (s: SongPick) => void }) {
   const { palette } = useTheme();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SongPick[]>([]);
-  const seq = useRef(0);
+  const search = useDebouncedSearch();
 
-  const run = async (term: string) => {
+  const run = (term: string) => {
     setQuery(term);
-    const s = ++seq.current;
     if (term.trim().length < 3) {
+      search.cancel();
       setResults([]);
       return;
     }
-    const spotify = await searchSpotify(term);
-    const mapped: SongPick[] = spotify.length
-      ? spotify.map((t) => ({ title: t.trackName, artist: t.artistName, artworkUrl: t.artworkUrl || null, spotifyUrl: t.spotifyUrl || null, appleUrl: null }))
-      : (await searchItunes(term)).map((t) => ({ title: t.trackName, artist: t.artistName, artworkUrl: t.artworkUrl || null, spotifyUrl: null, appleUrl: t.appleUrl || null }));
-    if (s === seq.current) setResults(mapped);
+    search.schedule(async (isCurrent) => {
+      const spotify = await searchSpotify(term);
+      const mapped: SongPick[] = spotify.length
+        ? spotify.map((t) => ({ title: t.trackName, artist: t.artistName, artworkUrl: t.artworkUrl || null, spotifyUrl: t.spotifyUrl || null, appleUrl: null }))
+        : (await searchItunes(term)).map((t) => ({ title: t.trackName, artist: t.artistName, artworkUrl: t.artworkUrl || null, spotifyUrl: null, appleUrl: t.appleUrl || null }));
+      if (isCurrent()) setResults(mapped);
+    });
   };
 
   return (

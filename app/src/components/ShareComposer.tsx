@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { PlaylistForm } from '@/components/PlaylistComposer';
 import { Button, Card, InlineNote, Label, TextField } from '@/components/ui';
 import { useCycle } from '@/hooks/useCycle';
+import { useDebouncedSearch } from '@/hooks/useDebouncedSearch';
 import { useMyClubs } from '@/hooks/useMyClubs';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/authStore';
@@ -91,7 +92,7 @@ export function ShareComposer({
   const [isrc, setIsrc] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
-  const searchSeq = useRef(0);
+  const searchDebounce = useDebouncedSearch();
   const pickSeq = useRef(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -150,15 +151,19 @@ export function ShareComposer({
   // the track/album toggle can re-run immediately without a stale `kind` closure.
   // Spotify first (best catalog/search); fall back to iTunes if it's empty —
   // e.g. app credentials unset, or something Spotify simply doesn't have.
-  const runSearch = async (term: string, explicitKind?: Kind) => {
+  const runSearch = (term: string, explicitKind?: Kind) => {
     // Only the track/album UI calls this; the playlist form has no search.
     const searchKind: Kind = explicitKind ?? (kind === 'playlist' ? 'track' : kind);
     setSearch(term);
-    const seq = ++searchSeq.current;
     if (term.trim().length < 3) {
+      searchDebounce.cancel();
       setResults([]);
       return;
     }
+    searchDebounce.schedule((isCurrent) => performSearch(term, searchKind, isCurrent));
+  };
+
+  const performSearch = async (term: string, searchKind: Kind, isCurrent: () => boolean) => {
     let found: SearchResult[];
     if (searchKind === 'album') {
       const spotifyHits = await searchSpotifyAlbums(term);
@@ -211,7 +216,7 @@ export function ShareComposer({
             isrc: null,
           }));
     }
-    if (seq === searchSeq.current) setResults(found);
+    if (isCurrent()) setResults(found);
   };
 
   // Switching the search kind clears stale results AND the current pick — album

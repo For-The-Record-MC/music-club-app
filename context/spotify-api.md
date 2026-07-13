@@ -54,6 +54,14 @@ passed. There is no reset lever; you wait it out.
   club, same tag/artist) cost ~zero searches. Transient errors are never cached.
 - Bracket resolution runs at concurrency 3 with a capped input tail; keep any
   new bulk resolution at least that gentle.
+- **Demand side (client, 2026-07-12)**: every search type-ahead in the app is
+  debounced via `useDebouncedSearch` (400ms; results from superseded
+  keystrokes never land) — before this, EVERY KEYSTROKE fired a Spotify call
+  and three people filling bingo cards exhausted the hourly budget. Never ship
+  a type-ahead that calls an API per keystroke. Search stays Spotify-first
+  everywhere (better catalog/ranking than iTunes); a budget/bench denial makes
+  `searchSongs` return `[]`, so the existing iTunes fallback silently carries
+  a capped hour rather than showing a dead search box.
 - During a bench/budget denial, feed search falls back to iTunes results (no
   spotify_url/uri on those posts, so playlist sync skips them) and bracket
   creation returns a clean "cooling down" error; tag PROBES stay live (Last.fm
