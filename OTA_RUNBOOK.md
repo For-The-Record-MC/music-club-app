@@ -81,6 +81,15 @@ so for a hard crash on launch, expect some members to need to force-quit twice.
 - **Env vars bake at publish**: publishing from a shell without
   `EXPO_PUBLIC_SUPABASE_URL` etc. ships a bundle that can't reach the backend.
   The Action sets them explicitly; locally, source `app/.env.local` first.
-- **Fingerprint mismatch = silent no-op**: if an update doesn't apply, check
-  that no native-affecting change slipped in since the last build
-  (`npx expo-updates fingerprint:generate` to compare).
+- **Fingerprint mismatch = silent no-op**: if an update doesn't apply, compare
+  the update's Runtime Version (`eas update:list --branch production`) against
+  the last update that DID land — a changed hash means orphaned updates.
+  Burned us 2026-07-12: editing an `EXPO_PUBLIC_*` value in **eas.json**
+  changed the fingerprint even though env vars only bake into the JS bundle,
+  and two publishes shipped into the void. Fixed by pinning explicit
+  per-platform `runtimeVersion` values in app.json (the installed binaries'
+  fingerprints) — OTAs now target those stable strings. **When the next binary
+  is built**, set both pins to a clean value first (e.g. `"1.1.0"`) so the new
+  binary embeds it and future updates never depend on fingerprint drift.
+  (`app/.fingerprintignore` also excludes eas.json in case fingerprint policy
+  ever returns.)

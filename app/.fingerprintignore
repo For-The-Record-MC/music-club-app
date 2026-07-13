@@ -1,0 +1,11 @@
+# Files excluded from the expo-updates runtime fingerprint (which decides
+# whether an OTA update applies to an installed binary).
+#
+# eas.json: its EXPO_PUBLIC_* env values bake into the JS bundle at publish
+# time and never affect the native runtime — but fingerprinting hashes it by
+# default, so editing the Spotify client id there (2026-07-12 app swap)
+# silently orphaned every subsequent OTA: new fingerprint, no matching
+# binaries, updates published into the void. Build-relevant eas.json changes
+# (node/image versions, profiles) affect BUILDS, which get their own
+# fingerprint at build time anyway.
+eas.json
