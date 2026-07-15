@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { MentionInput, MentionText, resolveMentions, type MentionMember } from '@/components/Mentions';
+import { PreviewArt } from '@/components/PreviewArt';
 import { Avatar, Button, Card, InlineNote, Label, ListenButton, ListenLinks, Loading, NoClubSelected, Screen, TextField } from '@/components/ui';
 import { useBestBars, type BarRow } from '@/hooks/useBestBars';
 import { useClubData } from '@/hooks/useClubData';
@@ -304,7 +305,16 @@ function BarCard({
       <Text style={[styles.lyric, { color: palette.text1 }]}>“{bar.lyric}”</Text>
 
       <View style={styles.songRow}>
-        {bar.artwork_url ? <Image source={{ uri: bar.artwork_url }} style={styles.artSm} contentFit="cover" /> : null}
+        {bar.artwork_url ? (
+          <PreviewArt
+            id={`bars:${bar.id}`}
+            uri={bar.artwork_url}
+            previewUrl={bar.preview_url}
+            title={bar.title}
+            artist={bar.artist ?? undefined}
+            style={styles.artSm}
+          />
+        ) : null}
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text numberOfLines={1} style={[styles.sTitle, { color: palette.text2 }]}>{bar.title}</Text>
           {bar.artist ? <Text numberOfLines={1} style={[styles.sArtist, { color: palette.text3 }]}>{bar.artist}</Text> : null}

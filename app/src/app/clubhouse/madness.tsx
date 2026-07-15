@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { MentionInput, MentionText, resolveMentions, type MentionMember } from '@/components/Mentions';
+import { PreviewArt } from '@/components/PreviewArt';
 import { Avatar, Button, Card, InlineNote, Label, ListenButton, ListenLinks, Loading, NoClubSelected, Screen, TextField } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
 import { useCycle } from '@/hooks/useCycle';
@@ -1036,7 +1037,9 @@ function LiveBracket({
                     <View style={styles.ffRow}>
                       {finalFour.map((t) => (
                         <View key={t.id} style={styles.ffItem}>
-                          {t.artwork_url ? <Image source={{ uri: t.artwork_url }} style={styles.art} contentFit="cover" /> : null}
+                          {t.artwork_url ? (
+                            <PreviewArt id={`madness:${t.id}`} uri={t.artwork_url} previewUrl={t.preview_url} title={t.title} style={styles.art} />
+                          ) : null}
                           <Text numberOfLines={2} style={[styles.ffTitle, { color: palette.text2 }]}>{t.title}</Text>
                         </View>
                       ))}
@@ -1129,7 +1132,9 @@ function VersusCard({ a, b, onPick }: { a: BracketTrack; b: BracketTrack; onPick
   const { palette } = useTheme();
   const side = (t: BracketTrack) => (
     <View style={[styles.vsSide, { borderColor: palette.border, backgroundColor: palette.card2 }]}>
-      {t.artwork_url ? <Image source={{ uri: t.artwork_url }} style={styles.vsArt} contentFit="cover" /> : null}
+      {t.artwork_url ? (
+        <PreviewArt id={`madness:${t.id}`} uri={t.artwork_url} previewUrl={t.preview_url} title={t.title} style={styles.vsArt} glyphSize={16} />
+      ) : null}
       <Text style={[styles.seedBadge, { color: palette.amber }]}>#{t.seed}</Text>
       <Text numberOfLines={2} style={[styles.vsTitle, { color: palette.text1 }]}>{t.title}</Text>
       {t.artist ? <Text numberOfLines={1} style={[styles.sArtist, { color: palette.text2 }]}>{t.artist}</Text> : null}
@@ -1153,7 +1158,14 @@ function TrackRow({ track, big }: { track: BracketTrack; big?: boolean }) {
   return (
     <View style={[styles.songRow, big && { marginTop: 8 }]}>
       {track.artwork_url ? (
-        <Image source={{ uri: track.artwork_url }} style={big ? styles.artLg : styles.art} contentFit="cover" />
+        <PreviewArt
+          id={`madness:${track.id}`}
+          uri={track.artwork_url}
+          previewUrl={track.preview_url}
+          title={track.title}
+          style={big ? styles.artLg : styles.art}
+          glyphSize={big ? 16 : 12}
+        />
       ) : null}
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text numberOfLines={2} style={[big ? styles.champTitle : styles.sTitle, { color: palette.text1 }]}>

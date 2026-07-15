@@ -5,6 +5,7 @@ import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { MentionInput, MentionText, resolveMentions, type MentionMember } from '@/components/Mentions';
 import { PlaylistComposer } from '@/components/PlaylistComposer';
+import { PreviewArt } from '@/components/PreviewArt';
 import { ShareComposer } from '@/components/ShareComposer';
 import { Avatar, BottomSheet, Button, Card, InlineNote, Label, ListenButton, ListenLinks, Loading, NoClubSelected, Screen } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
@@ -36,6 +37,12 @@ import { fonts, radius } from '@/theme';
 function artworkOf(post: FeedRow): string | null {
   const m = post.metadata as { artwork?: string } | null;
   return m?.artwork ?? null;
+}
+
+// 30s Apple preview stashed in metadata by the apple-music resolver.
+function previewOf(post: FeedRow): string | null {
+  const m = post.metadata as { preview_url?: string } | null;
+  return m?.preview_url ?? null;
 }
 
 // The listen links to render on a post. New posts carry both in metadata; older
@@ -413,7 +420,14 @@ function PostCard({
 
       <View style={styles.postBody}>
         {artworkOf(post) ? (
-          <Image source={{ uri: artworkOf(post)! }} style={styles.postArt} contentFit="cover" />
+          <PreviewArt
+            id={`feed:${post.id}`}
+            uri={artworkOf(post)}
+            previewUrl={previewOf(post)}
+            title={post.title ?? undefined}
+            artist={post.artist ?? undefined}
+            style={styles.postArt}
+          />
         ) : null}
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={[styles.postTitle, { color: palette.text1 }]}>{post.title}</Text>

@@ -2,7 +2,7 @@
   "expo": {
     "name": "For The Record MC",
     "slug": "music-club-app",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "fortherecordmc",
@@ -11,12 +11,13 @@
       "bundleIdentifier": "com.jordanreticker.fortherecordmc",
       "supportsTablet": false,
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleDisplayName": "FTR mc"
       },
       "entitlements": {
         "aps-environment": "production"
       },
-      "runtimeVersion": "731a25bc2842ae8d6396a3315e7eda90e66b4698"
+      "runtimeVersion": "a6a332c53489581714fc9447a6b5fe5f83640e77"
     },
     "android": {
       "adaptiveIcon": {
@@ -25,7 +26,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "runtimeVersion": "f655d5b46e143ead2ffdb31252569a1516f16767"
+      "runtimeVersion": "1.0.2"
     },
     "web": {
       "output": "static",
@@ -50,7 +51,8 @@
           "icon": "./assets/images/icon.png",
           "color": "#080808"
         }
-      ]
+      ],
+      "expo-audio"
     ],
     "experiments": {
       "typedRoutes": true,

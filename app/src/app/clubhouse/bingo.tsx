@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { MentionInput, MentionText, resolveMentions, type MentionMember } from '@/components/Mentions';
+import { PreviewArt } from '@/components/PreviewArt';
 import { SongSearchField, type PickedSong } from '@/components/SongSearchField';
 import { Avatar, Button, Card, InlineNote, Label, ListenButton, ListenLinks, Loading, NoClubSelected, Screen, TextField } from '@/components/ui';
 import { useClubData } from '@/hooks/useClubData';
@@ -855,7 +856,16 @@ function BoxPanel({
       {box.title && !swapping ? (
         <>
           <View style={styles.songRow}>
-            {box.artwork_url ? <Image source={{ uri: box.artwork_url }} style={styles.art} contentFit="cover" /> : null}
+            {box.artwork_url ? (
+              <PreviewArt
+                id={`bingo:${box.id}`}
+                uri={box.artwork_url}
+                previewUrl={box.preview_url}
+                title={box.title ?? undefined}
+                artist={box.artist ?? undefined}
+                style={styles.art}
+              />
+            ) : null}
             <View style={{ flex: 1, minWidth: 0 }}>
               {/* Rarity rides the title row (never truncated); the artist line
                   used to carry it, where a long artist name pushed it out of view. */}
@@ -1015,7 +1025,17 @@ function VerifyClaim({
                 {catById.get(box.category_id) ?? ''}
               </Text>
               <View style={styles.songRow}>
-                {box.artwork_url ? <Image source={{ uri: box.artwork_url }} style={styles.artSm} contentFit="cover" /> : null}
+                {box.artwork_url ? (
+                  <PreviewArt
+                    id={`bingo:${box.id}`}
+                    uri={box.artwork_url}
+                    previewUrl={box.preview_url}
+                    title={box.title ?? undefined}
+                    artist={box.artist ?? undefined}
+                    style={styles.artSm}
+                    glyphSize={10}
+                  />
+                ) : null}
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text numberOfLines={2} style={[styles.sTitle, { color: palette.text1 }]}>{box.title ?? '?'}</Text>
                   <Text numberOfLines={2} style={[styles.sSub, { color: palette.text3 }]}>{box.artist}</Text>
@@ -1120,7 +1140,16 @@ function OtherBoards({
                     <Text style={[styles.boxCategory, { color: palette.text1 }]}>{catById.get(peekBox.category_id) ?? ''}</Text>
                     {peekBox.title ? (
                       <View style={styles.songRow}>
-                        {peekBox.artwork_url ? <Image source={{ uri: peekBox.artwork_url }} style={styles.art} contentFit="cover" /> : null}
+                        {peekBox.artwork_url ? (
+                          <PreviewArt
+                            id={`bingo:${peekBox.id}`}
+                            uri={peekBox.artwork_url}
+                            previewUrl={peekBox.preview_url}
+                            title={peekBox.title ?? undefined}
+                            artist={peekBox.artist ?? undefined}
+                            style={styles.art}
+                          />
+                        ) : null}
                         <View style={{ flex: 1, minWidth: 0 }}>
                           <View style={styles.titleRow}>
                             <Text numberOfLines={1} style={[styles.sTitle, { color: palette.text1, flexShrink: 1 }]}>{peekBox.title}</Text>

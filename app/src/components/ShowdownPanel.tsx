@@ -2,6 +2,7 @@ import { Image } from 'expo-image';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { PreviewArt } from '@/components/PreviewArt';
 import { SongSearchField, type PickedSong } from '@/components/SongSearchField';
 import { ThemePanel } from '@/components/ThemePanel';
 import { Avatar, BottomSheet, Button, Card, InlineNote, Label, ListenButton, ListenLinks } from '@/components/ui';
@@ -141,11 +142,14 @@ function SongRow({ entry, palette, rank }: { entry: ShowdownEntry; palette: Pale
   return (
     <View style={styles.songRow}>
       {rank ? <Text style={[styles.rank, { color: palette.text3 }]}>{rank}</Text> : null}
-      {entry.artwork_url ? (
-        <Image source={{ uri: entry.artwork_url }} style={styles.art} contentFit="cover" />
-      ) : (
-        <View style={[styles.art, { backgroundColor: palette.card2 }]} />
-      )}
+      <PreviewArt
+        id={`showdown:${entry.id}`}
+        uri={entry.artwork_url}
+        previewUrl={entry.preview_url}
+        title={entry.title}
+        artist={entry.artist}
+        style={styles.art}
+      />
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text numberOfLines={1} style={[styles.songTitle, { color: palette.text1 }]}>{entry.title}</Text>
         <Text numberOfLines={1} style={[styles.songArtist, { color: palette.text2 }]}>{entry.artist}</Text>
