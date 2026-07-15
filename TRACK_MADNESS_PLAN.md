@@ -134,11 +134,12 @@ decade, mood) — instead of one artist. Creation flow gets Artist/Theme tabs;
 everything downstream (picks, consensus, spoiler guard, solo scope, stats,
 import) is track-id-based and unchanged.
 
-- **Sourcing**: `tag.getTopTracks` (2 pages), seeded in **tag-relevance rank
-  order** — deliberately NOT re-ranked by global playcount, which would let
-  crossover hits bury genre-defining cuts. Playcounts are fetched per track
-  (`track.getInfo`, shared helper `_shared/lastfm.ts`, extracted from
-  track-stats) for display only.
+- **Sourcing**: `tag.getTopTracks` (2 pages) selects the candidate POOL;
+  seeding ORDER is all-time playcount per track (`track.getInfo`, shared
+  helper `_shared/lastfm.ts`). Originally seeded by tag-relevance rank, but
+  real tags proved erratic ("90s hip hop" ranked MC Breed over Biggie) and
+  seeds that ignore the visible playcounts read as a bug — revised with
+  Jordan on launch night. Crossover bias is handled by the artist cap + swaps.
 - **Two-per-artist cap** at seeding so a narrow tag doesn't collapse into an
   artist bracket in disguise; next eligible track promotes up.
 - **Theme input**: free text + debounced probe (`{tag, probe:true}` → cheap

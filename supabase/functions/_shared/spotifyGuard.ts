@@ -34,18 +34,22 @@ async function rpc(g: Guard, fn: string, args: Record<string, unknown>): Promise
 
 export interface BudgetVerdict {
   ok: boolean
+  granted?: number // may be less than requested — resolve what the window allows
   reason?: 'benched' | 'budget'
   until?: string
 }
 
-/** Reserve `calls` from the shared hourly budget. Fails open. */
+/** Reserve up to `calls` from the shared hourly budget (partial grants).
+ * Fails open with a full grant. */
 export async function acquireSpotifyBudget(g: Guard | null, calls: number): Promise<BudgetVerdict> {
-  if (!g || calls <= 0) return { ok: true }
+  if (!g || calls <= 0) return { ok: true, granted: calls }
   try {
     const v = (await rpc(g, 'spotify_acquire', { p_calls: calls })) as BudgetVerdict
-    return v && typeof v.ok === 'boolean' ? v : { ok: true }
+    if (!v || typeof v.ok !== 'boolean') return { ok: true, granted: calls }
+    if (v.ok && typeof v.granted !== 'number') v.granted = calls // pre-v2 RPC shape
+    return v
   } catch {
-    return { ok: true }
+    return { ok: true, granted: calls }
   }
 }
 

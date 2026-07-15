@@ -295,37 +295,50 @@ export interface SeedResult {
   source: 'lastfm' | 'spotify' | 'lastfm-tag';
 }
 
-function toSeedResult(
-  data: (SeedResult & { ok?: false; message?: string }) | null,
-  error: unknown,
-): SeedResult | null {
-  if (error || !data || data.ok === false || !Array.isArray(data.results)) return null;
+// A failure the server explained (e.g. the Spotify budget cooling down) —
+// worth showing verbatim instead of a generic "try again".
+export interface SeedFailure {
+  message: string;
+}
+
+async function invokeSeed(body: Record<string, unknown>): Promise<SeedResult | SeedFailure | null> {
+  const { data, error } = await supabase.functions.invoke<SeedResult & { ok?: false; message?: string }>(
+    'bracket-seed',
+    { body },
+  );
+  if (error) {
+    // Non-2xx responses land here with the response attached as `context`;
+    // the function's { ok:false, message } bodies are user-fit — surface them.
+    try {
+      const ctx = (error as { context?: Response }).context;
+      const payload = ctx ? await ctx.json() : null;
+      if (payload?.message) return { message: String(payload.message) };
+    } catch {
+      // unreadable body — fall through to the generic failure
+    }
+    return null;
+  }
+  if (!data || data.ok === false || !Array.isArray(data.results)) {
+    return data?.message ? { message: String(data.message) } : null;
+  }
   const source =
     data.source === 'spotify' ? 'spotify' : data.source === 'lastfm-tag' ? 'lastfm-tag' : 'lastfm';
   return { results: data.results, source };
 }
 
 // Fetch the ranked candidate list for an artist (up to 64 + alternates).
-// Returns null on any failure so the creation screen can show a retry.
-export async function fetchSeedCandidates(
+// Null = generic failure (the creation screen shows a retry).
+export function fetchSeedCandidates(
   artistId: string,
   artistName: string,
-): Promise<SeedResult | null> {
-  const { data, error } = await supabase.functions.invoke<SeedResult & { ok?: false; message?: string }>(
-    'bracket-seed',
-    { body: { artistId, artistName } },
-  );
-  return toSeedResult(data, error);
+): Promise<SeedResult | SeedFailure | null> {
+  return invokeSeed({ artistId, artistName });
 }
 
-// Fetch the ranked candidate list for a theme (Last.fm tag), tag-relevance
-// order, max two tracks per artist.
-export async function fetchTagCandidates(tag: string): Promise<SeedResult | null> {
-  const { data, error } = await supabase.functions.invoke<SeedResult & { ok?: false; message?: string }>(
-    'bracket-seed',
-    { body: { tag } },
-  );
-  return toSeedResult(data, error);
+// Fetch the ranked candidate list for a theme (Last.fm tag): tag relevance
+// picks the field (max two tracks per artist), playcount orders the seeds.
+export function fetchTagCandidates(tag: string): Promise<SeedResult | SeedFailure | null> {
+  return invokeSeed({ tag });
 }
 
 // Cheap is-this-tag-any-good check for the debounced theme input: field depth

@@ -5686,6 +5686,7 @@ AS $function$
 declare
   v_state public.spotify_api_state;
   v_cap constant int := 200;
+  v_grant int;
 begin
   select * into v_state from spotify_api_state where id for update;
   if v_state.benched_until is not null and v_state.benched_until > now() then
@@ -5696,14 +5697,15 @@ begin
     v_state.window_calls := 0;
     v_state.window_start := now();
   end if;
-  if v_state.window_calls + p_calls > v_cap then
+  v_grant := least(greatest(p_calls, 0), v_cap - v_state.window_calls);
+  if v_grant <= 0 then
     return jsonb_build_object(
       'ok', false, 'reason', 'budget',
       'until', v_state.window_start + interval '1 hour'
     );
   end if;
-  update spotify_api_state set window_calls = window_calls + p_calls where id;
-  return jsonb_build_object('ok', true, 'remaining', v_cap - v_state.window_calls - p_calls);
+  update spotify_api_state set window_calls = window_calls + v_grant where id;
+  return jsonb_build_object('ok', true, 'granted', v_grant, 'remaining', v_cap - v_state.window_calls - v_grant);
 end;
 $function$
 ;

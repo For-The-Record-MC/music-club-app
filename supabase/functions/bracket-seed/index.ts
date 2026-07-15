@@ -9,11 +9,11 @@
 //   artist's Spotify catalog for links + artwork. When Last.fm has thin data,
 //   ranking falls back to Spotify's popularity score across the catalog.
 //
-// • Theme ({ tag, probe? }): a Last.fm tag's top tracks (genre/decade/mood) in
-//   tag-relevance rank order — the locked seeding rule; re-ranking by global
-//   playcount would let famous crossover hits bury the genre-defining cuts, so
-//   playcounts are fetched per track (track.getInfo) for DISPLAY only. Max two
-//   tracks per artist so a narrow tag doesn't collapse into an artist bracket.
+// • Theme ({ tag, probe? }): a Last.fm tag's top tracks (genre/decade/mood).
+//   Tag relevance selects the candidate POOL (with a two-per-artist cap so a
+//   narrow tag doesn't collapse into an artist bracket); seeding ORDER is
+//   all-time playcount (track.getInfo) — crossover bias is handled by the cap
+//   plus review-screen swaps, and Last.fm's raw tag ordering proved erratic.
 //   { probe: true } skips Spotify resolution and returns just { count, artists }
 //   — the creation screen's debounced is-this-tag-any-good check.
 //
@@ -98,17 +98,38 @@ function spotifyBenched(): boolean {
   return Date.now() < benchedUntil
 }
 
-async function spotifyGet(path: string, token: string): Promise<any> {
-  if (spotifyBenched()) throw new Error('Spotify is rate-limited — benched')
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+// Two kinds of 429: a rolling-limit BLIP (Retry-After of seconds — normal at
+// sustained concurrency; wait it out and retry, or a seeding silently loses
+// every in-flight title, which cost "90s hip hop" ~30 tracks on 2026-07-12)
+// vs an EXTENDED penalty (Retry-After of hours — persist the global bench and
+// fail fast).
+const BLIP_MAX_SECS = 60
+
+async function spotifyGet(path: string, token: string, attempt = 0): Promise<any> {
+  if (spotifyBenched()) {
+    const waitMs = benchedUntil - Date.now()
+    if (attempt === 0 && waitMs <= BLIP_MAX_SECS * 1000) {
+      await sleep(waitMs + 250)
+      return spotifyGet(path, token, 1)
+    }
+    throw new Error('Spotify is rate-limited — benched')
+  }
   const res = await fetch(`https://api.spotify.com/v1${path}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   if (res.status === 429) {
-    const ra = Number(res.headers.get('Retry-After') ?? 60)
-    const secs = Math.min(Number.isFinite(ra) ? ra : 60, 86400)
+    const ra = Number(res.headers.get('Retry-After') ?? 5)
+    const secs = Math.min(Number.isFinite(ra) ? ra : 5, 86400)
     benchedUntil = Date.now() + secs * 1000
-    // Persist so every worker of every function backs off, not just this one.
-    benchSpotifyGlobally(guardFromEnv(), secs)
+    if (secs > BLIP_MAX_SECS) {
+      // Persist so every worker of every function backs off, not just this one.
+      benchSpotifyGlobally(guardFromEnv(), secs)
+    } else if (attempt === 0) {
+      await sleep(secs * 1000 + 250)
+      return spotifyGet(path, token, 1)
+    }
   }
   if (!res.ok) {
     const snippet = (await res.text().catch(() => '')).slice(0, 300)
@@ -367,15 +388,18 @@ async function resolveField(opts: {
       denied = true
     } else {
       const verdict = await acquireSpotifyBudget(guard, unknown.length)
-      if (!verdict.ok) {
-        denied = true
-      } else {
+      const granted = verdict.ok ? verdict.granted ?? unknown.length : 0
+      // Partial grant: resolve the best-ranked slice the window allows — a
+      // smaller field beats no field. denied flags any shortfall so the
+      // handler can explain when the result is too thin to play.
+      denied = granted < unknown.length
+      if (granted > 0) {
         const token = await getToken()
         const hitIds = new Set(
           [...cached.values()].filter((c) => !c.miss && c.spotify_id).map((c) => c.spotify_id),
         )
         resolvedNew = await resolveMisses(
-          unknown,
+          unknown.slice(0, granted),
           Math.max(0, target - cachedHitCount),
           artistId,
           token,
@@ -553,12 +577,17 @@ Deno.serve(async (req) => {
         withArtist: true,
         getToken: () => getAppToken(clientId, clientSecret),
       })
-      // A bench/budget denial only matters if the cache alone couldn't fill a
-      // playable field.
+      // A bench/budget shortfall only matters if the result is too thin to play.
       if (field.denied && field.results.length < 16) {
         return json({ ok: false, message: 'Spotify is cooling down from a rate limit — try again later.' }, 503)
       }
+      // Tag rank picks WHICH songs make the field; seeding order is all-time
+      // plays. (Originally seeded by tag rank, but Last.fm's ordering is
+      // erratic for broad tags — "90s hip hop" ranked MC Breed over Biggie —
+      // and seeds that ignore the visible playcounts read as a bug. Decided
+      // with Jordan 2026-07-12.)
       await attachPlaycounts(field.results, lastfmKey)
+      field.results.sort((a, b) => b.playcount - a.playcount)
       return json({ results: field.results, source: 'lastfm-tag' })
     }
 

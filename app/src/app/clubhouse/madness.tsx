@@ -284,7 +284,14 @@ function CreateBracket({ clubId, onCreated, scope = 'club' }: { clubId: string; 
   // 1-based seed being replaced, or 'add' when appending to a thin theme field.
   const [swapSeed, setSwapSeed] = useState<number | 'add' | null>(null);
 
-  const applySeedResult = (res: { results: SeedCandidate[]; source: typeof source } | null): boolean => {
+  const applySeedResult = (
+    res: { results: SeedCandidate[]; source: typeof source } | { message: string } | null,
+  ): boolean => {
+    if (res && 'message' in res) {
+      // The server explained itself (e.g. Spotify budget cooling down).
+      setError(res.message);
+      return false;
+    }
     if (!res || res.results.length < 16) {
       setError(
         res
@@ -448,7 +455,7 @@ function CreateBracket({ clubId, onCreated, scope = 'club' }: { clubId: string; 
           <Text style={[styles.hint, { color: palette.text3 }]}>
             Seeded by{' '}
             {source === 'lastfm-tag'
-              ? 'tag relevance (Last.fm), max two songs per artist'
+              ? 'all-time plays (Last.fm), max two songs per artist'
               : source === 'lastfm'
                 ? 'all-time plays (Last.fm)'
                 : 'Spotify popularity'}{' '}

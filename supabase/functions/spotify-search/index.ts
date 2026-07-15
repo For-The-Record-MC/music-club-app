@@ -73,10 +73,12 @@ import { acquireSpotifyBudget, benchSpotifyGlobally, guardFromEnv } from '../_sh
 let benchedUntil = 0
 
 function benchFrom(res: Response): void {
-  const ra = Number(res.headers.get('Retry-After') ?? 60)
-  const secs = Math.min(Number.isFinite(ra) ? ra : 60, 86400)
+  const ra = Number(res.headers.get('Retry-After') ?? 5)
+  const secs = Math.min(Number.isFinite(ra) ? ra : 5, 86400)
   benchedUntil = Date.now() + secs * 1000
-  benchSpotifyGlobally(guardFromEnv(), secs)
+  // Only hour-scale penalties go global — a seconds-long rolling blip isn't
+  // worth denying every other worker's searches over.
+  if (secs > 60) benchSpotifyGlobally(guardFromEnv(), secs)
 }
 
 async function getAppToken(clientId: string, clientSecret: string): Promise<string> {
