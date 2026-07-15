@@ -353,6 +353,8 @@ function LiveGame({
 
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Standings row expanded to its line breakdown (claim id; one at a time).
+  const [openBingo, setOpenBingo] = useState<string | null>(null);
 
   const verifiedClaims = useMemo(
     () =>
@@ -462,17 +464,59 @@ function LiveGame({
             const card = cardById.get(c.card_id);
             const m = card ? memberById(card.profile_id) : null;
             const medal = i === 0 ? '🏆' : i === 1 ? '🥈' : i === 2 ? '🥉' : '🎱';
-            const rarity = lineRarity(c.line_index, boxesByCard.get(c.card_id) ?? new Map());
+            const boxesByPos = boxesByCard.get(c.card_id) ?? new Map<number, BingoBox>();
+            const rarity = lineRarity(c.line_index, boxesByPos);
+            const isOpen = openBingo === c.id;
             return (
-              <View key={c.id} style={styles.standingRow}>
-                <Text style={{ fontSize: 16 }}>{medal}</Text>
-                <Avatar name={m?.display_name ?? null} colorIndex={m?.avatar_color ?? 0} imageUrl={m?.avatar_url} size={24} />
-                <Text style={[styles.sTitle, { color: palette.text1, flex: 1 }]} numberOfLines={1}>
-                  {memberName(m?.display_name, m?.email)} · {lineName(c.line_index)}
-                  {rarity != null ? <Text style={{ color: palette.text3 }}>{'  💎 '}{rarity}</Text> : null}
-                </Text>
-                {c.self_certified ? (
-                  <Text style={[styles.selfBadge, { color: palette.text3, borderColor: palette.border }]}>SELF-CERTIFIED</Text>
+              <View key={c.id}>
+                <Pressable onPress={() => setOpenBingo(isOpen ? null : c.id)} style={styles.standingRow}>
+                  <Text style={{ fontSize: 16 }}>{medal}</Text>
+                  <Avatar name={m?.display_name ?? null} colorIndex={m?.avatar_color ?? 0} imageUrl={m?.avatar_url} size={24} />
+                  <Text style={[styles.sTitle, { color: palette.text1, flex: 1 }]} numberOfLines={1}>
+                    {memberName(m?.display_name, m?.email)} · {lineName(c.line_index)}
+                    {rarity != null ? <Text style={{ color: palette.text3 }}>{'  💎 '}{rarity}</Text> : null}
+                  </Text>
+                  {c.self_certified ? (
+                    <Text style={[styles.selfBadge, { color: palette.text3, borderColor: palette.border }]}>SELF-CERTIFIED</Text>
+                  ) : null}
+                  <Text style={{ color: palette.text3 }}>{isOpen ? '▾' : '▸'}</Text>
+                </Pressable>
+                {isOpen ? (
+                  <View style={[styles.bingoDetail, { borderColor: palette.border }]}>
+                    {linePositions(c.line_index).map((pos) => {
+                      if (pos === FREE_POSITION) {
+                        return (
+                          <View key={pos} style={styles.bingoDetailRow}>
+                            <Text style={[styles.sSub, { color: palette.amber }]}>⭐ Free space — center square, on the house</Text>
+                          </View>
+                        );
+                      }
+                      const box = boxesByPos.get(pos);
+                      if (!box) return null;
+                      const score = box.lastfm_playcount != null ? rarityScore(box.lastfm_playcount) : null;
+                      return (
+                        <View key={pos} style={styles.bingoDetailRow}>
+                          <View style={{ flex: 1, minWidth: 0 }}>
+                            <Text numberOfLines={1} style={[styles.sSub, { color: palette.text3 }]}>
+                              {catById.get(box.category_id) ?? ''}
+                            </Text>
+                            <Text numberOfLines={1} style={[styles.sTitle, { color: palette.text1 }]}>
+                              {box.title ?? '?'}
+                              <Text style={[styles.sSub, { color: palette.text2 }]}> · {box.artist}</Text>
+                            </Text>
+                          </View>
+                          <View style={{ alignItems: 'flex-end' }}>
+                            <Text style={[styles.sTitle, { color: palette.text2 }]}>
+                              {score != null ? `💎 ${score}` : '—'}
+                            </Text>
+                            {box.lastfm_playcount != null ? (
+                              <Text style={[styles.sSub, { color: palette.text3 }]}>{formatPlays(box.lastfm_playcount)}</Text>
+                            ) : null}
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
                 ) : null}
               </View>
             );
@@ -1319,6 +1363,14 @@ const styles = StyleSheet.create({
   artSm: { width: 34, height: 34, borderRadius: radius.sm },
   swapLink: { fontFamily: fonts.sansMedium, fontSize: 12, textDecorationLine: 'underline' },
   standingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+  bingoDetail: {
+    borderLeftWidth: 2,
+    marginLeft: 7,
+    paddingLeft: 12,
+    marginTop: 4,
+    marginBottom: 2,
+  },
+  bingoDetailRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 5 },
   selfBadge: {
     fontFamily: fonts.monoMedium,
     fontSize: 8,
